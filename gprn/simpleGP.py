@@ -41,7 +41,7 @@ class simpleGP(object):
         """
         #if time is None we use the time of our simpleGP
         if time is None:
-            r = self.t[:, None] - self.t[None, :]
+            r = self.time[:, None] - self.time[None, :]
         #if we define a new time we will use that time
         else:
             r = time[:, None] - time[None, :]
@@ -155,7 +155,7 @@ class simpleGP(object):
         if mean:
             #in case we defined a new mean function
             mean = mean
-            y = self.y - mean(self.t)
+            y = self.y - mean(self.time)
         else:
             mean = self.mean
             if mean is None:
@@ -163,7 +163,7 @@ class simpleGP(object):
                 y = self.y 
             else:
                 #in case we defined a mean at the start of our simpleGP
-                y = self.y - self.mean(self.t)
+                y = self.y - self.mean(self.time)
 
         #log marginal likelihood calculation
         try:

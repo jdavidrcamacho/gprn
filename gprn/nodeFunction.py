@@ -104,12 +104,10 @@ class Periodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 \
-                                       /self.ell**2) \
+            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2) \
                     +self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 \
-                                       /self.ell**2)
+            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
 
 ##### Quasi Periodic ###########################################################
 class QuasiPeriodic(nodeFunction):
