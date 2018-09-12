@@ -5,6 +5,9 @@
     To import everything
 """
 
-from saiyangp import weightFunction
-from saiyangp import nodeFunction
-
+#weight functions
+from gprn import weightFunction
+#node funtions
+from gprn import nodeFunction
+#simple gp regression
+from gprn import simpleGP
