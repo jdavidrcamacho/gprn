@@ -45,6 +45,11 @@ class Constant(weightFunction):
     def __call__(self, r):
         return self.c * np.ones_like(r)
 
+    def dConstant_dc(self, r):
+        """
+            Log-derivative in order to c
+        """
+        return self.c * np.ones_like(r)
 
 ##### White Noise ##############################################################
 class WhiteNoise(weightFunction):
@@ -61,6 +66,12 @@ class WhiteNoise(weightFunction):
 
     def __call__(self, r):
         return self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+
+    def dWhiteNoise_dwn(self, r):
+        """
+            Log-derivative in order to the amplitude
+        """
+        return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
 
 
 ##### Squared exponential ######################################################
@@ -79,6 +90,13 @@ class SquaredExponential(weightFunction):
     def __call__(self, r):
         return exp(-0.5 * r**2 / self.ell**2)
 
+    def dSquaredExponential_dell(self, r):
+        """
+            Log-derivative in order to the ell
+        """
+        return (r**2 / self.ell**2) * exp(-0.5 * r**2 / self.ell**2)
+
+
 ##### Periodic #################################################################
 class Periodic(weightFunction):
     """
@@ -95,6 +113,12 @@ class Periodic(weightFunction):
 
     def __call__(self, r):
         return exp( -2 * sine(pi*np.abs(r)/self.P)**2 /self.ell**2)
+
+    def dPeriodic_dell(self, r):
+        raise Exception("Not implemented yet")
+
+    def dPeriodic_dP(self, r):
+        raise Exception("Not implemented yet")
 
 
 ##### Quasi Periodic ###########################################################
@@ -119,6 +143,15 @@ class QuasiPeriodic(weightFunction):
         return exp(- 2*sine(pi*np.abs(r)/self.P)**2 /self.ell_p**2 \
                                    - r**2/(2*self.ell_e**2))
 
+    def dQuasiPeriodic_dell_e(self, r):
+        raise Exception("Not implemented yet")
+
+    def dQuasiPeriodic_dP(self, r):
+        raise Exception("Not implemented yet")
+
+    def dQuasiPeriodic_dell_p(self, r):
+        raise Exception("Not implemented yet")
+
 
 ##### Rational Quadratic #######################################################
 class RationalQuadratic(weightFunction):
@@ -137,6 +170,12 @@ class RationalQuadratic(weightFunction):
     def __call__(self, r):
         return 1 / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
 
+    def dRationalQuadratic_dalpha(self, r):
+        raise Exception("Not implemented yet")
+
+    def dRationalQuadratic_dell(self, r):
+        raise Exception("Not implemented yet")
+        
 
 ##### RQP kernel ###############################################################
 class RQP(weightFunction):
@@ -163,6 +202,18 @@ class RQP(weightFunction):
         return exp(- (2*sine(pi*np.abs(r)/self.P)**2) /self.ell_p**2) \
                     /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
 
+    def dRQP_dalpha(self, r):
+        raise Exception("Not implemented yet")
+
+    def dRQP_dell_e(self, r):
+        raise Exception("Not implemented yet")
+
+    def dRQP_dP(self, r):
+        raise Exception("Not implemented yet")
+
+    def dRQP_dell_p(self, r):
+        raise Exception("Not implemented yet")
+
 
 ##### Cosine ###################################################################
 class Cosine(weightFunction):
@@ -180,6 +231,9 @@ class Cosine(weightFunction):
     def __call__(self, r):
         return cosine(2*pi*np.abs(r) / self.P)
 
+    def dCosine_dP(self, r):
+        raise Exception("Not implemented yet")
+        
 
 ##### Exponential ##############################################################
 class Exponential(weightFunction):
@@ -196,6 +250,9 @@ class Exponential(weightFunction):
 
     def __call__(self, r): 
         return exp(- np.abs(r)/self.ell)
+
+    def dExpoential_dell(self, r):
+        raise Exception("Not implemented yet")
 
 
 ##### Matern 3/2 ###############################################################
@@ -216,6 +273,9 @@ class Matern32(weightFunction):
         return (1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
                     *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
+    def dMatern32_dell(self, r):
+        raise Exception("Not implemented yet")
+
 
 #### Matern 5/2 ################################################################
 class Matern52(weightFunction):
@@ -235,3 +295,9 @@ class Matern52(weightFunction):
         return (1.0 + ( 3*np.sqrt(5)*self.ell*np.abs(r) \
                                            +5*np.abs(r)**2)/(3*self.ell**2) ) \
                                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
+
+    def dMatern52_dell(self, r):
+        raise Exception("Not implemented yet")
+
+
+### END

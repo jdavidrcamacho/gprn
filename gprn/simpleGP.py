@@ -205,7 +205,7 @@ class simpleGP(object):
         if weight_value:
             weight_value = weight_value
         else:
-            weight_value = 1
+            weight_value = 1            # not sure if this makes sense
         #calculate mean and residuals
         if mean:
             mean = mean
