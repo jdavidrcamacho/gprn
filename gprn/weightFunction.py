@@ -80,21 +80,30 @@ class SquaredExponential(weightFunction):
         Squared Exponential kernel, also known as radial basis function or RBF 
     kernel in other works.
         Parameters:
+            weight = weight/amplitude of the kernel
             ell = length-scale
     """
-    def __init__(self, ell):
-        super(SquaredExponential, self).__init__(ell)
+    def __init__(self, weight, ell):
+        super(SquaredExponential, self).__init__(weight, ell)
+        self.weight = weight
         self.ell = ell
         self.type = 'stationary and anisotropic'
 
     def __call__(self, r):
-        return exp(-0.5 * r**2 / self.ell**2)
+        return self.weight**2 * exp(-0.5 * r**2 / self.ell**2)
 
+    def dSquaredExponential_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        return 2 * self.weight**2 * exp(-0.5 * r**2 / self.ell**2)
+    
     def dSquaredExponential_dell(self, r):
         """
             Log-derivative in order to the ell
         """
-        return (r**2 / self.ell**2) * exp(-0.5 * r**2 / self.ell**2)
+        return (r**2 * self.weight**2 / self.ell**2) \
+                * exp(-0.5 * r**2 / self.ell**2)
 
 
 ##### Periodic #################################################################
@@ -102,23 +111,43 @@ class Periodic(weightFunction):
     """
         Definition of the periodic kernel.
         Parameters:
+            weight = weight/amplitude of the kernel
             ell = lenght scale
             P = period
     """
-    def __init__(self, ell, P):
-        super(Periodic, self).__init__(ell, P)
+    def __init__(self, weight, ell, P):
+        super(Periodic, self).__init__(weight, ell, P)
+        self.weight = weight
         self.ell = ell
         self.P = P
         self.type = 'non-stationary and isotropic'
 
     def __call__(self, r):
-        return exp( -2 * sine(pi*np.abs(r)/self.P)**2 /self.ell**2)
+        return self.weight**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 /self.ell**2)
+
+    def dPeriodic_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        return 2 * self.weight**2 * exp(-2 * sine(pi * np.abs(r) / self.P)**2 \
+                                        / self.ell**2)
 
     def dPeriodic_dell(self, r):
-        raise Exception("Not implemented yet")
+        """
+            Log-derivative in order to ell
+        """
+        return (4* self.weight**2 * sine(pi * np.abs(r) / self.P)**2 \
+                *exp(-2 * sine(pi * np.abs(r) / self.P)**2 \
+                     / self.ell**2)) / self.ell**2
 
     def dPeriodic_dP(self, r):
-        raise Exception("Not implemented yet")
+        """
+            Log-derivative in order to P
+        """
+        return (4 * pi * r * self.weight**2 \
+                * cosine(pi*np.abs(r) / self.P) *sine(pi*np.abs(r) / self.P) \
+                * exp(-2 * sine(pi*np.abs(r) / self.P)**2 / self.ell**2)) \
+                / (self.ell**2 * self.P)
 
 
 ##### Quasi Periodic ###########################################################
@@ -128,28 +157,45 @@ class QuasiPeriodic(weightFunction):
     and the squared exponential kernel, commonly known as the quasi-periodic 
     kernel.
         Parameters:
+            weight = weight/amplitude of the kernel
             ell_e = evolutionary time scale
             ell_p = length scale of the Periodic component
             P = kernel Periodicity
     """
-    def __init__(self, ell_e, P, ell_p):
-        super(QuasiPeriodic, self).__init__(ell_e, P, ell_p)
+    def __init__(self, weight, ell_e, P, ell_p):
+        super(QuasiPeriodic, self).__init__(weight, ell_e, P, ell_p)
+        self.weight = weight
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
         self.type = 'non-stationary and anisotropic'
 
     def __call__(self, r):
-        return exp(- 2*sine(pi*np.abs(r)/self.P)**2 /self.ell_p**2 \
-                                   - r**2/(2*self.ell_e**2))
+        return self.weight**2 *exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+                                   /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_dell_e(self, r):
+    def dQuasiPeriodic_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet")
+
+    def dQuasiPeriodic_delle(self, r):
+        """
+            Log-derivative in order to ell_e
+        """
         raise Exception("Not implemented yet")
 
     def dQuasiPeriodic_dP(self, r):
+        """
+            Log-derivative in order to P
+        """
         raise Exception("Not implemented yet")
 
-    def dQuasiPeriodic_dell_p(self, r):
+    def dQuasiPeriodic_dellp(self, r):
+        """
+            Log-derivative in order to ell_p
+        """
         raise Exception("Not implemented yet")
 
 
@@ -158,22 +204,36 @@ class RationalQuadratic(weightFunction):
     """
         Definition of the rational quadratic kernel.
         Parameters:
+            weight = weight/amplitude of the kernel
             alpha = weight of large and small scale variations
             ell = characteristic lenght scale to define the kernel "smoothness"
     """
-    def __init__(self, alpha, ell):
-        super(RationalQuadratic, self).__init__(alpha, ell)
+    def __init__(self, weight, alpha, ell):
+        super(RationalQuadratic, self).__init__(weight, alpha, ell)
+        self.weight = weight
         self.alpha = alpha
-        self.elll = ell
+        self.ell = ell
         self.type = 'stationary and anisotropic'
 
     def __call__(self, r):
-        return 1 / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
+        return self.weight**2 / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
+
+    def dRationalQuadratic_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet")
 
     def dRationalQuadratic_dalpha(self, r):
+        """
+            Log-derivative in order to alpha
+        """
         raise Exception("Not implemented yet")
 
     def dRationalQuadratic_dell(self, r):
+        """
+            Log-derivative in order to ell
+        """
         raise Exception("Not implemented yet")
         
 
@@ -185,13 +245,15 @@ class RQP(weightFunction):
         If I am thinking this correctly then this kernel should tend to the
     QuasiPeriodic kernel as alpha increases, although I am not sure if we can
     say that it tends to the QuasiPeriodic kernel as alpha tends to infinity.
-        Parameters
-        ell_e and ell_p = aperiodic and periodic lenght scales
-        alpha = alpha of the rational quadratic kernel
-        P = periodic repetitions of the kernel
+        Parameters:
+            weight = weight/amplitude of the kernel
+            ell_e and ell_p = aperiodic and periodic lenght scales
+            alpha = alpha of the rational quadratic kernel
+            P = periodic repetitions of the kernel
     """
-    def __init__(self, alpha, ell_e, P, ell_p):
-        super(RQP, self).__init__(alpha, ell_e, P, ell_p)
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(RQP, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
         self.alpha = alpha
         self.RQP_ell_e = ell_e
         self.P = P
@@ -199,19 +261,38 @@ class RQP(weightFunction):
         self.type = 'non-stationary and anisotropic'
 
     def __call__(self, r):
-        return exp(- (2*sine(pi*np.abs(r)/self.P)**2) /self.ell_p**2) \
+        return self.weight**2 * exp(- (2*sine(pi*np.abs(r)/self.P)**2) \
+                                    / self.ell_p**2) \
                     /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
 
-    def dRQP_dalpha(self, r):
+    def dRQP_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
         raise Exception("Not implemented yet")
 
-    def dRQP_dell_e(self, r):
+    def dRQP_dalpha(self, r):
+        """
+            Log-derivative in order to alpha
+        """
+        raise Exception("Not implemented yet")
+
+    def dRQP_delle(self, r):
+        """
+            Log-derivative in order to ell_e
+        """
         raise Exception("Not implemented yet")
 
     def dRQP_dP(self, r):
+        """
+            Log-derivative in order to P
+        """
         raise Exception("Not implemented yet")
 
-    def dRQP_dell_p(self, r):
+    def dRQP_dellp(self, r):
+        """
+            Log-derivative in order to ell_p
+        """
         raise Exception("Not implemented yet")
 
 
@@ -220,18 +301,28 @@ class Cosine(weightFunction):
     """
         Definition of the cosine kernel.
         Parameters:
+            weight = weight/amplitude of the kernel
             P = period
     """
-    def __init__(self, P):
-        super(Cosine, self).__init__(P)
-
+    def __init__(self, weight, P):
+        super(Cosine, self).__init__(weight, P)
+        self.weight = weight
         self.P = P
         self.type = 'non-stationary and isotropic'
 
     def __call__(self, r):
-        return cosine(2*pi*np.abs(r) / self.P)
+        return self.weight**2 * cosine(2*pi*np.abs(r) / self.P)
+
+    def dCosine_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet")
 
     def dCosine_dP(self, r):
+        """
+            Log-derivative in order to P
+        """
         raise Exception("Not implemented yet")
         
 
@@ -240,18 +331,29 @@ class Exponential(weightFunction):
     """
         Definition of the exponential kernel. This kernel arises when 
     setting v=1/2 in the matern family of kernels
-        Parameters
+        Parameters:
+            weight = weight/amplitude of the kernel
             ell = characteristic lenght scale
     """
-    def __init__(self, ell):
-        super(Exponential, self).__init__(ell)
+    def __init__(self, weight, ell):
+        super(Exponential, self).__init__(weight, ell)
+        self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
 
     def __call__(self, r): 
-        return exp(- np.abs(r)/self.ell)
+        return self.weight**2 * exp(- np.abs(r)/self.ell)
+
+    def dExponential_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet)
 
     def dExpoential_dell(self, r):
+        """
+            Log-derivative in order to ell
+        """
         raise Exception("Not implemented yet")
 
 
@@ -260,20 +362,32 @@ class Matern32(weightFunction):
     """
         Definition of the Matern 3/2 kernel. This kernel arise when setting 
     v=3/2 in the matern family of kernels
-        Parameters
-        theta = amplitude of the kernel
-        ell = characteristic lenght scale
+        Parameters:
+            weight = weight/amplitude of the kernel
+            theta = amplitude of the kernel
+            ell = characteristic lenght scale
     """
-    def __init__(self, ell):
-        super(Matern32, self).__init__(ell)
+    def __init__(self, weight, ell):
+        super(Matern32, self).__init__(weight, ell)
+        self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
 
     def __call__(self, r):
-        return (1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
+        return self.weight**2 *(1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
                     *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
+    def dMatern32_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet")
+
+
     def dMatern32_dell(self, r):
+        """
+            Log-derivative in order to ell
+        """
         raise Exception("Not implemented yet")
 
 
@@ -282,21 +396,32 @@ class Matern52(weightFunction):
     """
         Definition of the Matern 5/2 kernel. This kernel arise when setting 
     v=5/2 in the matern family of kernels
-        Parameters
-        theta = amplitude of the kernel
-        ell = characteristic lenght scale  
+        Parameters:
+            weight = weight/amplitude of the kernel
+            theta = amplitude of the kernel
+            ell = characteristic lenght scale  
     """
-    def __init__(self, ell):
-        super(Matern52, self).__init__(ell)
+    def __init__(self, weight, ell):
+        super(Matern52, self).__init__(weight, ell)
+        self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
 
     def __call__(self, r):
-        return (1.0 + ( 3*np.sqrt(5)*self.ell*np.abs(r) \
+        return self.weight**2 * (1.0 + ( 3*np.sqrt(5)*self.ell*np.abs(r) \
                                            +5*np.abs(r)**2)/(3*self.ell**2) ) \
                                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
 
+    def dMatern52_dweight(self, r):
+        """
+            Log-derivative in order to the weight
+        """
+        raise Exception("Not implemented yet")
+
     def dMatern52_dell(self, r):
+        """
+            Log-derivative in order to ell
+        """
         raise Exception("Not implemented yet")
 
 
