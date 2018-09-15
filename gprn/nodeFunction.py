@@ -125,15 +125,13 @@ class QuasiPeriodic(nodeFunction):
     and the squared exponential kernel, commonly known as the quasi-periodic 
     kernel.
         Parameters:
-            theta = kernel amplitude
             ell_e = evolutionary time scale
-            ell_p = length scale of the Periodic component
-            P = kernel Periodicity
+            P = kernel periodicity
+            ell_p = length scale of the periodic component
             wn = white noise
     """
-    def __init__(self, weight, ell_e, P, ell_p, wn):
-        super(QuasiPeriodic, self).__init__(weight, ell_e, P, ell_p, wn)
-        self.weight = weight
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(QuasiPeriodic, self).__init__(ell_e, P, ell_p, wn)
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
@@ -142,22 +140,47 @@ class QuasiPeriodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
-                                       /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+            return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+                       /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
+                       + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return self.weight **2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
-                                       /self.ell_p**2 - r**2/(2*self.ell_e**2))
+            return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+                       /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_dweight(self, r):
+    def dQuasiPeriodic_delle(self, r):
         """
-            Log-derivative in order to the amplitude
+            Log-derivative in order to ell_e
         """
-        return 2 * self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
-                                       /self.ell_p**2 - r**2/(2*self.ell_e**2))
-###To continue implementing
-#    def dQuasiPeriodic_dell(self, r):
-#        """
-#            Log-derivative in order to ell
-#        """
-#        return
+        return (r**2 * exp(-0.5 * r**2 / self.ell_e**2 \
+                           -2 * sine(pi * np.abs(r) / self.P)**2 \
+                           / self.ell_p**2)) / self.ell_e**2
+
+    def dQuasiPeriodic_dP(self, r):
+        """
+            Log-derivative in order to P
+        """
+        return (4 * pi * r * cosine(pi * np.abs(r) / self.P) \
+                * sine(pi * np.abs(r) / self.P) \
+                * exp(-0.5 * r**2 / self.ell_e**2 \
+                     - 2 * sine(pi * np.abs(r) /self.P)**2 / self.ell_p**2)) \
+                / (self.ell_p**2 * self.P)
+
+    def dQuasiPeriodic_dellp(self, r):
+        """
+            Log-derivative in order to ell_p
+        """
+        return (4 * sine(pi * np.abs(r) /self.P)**2 * exp(-0.5 * r**2 \
+                / self.ell_e**2 -2 * sine(pi*np.abs(r) / self.P)**2 \
+                      / self. ell_p**2)) / self.ell_p**2
+
+    def dQuasiPeriodic_dwn(self, r):
+        """
+            Log-derivative in order to wn
+        """
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+
+
+### END
