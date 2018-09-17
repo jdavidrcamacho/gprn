@@ -8,7 +8,7 @@ class weightFunction(object):
     """
         Definition the weight functions (kernels) of our GPRN.
         Kernels not fully implemented yet:
-            RationalQuadratic, RQP, Matern32, and Matern52
+            Matern32, and Matern52
     """
     def __init__(self, *args):
         """
@@ -315,24 +315,50 @@ class RationalQuadratic(weightFunction):
     def __call__(self, r):
         return self.weight**2 / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
 
-    def dRationalQuadratic_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
-        raise Exception("Not implemented yet")
+class dRationalQuadratic_dweight(RationalQuadratic):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, alpha, ell):
+        super(dRationalQuadratic_dweight, self).__init__(weight, alpha, ell)
+        self.weight = weight
+        self.alpha = alpha
+        self.ell = ell
 
-    def dRationalQuadratic_dalpha(self, r):
-        """
-            Log-derivative in order to alpha
-        """
-        raise Exception("Not implemented yet")
+    def __call__(self, r):
+        return 2 * self.weight**2 \
+                / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
 
-    def dRationalQuadratic_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
-        raise Exception("Not implemented yet")
-        
+class dRationalQuadratic_dalpha(RationalQuadratic):
+    """
+        Log-derivative in order to alpha
+    """
+    def __init__(self, weight, alpha, ell):
+        super(dRationalQuadratic_dalpha, self).__init__(weight, alpha, ell)
+        self.weight = weight
+        self.alpha = alpha
+        self.ell = ell
+
+    def __call(self, r):
+        return ((r**2/(2*self.alpha*self.ell**2*(r**2/(2*self.alpha*self.ell**2)+1))\
+                 - np.log(r**2/(2*self.alpha*self.ell**2)+1)) \
+                    * self.weight**2 * self.alpha) \
+                    / (1+r**2/(2*self.alpha*self.ell**2))**self.alpha
+
+class dRationalQuadratic_dell(RationalQuadratic):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, alpha, ell):
+        super(dRationalQuadratic_dell, self).__init__(weight, alpha, ell)
+        self.weight = weight
+        self.alpha = alpha
+        self.ell = ell
+
+    def __call(self, r):
+        return r**2 * (1+r**2/(2*self.alpha*self.ell**2))**(-1-self.alpha) \
+                * self.w**2 / self.ell**2
+
 
 ##### RQP kernel ###############################################################
 class RQP(weightFunction):
@@ -360,39 +386,96 @@ class RQP(weightFunction):
         self.params_size = 5    #number of hyperparameters
 
     def __call__(self, r):
-        return self.weight**2 * exp(- (2*sine(pi*np.abs(r)/self.P)**2) \
+        return self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                                     / self.ell_p**2) \
                     /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
 
-    def dRQP_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
-        raise Exception("Not implemented yet")
+class dRQP_dweight(RQP):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
 
-    def dRQP_dalpha(self, r):
-        """
-            Log-derivative in order to alpha
-        """
-        raise Exception("Not implemented yet")
+    def __call(self, r):
+        return 2 * self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+                                    / self.ell_p**2) \
+                    /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
 
-    def dRQP_delle(self, r):
-        """
-            Log-derivative in order to ell_e
-        """
-        raise Exception("Not implemented yet")
+class dRQP_dalpha(RQP):
+    """
+        Log-derivative in order to alpha
+    """
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
 
-    def dRQP_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
-        raise Exception("Not implemented yet")
+    def __call__(self, r):
+        return self.alpha * ((r**2 / (2*self.alpha \
+                         *self.ell_e**2*(r**2/(2*self.alpha*self.ell_e**2)+1)) \
+            -np.log(r**2/(2*self.alpha*self.ell_e**2)+1)) \
+            *self.w**2*exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+            /(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha
 
-    def dRQP_dellp(self, r):
-        """
-            Log-derivative in order to ell_p
-        """
-        raise Exception("Not implemented yet")
+class dRQP_delle(RQP):
+    """
+        Log-derivative in order to ell_e
+    """
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call__(self, r):
+        return (r**2*(1+r**2/(2*self.alpha*self.ell_e**2))**(-1-self.alpha) \
+                *self.w**2 \
+                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2))/self.ell_e**2
+
+class dRQP_dP(RQP):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call__(self, r):
+        return (4*pi*r*self.w**2*cosine(pi*np.abs(r)/self.P)*sine(pi*np.abs(r)/self.P) \
+                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+            /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))^self.alpha*self.P)
+
+class dRQP_dellp(RQP):
+    """
+        Log-derivative in order to ell_p
+    """
+    def __init__(self, weight, alpha, ell_e, P, ell_p):
+        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+        self.weight = weight
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call(self, r):
+        return (4*self.w**2*sine(pi*np.abs(r)/self.P)**2 \
+                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+                /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
 
 
 ##### Cosine ###################################################################

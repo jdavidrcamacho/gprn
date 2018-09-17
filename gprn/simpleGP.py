@@ -68,7 +68,7 @@ class simpleGP(object):
             m = mean(self.time)
         return m
 
-
+##### marginal likelihood functions
     def _covariance_matrix(self, node, weight, time):
         """ 
             Creates the covariance matrix that will be used for the
@@ -98,8 +98,6 @@ class simpleGP(object):
         A_ii = A_ii + a_ii
         return A_ii
 
-
-##### marginal likelihood functions
     def compute_matrix(self, node, weight, time, 
                        yerr = True, nugget = False, shift = False):
         """
@@ -134,9 +132,9 @@ class simpleGP(object):
             K = K + shift * np.identity(self.time.size)
         return K
 
-
     def log_likelihood(self, node, weight, mean):
-        """ Calculates the marginal log likelihood.
+        """ 
+            Calculates the marginal log likelihood.
         See Rasmussen & Williams (2006), page 113.
             Parameters:
                 node = the latent noide functions f(x) (f hat)
@@ -174,7 +172,8 @@ class simpleGP(object):
 
 
 ##### marginal likelihood gradient functions
-    def _compute_matrix_derivative(self, kernel_to_derive, kernel):
+    def _compute_matrix_derivative(self, kernel_to_derive, kernel, 
+                                   nugget = False):
         """ 
             Creates the covariance matrices of dK/dOmega, the derivatives of the
         kernels.
@@ -196,49 +195,17 @@ class simpleGP(object):
         a2 = self._kernel_matrix(kernel, self.time)
 
         #final matrix
-        nugget_value = 0.01 #to avoid a ill-conditioned matrix
         A = A + a1 * a2 + diag
-        A = (1 - nugget_value)*A + nugget_value*np.diag(np.diag(A))
+        #to avoid a ill-conditioned matrix
+        if nugget:
+            nugget_value = 0.01
+            A = (1 - nugget_value) * A + nugget_value * np.diag(np.diag(A))
         return A
 
-
-    def log_likelihood_gradient(self, node, weight, mean):
-        """ Returns the marginal log likelihood gradients for a given 
-        gprn "branch". 
-            Parameters:
-                node = the latent noide functions f(x) (f hat)
-                weight = the latent weight funtion w(x)
-                mean = mean function being used
-            Returns:
-                grads  = array of gradients
-        """
-        #First we derive the node
-        parameters = node.pars #kernel parameters to use
-        k = type(node).__subclasses__() #derivatives list
-        node_array = [] #its a list and not an array but thats ok
-        for i, j in enumerate(k):
-            derivative = j(*parameters)
-            loglike = self._log_like_grad(derivative, weight, 
-                                          node, weight, mean)
-            node_array.append(loglike)
-
-        #Then we derive the weight
-        parameters = weight.pars #kernel parameters to use
-        k = type(weight).__subclasses__() #derivatives list
-        weight_array = []
-        for i, j in enumerate(k):
-            derivative = j(*parameters)
-            loglike = self._log_like_grad(derivative, node, 
-                                          node, weight, mean)
-            weight_array.append(loglike)
-
-        #To finalize we merge both list into an array
-        grads = np.array(node_array + weight_array)
-        return grads
-
-
-    def _log_like_grad(self, kernel_to_derive, kernel, node, weight, mean):
-        """ Calculates the gradient of the marginal log likelihood for a given
+    def _log_like_grad(self, kernel_to_derive, kernel, 
+                       node, weight, mean, nugget = False):
+        """ 
+            Calculates the gradient of the marginal log likelihood for a given
         kernel derivative. 
         See Rasmussen & Williams (2006), page 114.
             Parameters:
@@ -251,30 +218,64 @@ class simpleGP(object):
             Returns:
                 log_like  = Marginal log likelihood
         """
-        #calculates the  covariance matrix of K and its inverse
+        #calculates the  covariance matrix of K and its inverse Kinv
         K = self.compute_matrix(node, weight, self.time)
         Kinv = np.linalg.inv(K)
         #calculates the  covariance matrix of dK/dOmega
-        dK = self._compute_matrix_derivative(kernel_to_derive, kernel)
+        dK = self._compute_matrix_derivative(kernel_to_derive, kernel, nugget)
 
-        #log marginal likelihood calculation
+        #d(log marginal likelihood)/dOmega calculation
         try:
-#            L1 = cho_factor(Kinv, overwrite_a=True, lower=False)
-#            a = cho_solve(L1, self.y) #alpha
-#            log_like_grad = 0.5 * np.sum(np.diag(np.dot(np.dot(a, a.T) - Kinv, dK)))
-            alpha = np.dot(Kinv, self.y)
-            A = np.einsum('i,j',alpha, alpha) - Kinv
-            log_like_grad = 0.5 * np.einsum('ij,ij', dK, A)
+            alpha = np.dot(Kinv, self.y) #gives an array
+            A = np.einsum('i,j',alpha, alpha) - Kinv #= alpha @ alpha.T - Kinv
+            log_like_grad = 0.5 * np.einsum('ij,ij', A, dK) #= trace(a @ dK)
 
         except LinAlgError:
             return -np.inf
         return log_like_grad
 
+    def log_likelihood_gradient(self, node, weight, mean, 
+                                nugget = False):
+        """ 
+            Returns the marginal log likelihood gradients for a given 
+        gprn "branch". 
+            Parameters:
+                node = the latent noide functions f(x) (f hat)
+                weight = the latent weight funtion w(x)
+                mean = mean function being used
+            Returns:
+                grads  = array of gradients
+        """
+        #First we derive the node
+        parameters = node.pars #kernel parameters to use
+        k = type(node).__subclasses__() #derivatives list
+        node_array = [] #its a list and not an array but thats ok
+        for _, j in enumerate(k):
+            derivative = j(*parameters)
+            loglike = self._log_like_grad(derivative, weight, 
+                                          node, weight, mean, nugget)
+            node_array.append(loglike)
+
+        #Then we derive the weight
+        parameters = weight.pars #kernel parameters to use
+        k = type(weight).__subclasses__() #derivatives list
+        weight_array = []
+        for _, j in enumerate(k):
+            derivative = j(*parameters)
+            loglike = self._log_like_grad(derivative, node, 
+                                          node, weight, mean, nugget)
+            weight_array.append(loglike)
+
+        #To finalize we merge both list into an array
+        grads = np.array(node_array + weight_array)
+        return grads
+
 
 ##### GP prediction funtions
     def predict_gp(self, node = None, weight = None, 
                    mean = None, time = None):
-        """ Conditional predictive distribution of the Gaussian process
+        """ 
+            Conditional predictive distribution of the Gaussian process
             Parameters:
                 node = the latent noide functions f(x) (f hat)
                 weight = the latent weight funtion w(x)
@@ -300,6 +301,7 @@ class simpleGP(object):
 
         #calculate mean and residuals
         if mean:
+            #To use a new mean
             mean = mean
             r = self.y - mean(self.time)
         else:
@@ -308,15 +310,14 @@ class simpleGP(object):
                 #In case we defined it to be a zero mean GP
                 r = self.y 
             else:
-                #In case we defined a mean at the start of our baseGP
+                #In case we defined a mean at the start of our GP class
                 r = self.y - mean(self.time)
 
-        
         cov = self._covariance_matrix(node, weight, self.time)
         L1 = cho_factor(cov)
         sol = cho_solve(L1, r)
 
-        #K star calculation
+        #Kstar calculation
         fstar = self._predict_kernel_matrix(node, time, self.time)
         wstar = self._predict_kernel_matrix(weight, time, self.time)
         Kstar = wstar * fstar

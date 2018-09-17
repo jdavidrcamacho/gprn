@@ -198,7 +198,7 @@ class dQuasiPeriodic_delle(QuasiPeriodic):
         self.P = P
         self.ell_p = ell_p
         self.wn = wn
-        
+
     def __call__(self, r):
         return (r**2 * exp(-0.5 * r**2 / self.ell_e**2 \
                            -2 * sine(pi * np.abs(r) / self.P)**2 \
@@ -214,7 +214,7 @@ class dQuasiPeriodic_dP(QuasiPeriodic):
         self.P = P
         self.ell_p = ell_p
         self.wn = wn
-        
+
     def __call__(self, r):
         return (4 * pi * r * cosine(pi * np.abs(r) / self.P) \
                 * sine(pi * np.abs(r) / self.P) \
@@ -232,7 +232,7 @@ class dQuasiPeriodic_dellp(QuasiPeriodic):
         self.P = P
         self.ell_p = ell_p
         self.wn = wn
-        
+
     def __call__(self, r):
         return (4 * sine(pi * np.abs(r) /self.P)**2 * exp(-0.5 * r**2 \
                 / self.ell_e**2 -2 * sine(pi*np.abs(r) / self.P)**2 \

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
+np.random.seed(12345)
 import matplotlib.pyplot as plt
 plt.close('all')
 
@@ -25,7 +26,7 @@ plt.close()
 
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(1000, 25, 1.1, 0.1)
-weight = weightFunction.SquaredExponential(1, 0.5)
+weight = weightFunction.SquaredExponential(1, 1.1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
