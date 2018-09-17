@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-np.random.seed(12345)
+#np.random.seed(12345)
 import matplotlib.pyplot as plt
 plt.close('all')
 
