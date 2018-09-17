@@ -60,9 +60,6 @@ node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) #from exp(-10) to exp(10)
 #node_wn = stats.uniform(np.exp(-10), 0.1 -np.exp(-10)) #from exp(-10) to exp(10)
 node_wn = stats.halfcauchy(0,1)
 
-#weight value
-weight_amp = stats.uniform(1, 100 -1) #from exp(-10) to 100
-
 def from_prior():
     wn = node_wn.rvs()
     #to truncate the wn between 0 and 0.1

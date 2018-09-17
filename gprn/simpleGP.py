@@ -9,7 +9,6 @@ class simpleGP(object):
         Parameters:
             node = node function being used
             weight = weight function being used
-            amplitude = amplitude of the kernel
             means = mean function being used, None if model doesn't use it
             time = time array
             y = measurements array
@@ -229,7 +228,7 @@ class simpleGP(object):
             weight_array.append(loglike)
 
         #To finalize we merge both list into an array
-        grads = np.array(node_array, weight_array)
+        grads = np.array(node_array + weight_array)
         return grads
 
 
