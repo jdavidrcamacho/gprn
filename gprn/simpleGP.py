@@ -188,14 +188,17 @@ class simpleGP(object):
         #our matrix starts empty
         A = np.zeros((self.time.size, self.time.size))
 
+        #measurement errors, should I add the errors in the derivatives???
+        diag = self.yerr * np.identity(self.time.size)
+
         #node and weight functions in use
         a1 = self._kernel_matrix(kernel_to_derive,self.time)
         a2 = self._kernel_matrix(kernel, self.time)
 
         #final matrix
         nugget_value = 0.01 #to avoid a ill-conditioned matrix
-        A = A + a1 * a2
-        A= (1 - nugget_value)*A + nugget_value*np.diag(np.diag(A))
+        A = A + a1 * a2 + diag
+        A = (1 - nugget_value)*A + nugget_value*np.diag(np.diag(A))
         return A
 
 
@@ -211,20 +214,22 @@ class simpleGP(object):
         """
         #First we derive the node
         parameters = node.pars #kernel parameters to use
-        k = node.__subclasses__() #derivatives list
+        k = type(node).__subclasses__() #derivatives list
         node_array = [] #its a list and not an array but thats ok
         for i, j in enumerate(k):
             derivative = j(*parameters)
-            loglike = self._log_like_grad(derivative, weight, mean)
+            loglike = self._log_like_grad(derivative, weight, 
+                                          node, weight, mean)
             node_array.append(loglike)
 
         #Then we derive the weight
         parameters = weight.pars #kernel parameters to use
-        k = weight.__subclasses__() #derivatives list
+        k = type(weight).__subclasses__() #derivatives list
         weight_array = []
         for i, j in enumerate(k):
             derivative = j(*parameters)
-            loglike = self._log_like_grad(derivative, node, mean)
+            loglike = self._log_like_grad(derivative, node, 
+                                          node, weight, mean)
             weight_array.append(loglike)
 
         #To finalize we merge both list into an array
@@ -232,7 +237,7 @@ class simpleGP(object):
         return grads
 
 
-    def _log_like_grad(self, kernel_to_derive, kernel, mean):
+    def _log_like_grad(self, kernel_to_derive, kernel, node, weight, mean):
         """ Calculates the gradient of the marginal log likelihood for a given
         kernel derivative. 
         See Rasmussen & Williams (2006), page 114.
@@ -240,21 +245,23 @@ class simpleGP(object):
                 kernel_to_derive = node/weight function derivatives we want 
                                     using this time
                 kernel = remaining node/weight function
+                node = the latent noide functions f(x) (f hat)
+                weight = the latent weight funtion w(x)
                 mean = mean function being used
             Returns:
                 log_like  = Marginal log likelihood
         """
-        #calculates the  covariance matrix
-        K = self._compute_matrix_derivative(kernel_to_derive, kernel)
-        
-        #calculates the covariance matrix derivative
-        dK = 0 #for now
-        
+        #calculates the  covariance matrix of K and its inverse
+        K = self.compute_matrix(node, weight, self.time)
+        Kinv = np.linalg.inv(K)
+        #calculates the  covariance matrix of dK/dOmega
+        dK = self._compute_matrix_derivative(kernel_to_derive, kernel)
+
         #log marginal likelihood calculation
         try:
-            L1 = cho_factor(K, overwrite_a=True, lower=False)
+            L1 = cho_factor(Kinv, overwrite_a=True, lower=False)
             a = cho_solve(L1, self.y) #alpha
-            log_like_grad = 0.5 * np.sum(np.diag(np.dot(np.dot(a, a.T), dK)))
+            log_like_grad = 0.5 * np.sum(np.diag(np.dot(np.dot(a, a.T) - Kinv, dK)))
         except LinAlgError:
             return -np.inf
         return log_like_grad
