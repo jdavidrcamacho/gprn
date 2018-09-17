@@ -6,7 +6,9 @@ pi, exp, sine, cosine = np.pi, np.exp, np.sin, np.cos
 
 class weightFunction(object):
     """
-        Definition the weight functions (kernels) of our GPRN
+        Definition the weight functions (kernels) of our GPRN.
+        Kernels not fully implemented yet:
+            RationalQuadratic, RQP, Matern32, and Matern52
     """
     def __init__(self, *args):
         """
@@ -41,14 +43,21 @@ class Constant(weightFunction):
         super(Constant, self).__init__(c)
         self.c = c
         self.type = 'non-stationary and anisotropic'
+        self.derivatives = 1    #number of derivatives in this kernel
+        self.params_size = 1    #number of hyperparameters
 
     def __call__(self, r):
         return self.c * np.ones_like(r)
 
-    def dConstant_dc(self, r):
-        """
-            Log-derivative in order to c
-        """
+class dConstant_dc(Constant):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, c):
+        super(dConstant_dc, self).__init__(c)
+        self.c = c
+
+    def __call__(self, r):
         return self.c * np.ones_like(r)
 
 ##### White Noise ##############################################################
@@ -59,18 +68,24 @@ class WhiteNoise(weightFunction):
             wn = white noise amplitude
     """
     def __init__(self, wn):
-
         super(WhiteNoise, self).__init__(wn)
         self.wn = wn
         self.type = 'stationary'
+        self.derivatives = 1    #number of derivatives in this kernel
+        self.params_size = 1    #number of hyperparameters
 
     def __call__(self, r):
         return self.wn**2 * np.diag(np.diag(np.ones_like(r)))
 
-    def dWhiteNoise_dwn(self, r):
-        """
-            Log-derivative in order to the amplitude
-        """
+class dWhiteNoise_dwn(WhiteNoise):
+    """
+        Log-derivative in order to the amplitude
+    """
+    def __init__(self, wn):
+        super(dWhiteNoise_dwn, self).__init__(wn)
+        self.wn = wn
+
+    def __call__(self, r):
         return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
 
 
@@ -88,20 +103,34 @@ class SquaredExponential(weightFunction):
         self.weight = weight
         self.ell = ell
         self.type = 'stationary and anisotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 * exp(-0.5 * r**2 / self.ell**2)
 
-    def dSquaredExponential_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
+class dSquaredExponential_dweight(SquaredExponential):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell):
+        super(dSquaredExponential_dweight, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
         return 2 * self.weight**2 * exp(-0.5 * r**2 / self.ell**2)
-    
-    def dSquaredExponential_dell(self, r):
-        """
-            Log-derivative in order to the ell
-        """
+
+class dSquaredExponential_dell(SquaredExponential):
+    """
+        Log-derivative in order to the ell
+    """
+    def __init__(self, weight, ell):
+        super(dSquaredExponential_dell, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
         return (r**2 * self.weight**2 / self.ell**2) \
                 * exp(-0.5 * r**2 / self.ell**2)
 
@@ -121,29 +150,52 @@ class Periodic(weightFunction):
         self.ell = ell
         self.P = P
         self.type = 'non-stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 /self.ell**2)
 
-    def dPeriodic_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
+class dPeriodic_dweight(Periodic):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell, P):
+        super(dPeriodic_dweight, self).__init__(weight, ell, P)
+        self.weight = weight
+        self.ell = ell
+        self.P = P
+
+    def __call__(self, r):
         return 2 * self.weight**2 * exp(-2 * sine(pi * np.abs(r) / self.P)**2 \
                                         / self.ell**2)
 
-    def dPeriodic_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
+class dPeriodic_dell(Periodic):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, ell, P):
+        super(dPeriodic_dell, self).__init__(weight, ell, P)
+        self.weight = weight
+        self.ell = ell
+        self.P = P
+
+    def __call__(self, r):
         return (4* self.weight**2 * sine(pi * np.abs(r) / self.P)**2 \
                 *exp(-2 * sine(pi * np.abs(r) / self.P)**2 \
                      / self.ell**2)) / self.ell**2
 
-    def dPeriodic_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
+class dPeriodic_dP(Periodic):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, weight, ell, P):
+        super(dPeriodic_dP, self).__init__(weight, ell, P)
+        self.weight = weight
+        self.ell = ell
+        self.P = P
+
+    def __call__(self, r):
         return (4 * pi * r * self.weight**2 \
                 * cosine(pi*np.abs(r) / self.P) *sine(pi*np.abs(r) / self.P) \
                 * exp(-2 * sine(pi*np.abs(r) / self.P)**2 / self.ell**2)) \
@@ -169,43 +221,78 @@ class QuasiPeriodic(weightFunction):
         self.P = P
         self.ell_p = ell_p
         self.type = 'non-stationary and anisotropic'
+        self.derivatives = 4    #number of derivatives in this kernel
+        self.params_size = 4    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 *exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                                    /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_dweight(self, r):
-        """
+class dQuasiPeriodic_dweight(Periodic):
+    """
             Log-derivative in order to the weight
-        """
+    """
+    def __init__(self, weight, ell_e, P, ell_p):
+        super(dQuasiPeriodic_dweight, self).__init__(weight, ell_e, P, ell_p)
+        self.weight = weight
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call(self, r):
         return 2 * self.weight**2 *exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
                                    /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_delle(self, r):
-        """
-            Log-derivative in order to ell_e
-        """
+class dQuasiPeriodic_delle(QuasiPeriodic):
+    """
+        Log-derivative in order to ell_e
+    """
+    def __init__(self, weight, ell_e, P, ell_p):
+        super(dQuasiPeriodic_delle, self).__init__(weight, ell_e, P, ell_p)
+        self.weight = weight
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call(self, r):
         return (r**2 * self.weight**2 / self.ell_e**2) \
                 *exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
                      /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
+class dQuasiPeriodic_dP(QuasiPeriodic):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, weight, ell_e, P, ell_p):
+        super(dQuasiPeriodic_dP, self).__init__(weight, ell_e, P, ell_p)
+        self.weight = weight
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call(self, r):
         return 4 * pi * r * self.w**2 \
                 * cosine(pi*np.abs(r)/self.P) * sine(pi*np.abs(r)/self.P) \
                 * exp(-2 * sine(pi * np.abs(r)/self.P)**2 \
                       /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
                       / (self.ell_p**2 * self.P)
 
-    def dQuasiPeriodic_dellp(self, r):
-        """
-            Log-derivative in order to ell_p
-        """
-        return 4 * self.w**2 * sine(pi*r/self.P)**2 \
+class dQuasiPeriodic_dellp(QuasiPeriodic):
+    """
+        Log-derivative in order to ell_p
+    """
+    def __init__(self, weight, ell_e, P, ell_p):
+        super(dQuasiPeriodic_dellp, self).__init__(weight, ell_e, P, ell_p)
+        self.weight = weight
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+
+    def __call(self, r):
+        return  4 * self.w**2 * sine(pi*r/self.P)**2 \
                 * exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
                       /self.ell_p**2 - r**2/(2*self.ell_e**2)) / self.ell_p**2
+
 
 ##### Rational Quadratic #######################################################
 class RationalQuadratic(weightFunction):
@@ -222,6 +309,8 @@ class RationalQuadratic(weightFunction):
         self.alpha = alpha
         self.ell = ell
         self.type = 'stationary and anisotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
@@ -267,6 +356,8 @@ class RQP(weightFunction):
         self.P = P
         self.ell_p = ell_p
         self.type = 'non-stationary and anisotropic'
+        self.derivatives = 5    #number of derivatives in this kernel
+        self.params_size = 5    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 * exp(- (2*sine(pi*np.abs(r)/self.P)**2) \
@@ -317,22 +408,36 @@ class Cosine(weightFunction):
         self.weight = weight
         self.P = P
         self.type = 'non-stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 * cosine(2*pi*np.abs(r) / self.P)
 
-    def dCosine_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
-        raise 2 * self.weight**2 * cosine(2*pi*np.abs(r) / self.P)
+class dCosine_dweight(Cosine):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, P):
+        super(dCosine_dweight, self).__init__(weight, P)
+        self.weight = weight
+        self.P = P
 
-    def dCosine_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
+    def __call__(self, r):
+        return 2 * self.weight**2 * cosine(2*pi*np.abs(r) / self.P)
+
+class dCosine_dP(Cosine):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, weight, P):
+        super(dCosine_dP, self).__init__(weight, P)
+        self.weight = weight
+        self.P = P
+
+    def __call__(self, r):
         return self.weight**2 * r * pi * sine(2*pi*np.abs(r) / self.P) / self.P
-        
+
 
 ##### Exponential ##############################################################
 class Exponential(weightFunction):
@@ -348,21 +453,35 @@ class Exponential(weightFunction):
         self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r): 
         return self.weight**2 * exp(- np.abs(r)/self.ell)
 
-    def dExponential_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
+class dExponential_dweight(Exponential):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell):
+        super(dExponential_dweight, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
         return 2 * self.weight**2 * exp(- np.abs(r)/self.ell)
 
-    def dExpoential_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
-        raise -0.5 * self.weight**2 * r * exp(- np.abs(r)/self.ell) / self.ell
+class dExpoential_dell(Exponential):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, ell):
+        super(dExpoential_dell, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
+        return -0.5 * self.weight**2 * r * exp(- np.abs(r)/self.ell) / self.ell
 
 
 ##### Matern 3/2 ###############################################################
@@ -380,6 +499,8 @@ class Matern32(weightFunction):
         self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 *(1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
@@ -414,6 +535,8 @@ class Matern52(weightFunction):
         self.weight = weight
         self.ell = ell
         self.type = 'stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
         return self.weight**2 * (1.0 + ( 3*np.sqrt(5)*self.ell*np.abs(r) \

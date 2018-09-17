@@ -45,6 +45,8 @@ class SquaredExponential(nodeFunction):
         self.ell = ell
         self.wn = wn
         self.type = 'stationary and anisotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
         try:
@@ -53,16 +55,29 @@ class SquaredExponential(nodeFunction):
         except ValueError:
             return exp(-0.5 * r**2 / self.ell**2)
 
-    def dSquaredExponential_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
+class dSquaredExponential_dell(SquaredExponential):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, ell, wn):
+        super(dSquaredExponential_dell, self).__init__(ell, wn)
+        self.ell = ell
+        self.wn = wn
+        
+    def __call__(self, r):
         return (r**2 / self.ell**2) * exp(-0.5 * r**2 / self.ell**2)
 
-    def dSquaredExponential_dwn(self, r):
-        """
-            Log-derivative in order to the wn
-        """
+class dSquaredExponential_dwn(SquaredExponential):
+    """
+        Log-derivative in order to the wn
+    """
+    def __init__(self, ell, wn):
+        super(dSquaredExponential_dwn, self).__init__(ell, wn)
+        self.ell = ell
+        self.wn = wn
+        
+    def __call__(self, r):
+        return
         try:
             return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
@@ -85,6 +100,8 @@ class Periodic(nodeFunction):
         self.P = P
         self.wn = wn
         self.type = 'non-stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
         try:
@@ -93,25 +110,47 @@ class Periodic(nodeFunction):
         except ValueError:
             return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
 
-    def dPeriodic_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
+class dPeriodic_dell(Periodic):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, ell, P, wn):
+        super(dPeriodic_dell, self).__init__(ell, P, wn)
+        self.ell = ell
+        self.P = P
+        self.wn = wn
+
+    def __call__(self, r):
         return 4 * sine(pi*np.abs(r)/self.P)**2 / self.ell **2 \
                 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
 
-    def dPeriodic_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
+class dPeriodic_dP(Periodic):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, ell, P, wn):
+        super(dPeriodic_dP, self).__init__(ell, P, wn)
+        self.ell = ell
+        self.P = P
+        self.wn = wn
+
+    def __call__(self, r):
         return 4*pi*r * cosine(pi*np.abs(r)/self.P) * sine(pi*np.abs(r)/self.P) \
                 * exp(-2 * sine(pi * np.abs(r) /self.P)**2 / self.ell**2) \
                 / (self.ell**2 * self.P)
 
-    def dPeriodic_dwn(self, r):
-        """
-            Log-derivative in order to wn
-        """
+class dPeriodic_dwn(Periodic):
+    """
+        Log-derivative in order to wn
+    """
+    def __init__(self, ell, P, wn):
+        super(dPeriodic_dwn, self).__init__(ell, P, wn)
+        self.ell = ell
+        self.P = P
+        self.wn = wn
+
+    def __call__(self, r):
+        return
         try:
             return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
@@ -137,6 +176,8 @@ class QuasiPeriodic(nodeFunction):
         self.ell_p = ell_p
         self.wn = wn
         self.type = 'non-stationary and anisotropic'
+        self.derivatives = 4    #number of derivatives in this kernel
+        self.params_size = 4    #number of hyperparameters
 
     def __call__(self, r):
         try:
@@ -147,36 +188,68 @@ class QuasiPeriodic(nodeFunction):
             return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
-    def dQuasiPeriodic_delle(self, r):
-        """
-            Log-derivative in order to ell_e
-        """
+class dQuasiPeriodic_delle(QuasiPeriodic):
+    """
+        Log-derivative in order to ell_e
+    """
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(dQuasiPeriodic_delle, self).__init__(ell_e, P, ell_p, wn)
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
+        
+    def __call__(self, r):
         return (r**2 * exp(-0.5 * r**2 / self.ell_e**2 \
                            -2 * sine(pi * np.abs(r) / self.P)**2 \
                            / self.ell_p**2)) / self.ell_e**2
 
-    def dQuasiPeriodic_dP(self, r):
-        """
-            Log-derivative in order to P
-        """
+class dQuasiPeriodic_dP(QuasiPeriodic):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(dQuasiPeriodic_dP, self).__init__(ell_e, P, ell_p, wn)
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
+        
+    def __call__(self, r):
         return (4 * pi * r * cosine(pi * np.abs(r) / self.P) \
                 * sine(pi * np.abs(r) / self.P) \
                 * exp(-0.5 * r**2 / self.ell_e**2 \
                      - 2 * sine(pi * np.abs(r) /self.P)**2 / self.ell_p**2)) \
                 / (self.ell_p**2 * self.P)
 
-    def dQuasiPeriodic_dellp(self, r):
-        """
-            Log-derivative in order to ell_p
-        """
+class dQuasiPeriodic_dellp(QuasiPeriodic):
+    """
+        Log-derivative in order to ell_p
+    """
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(dQuasiPeriodic_dellp, self).__init__(ell_e, P, ell_p, wn)
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
+        
+    def __call__(self, r):
         return (4 * sine(pi * np.abs(r) /self.P)**2 * exp(-0.5 * r**2 \
                 / self.ell_e**2 -2 * sine(pi*np.abs(r) / self.P)**2 \
                       / self. ell_p**2)) / self.ell_p**2
 
-    def dQuasiPeriodic_dwn(self, r):
-        """
-            Log-derivative in order to wn
-        """
+class dQuasiPeriodic_dwn(QuasiPeriodic):
+    """
+        Log-derivative in order to wn
+    """
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(dQuasiPeriodic_dwn, self).__init__(ell_e, P, ell_p, wn)
+        self.ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
+
+    def __call__(self, r):
         try:
             return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:

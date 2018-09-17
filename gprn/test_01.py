@@ -33,7 +33,7 @@ gpOBJ = simpleGP(node = node, weight = weight, mean = None,
                  time = t, y = rv, yerr = rverr)
 
 ##### Log marginal likelihood #####
-log_like = gpOBJ.log_likelihood(node, weight, 1, mean = None)
+log_like = gpOBJ.log_likelihood(node, weight, mean = None)
 print(log_like)
 
 
@@ -74,13 +74,13 @@ def from_prior():
 #        lp = node_lp.rvs()
 
     return np.array([weight_const, node_le.rvs(), node_p.rvs(), 
-                     node_lp.rvs(), wn, weight_amp.rvs()])
+                     node_lp.rvs(), wn])
 #    return np.array([weight_const.rvs(), node_le.rvs(), node_p.rvs(), 
 #                     node_lp.rvs(), node_wn.rvs(), weight_amp.rvs()])
 
 
 ##### MCMC properties #####
-runs, burns = 500000, 500000 #Defining runs and burn-ins
+runs, burns = 50, 50 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
@@ -88,9 +88,7 @@ def logprob(p):
             p[1] < np.log(100), p[1] > np.log(1000), 
             p[2] < np.log(15), p[2] > np.log(50), 
             p[3] < -10, p[3] > np.log(1), 
-            p[4] < -100, p[4] > np.log(1),
-            
-            p[5] < np.log(1), p[5] > np.log(100)]):
+            p[4] < -100, p[4] > np.log(1)]):
         return -np.inf
     else:
         logprior = 0.0
@@ -99,14 +97,13 @@ def logprob(p):
         #new constants
         new_node = nodeFunction.QuasiPeriodic( np.exp(p[1]), np.exp(p[2]), 
                                               np.exp(p[3]), np.exp(p[4]))
-        new_weight_value = np.exp(p[5])
+
         #print(gpOBJ.log_likelihood(new_node, new_weight, new_weight_value, mean = None))
         #print(np.exp(p))
-        return logprior + gpOBJ.log_likelihood(new_node, new_weight, 
-                                               new_weight_value, mean = None)
+        return logprior + gpOBJ.log_likelihood(new_node, new_weight, mean = None)
 
 #Setingt up the sampler
-nwalkers, ndim = 2*6, 6
+nwalkers, ndim = 2*5, 5
 sampler = emcee.EnsembleSampler(nwalkers, ndim, logprob, threads= 4)
 
 #Initialize the walkers
@@ -124,7 +121,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
 
 #median and quantiles
-w1, l1, p1, l2, wn1, const1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+w1, l1, p1, l2, wn1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
 
 #printing results
@@ -136,11 +133,11 @@ print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
 print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
-print('Weight value = {0[0]} +{0[1]} -{0[2]}'.format(const1))
+
 
 #plotting the results
 print('graphics')
-fig, axes = plt.subplots(6, 1, sharex=True, figsize=(8, 9))
+fig, axes = plt.subplots(5, 1, sharex=True, figsize=(8, 9))
 axes[0].plot(np.exp(sampler.chain[:, burns:, 0]).T, color="k", alpha=0.4)
 axes[0].yaxis.set_major_locator(MaxNLocator(5))
 axes[0].set_ylabel("$Constant$")
@@ -156,10 +153,7 @@ axes[3].set_ylabel("$Periodic length scale$")
 axes[4].plot(np.exp(sampler.chain[:, burns:, 4]).T, color="k", alpha=0.4)
 axes[4].yaxis.set_major_locator(MaxNLocator(5))
 axes[4].set_ylabel("$WN$")
-axes[5].plot(np.exp(sampler.chain[:, burns:, 5]).T, color="k", alpha=0.4)
-axes[5].yaxis.set_major_locator(MaxNLocator(5))
-axes[5].set_ylabel("$Weight value$")
-axes[5].set_xlabel("step number")
+axes[4].set_xlabel("step number")
 fig.tight_layout(h_pad=0.0)
 plt.show()
 
