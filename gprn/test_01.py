@@ -25,12 +25,14 @@ plt.figure()
 plt.errorbar(t, rv, rverr, fmt = '.')
 plt.close()
 
+
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1, 0.1)
 weight = weightFunction.Constant(1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
+
 
 ##### Log marginal likelihood #####
 log_like = gpOBJ.log_likelihood(node, weight, mean = None)
