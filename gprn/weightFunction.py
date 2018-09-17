@@ -178,26 +178,34 @@ class QuasiPeriodic(weightFunction):
         """
             Log-derivative in order to the weight
         """
-        raise Exception("Not implemented yet")
+        return 2 * self.weight**2 *exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
+                                   /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
     def dQuasiPeriodic_delle(self, r):
         """
             Log-derivative in order to ell_e
         """
-        raise Exception("Not implemented yet")
+        return (r**2 * self.weight**2 / self.ell_e**2) \
+                *exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
+                     /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
     def dQuasiPeriodic_dP(self, r):
         """
             Log-derivative in order to P
         """
-        raise Exception("Not implemented yet")
+        return 4 * pi * r * self.w**2 \
+                * cosine(pi*np.abs(r)/self.P) * sine(pi*np.abs(r)/self.P) \
+                * exp(-2 * sine(pi * np.abs(r)/self.P)**2 \
+                      /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
+                      / (self.ell_p**2 * self.P)
 
     def dQuasiPeriodic_dellp(self, r):
         """
             Log-derivative in order to ell_p
         """
-        raise Exception("Not implemented yet")
-
+        return 4 * self.w**2 * sine(pi*r/self.P)**2 \
+                * exp(-2 * sine(pi*np.abs(r)/self.P)**2 \
+                      /self.ell_p**2 - r**2/(2*self.ell_e**2)) / self.ell_p**2
 
 ##### Rational Quadratic #######################################################
 class RationalQuadratic(weightFunction):
@@ -317,13 +325,13 @@ class Cosine(weightFunction):
         """
             Log-derivative in order to the weight
         """
-        raise Exception("Not implemented yet")
+        raise 2 * self.weight**2 * cosine(2*pi*np.abs(r) / self.P)
 
     def dCosine_dP(self, r):
         """
             Log-derivative in order to P
         """
-        raise Exception("Not implemented yet")
+        return self.weight**2 * r * pi * sine(2*pi*np.abs(r) / self.P) / self.P
         
 
 ##### Exponential ##############################################################
@@ -348,13 +356,13 @@ class Exponential(weightFunction):
         """
             Log-derivative in order to the weight
         """
-        raise Exception("Not implemented yet)
+        return 2 * self.weight**2 * exp(- np.abs(r)/self.ell)
 
     def dExpoential_dell(self, r):
         """
             Log-derivative in order to ell
         """
-        raise Exception("Not implemented yet")
+        raise -0.5 * self.weight**2 * r * exp(- np.abs(r)/self.ell) / self.ell
 
 
 ##### Matern 3/2 ###############################################################
