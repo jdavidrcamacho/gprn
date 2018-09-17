@@ -259,9 +259,13 @@ class simpleGP(object):
 
         #log marginal likelihood calculation
         try:
-            L1 = cho_factor(Kinv, overwrite_a=True, lower=False)
-            a = cho_solve(L1, self.y) #alpha
-            log_like_grad = 0.5 * np.sum(np.diag(np.dot(np.dot(a, a.T) - Kinv, dK)))
+#            L1 = cho_factor(Kinv, overwrite_a=True, lower=False)
+#            a = cho_solve(L1, self.y) #alpha
+#            log_like_grad = 0.5 * np.sum(np.diag(np.dot(np.dot(a, a.T) - Kinv, dK)))
+            alpha = np.dot(Kinv, self.y)
+            A = np.einsum('i,j',alpha, alpha) - Kinv
+            log_like_grad = 0.5 * np.einsum('ij,ij', dK, A)
+
         except LinAlgError:
             return -np.inf
         return log_like_grad
