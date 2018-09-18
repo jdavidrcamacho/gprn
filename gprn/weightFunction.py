@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 #because it makes my life easier down the line
-pi, exp, sine, cosine = np.pi, np.exp, np.sin, np.cos
+pi, exp, sine, cosine, sqrt = np.pi, np.exp, np.sin, np.cos, np.sqrt
 
 class weightFunction(object):
     """
@@ -589,18 +589,32 @@ class Matern32(weightFunction):
         return self.weight**2 *(1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
                     *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
-    def dMatern32_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
-        raise Exception("Not implemented yet")
+class dMatern32_dweight(Matern32):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell):
+        super(dMatern32_dweight, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
 
+    def __call__(self, r):
+        return 2 * self.weight**2 *(1.0 + np.sqrt(3.0)*np.abs(r)/self.ell) \
+                    *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
-    def dMatern32_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
-        raise Exception("Not implemented yet")
+class dMatern32_dell(Matern32):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, ell):
+        super(dMatern32_dell, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
+        return (sqrt(3) * r * (1+ (sqrt(3) * r) / self.ell) \
+                *exp(-(sqrt(3)*r) / self.ell) * self.weight**2) / self.ell \
+                -(sqrt(3) * r * exp(-(sqrt(3)*r) / self.ell)*self.weight**2)/self.ell
 
 
 #### Matern 5/2 ################################################################
@@ -626,17 +640,36 @@ class Matern52(weightFunction):
                                            +5*np.abs(r)**2)/(3*self.ell**2) ) \
                                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
 
-    def dMatern52_dweight(self, r):
-        """
-            Log-derivative in order to the weight
-        """
-        raise Exception("Not implemented yet")
+class dMatern52_dweight(Matern52):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell):
+        super(dMatern52_dweight, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
 
-    def dMatern52_dell(self, r):
-        """
-            Log-derivative in order to ell
-        """
-        raise Exception("Not implemented yet")
+    def __call__(self, r):
+        return 2 * self.weight**2 * (1.0 + ( 3*np.sqrt(5)*self.ell*np.abs(r) \
+                                           +5*np.abs(r)**2)/(3*self.ell**2) ) \
+                                          *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
+
+class dMatern52_dell(Matern52):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, ell):
+        super(dMatern52_dell, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
+        return self.ell * ((sqrt(5)*r*(1+(sqrt(5)*r) \
+                                 /self.ell+(5*r**2)/(3*self.ell**2)) \
+                             *exp(-(sqrt(5)*r)/self.ell)*self.weight**2) \
+            /self.ell**2 +(-(sqrt(5)*r)/self.ell**2-(10*r**2) \
+                           /(3*self.ell**3)) \
+                           *exp(-(sqrt(5)*r)/self.ell)*self.weight**2)
 
 
 ### END
