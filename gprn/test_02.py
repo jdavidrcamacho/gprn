@@ -25,8 +25,15 @@ plt.close()
 
 
 ##### Our GP #####
-node = nodeFunction.QuasiPeriodic(1000, 25, 1.1, 0.1)
-weight = weightFunction.SquaredExponential(1, 1.1)
+node = nodeFunction.QuasiPeriodic(500, 30, 1.1, 0.1)
+weight = weightFunction.SquaredExponential(10, 1.1)
+
+node = nodeFunction.QuasiPeriodic(264.387871792302, 27.851231298369818,
+                                  0.5024389901162527, 0.35084377187377946)
+
+weight = weightFunction.SquaredExponential(2.0057379603144745, 6.258800878357019)
+
+
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -62,22 +69,22 @@ def grad_likelihood(p):
 
 ##### Optimization routine #####
 p0 = np.log(np.concatenate((node.pars, weight.pars)))
-results = op.minimize(likelihood, p0, jac = grad_likelihood, method = 'BFGS',
+results = op.minimize(likelihood, p0, jac = grad_likelihood, method='BFGS',
                       options={'disp': True})
 print('result = ', np.exp(results.x))
 
 
-##### Final results and fit #####
+###### Final results and fit #####
 node_params = node.params_size
 final_node = nodeFunction.QuasiPeriodic(*results.x[:node_params])
 final_weight = weightFunction.SquaredExponential(*results.x[node_params:])
 log_like = gpOBJ.log_likelihood(final_node, final_weight, mean = None)
 print('final log like', log_like)
-mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
-                                      time = np.linspace(t.min(), t.max(), 500))
-plt.figure()
-plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
-plt.fill_between(np.linspace(t.min(), t.max(), 500), 
-                 mu22+std22, mu22-std22, color="grey", alpha=0.5)
-plt.plot(t,rv,"b.")
-plt.ylabel("RVs")
+#mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
+#                                      time = np.linspace(t.min(), t.max(), 500))
+#plt.figure()
+#plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
+#plt.fill_between(np.linspace(t.min(), t.max(), 500), 
+#                 mu22+std22, mu22-std22, color="grey", alpha=0.5)
+#plt.plot(t,rv,"b.")
+#plt.ylabel("RVs")
