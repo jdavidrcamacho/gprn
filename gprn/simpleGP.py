@@ -5,7 +5,7 @@ from scipy.linalg import cho_factor, cho_solve, LinAlgError
 
 class simpleGP(object):
     """ 
-        Class to create our simple Gaussian process.
+        Class to create our simple Gaussian process "branch".
         Parameters:
             node = node function being used
             weight = weight function being used
@@ -71,7 +71,7 @@ class simpleGP(object):
 ##### marginal likelihood functions
     def _covariance_matrix(self, node, weight, time):
         """ 
-            Creates the covariance matrix that will be used for the
+            Creates the covariance matrix that will be used in the
         compute_matrix() function
             Parameters:
                 node = the latent noide functions f(x) (f hat)
@@ -178,8 +178,8 @@ class simpleGP(object):
             Creates the covariance matrices of dK/dOmega, the derivatives of the
         kernels.
             Parameters:
-                kernel_to_derive = node/weight function derivatives we want 
-                                    using this time
+                kernel_to_derive = node/weight function derivatives we want to
+                                    use this time
                 kernel = remaining node/weight function
             Return:
                 k = final covariance matrix

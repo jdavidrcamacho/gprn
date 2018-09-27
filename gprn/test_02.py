@@ -11,27 +11,40 @@ from gprn import weightFunction, nodeFunction
 import scipy.optimize as op
 
 ##### Data #####
-phase, rv = np.loadtxt("data/SOAP_2spots.rdb",
+phase, rv = np.loadtxt("data/SOAP_1spot.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
-t = 25.05 * phase
-rv = 1000 * rv
+phase = np.concatenate((phase,1+phase, 2+phase))
+rv = np.concatenate((rv,rv, rv))
+
+t = 25.05 * phase 
+rv = 1000 * rv * np.linspace(1, 0.2, t.size)
 rms_rv = np.sqrt((1./rv.size * np.sum(rv**2)))
-rverr = np.random.uniform(0.1, 0.5, 100) * rms_rv * np.ones(rv.size)
+rverr = np.random.uniform(0.1, 0.2, t.size) * rms_rv * np.ones(rv.size)
 
 plt.figure()
 plt.errorbar(t, rv, rverr, fmt = '.')
 plt.close()
 
 
+#FINAL RESULT
+#Aperiodic length scale = 198.2127666306486 +192.90659222684334 -61.40148235349159
+#Kernel period = 29.286125227817745 +0.5366007665145496 -8.420880548771816
+#Periodic length scale = 1.240356424292018 +0.024811438104522132 -0.22814266790456128
+#Kernel wn = 0.10295035900779088 +0.057776360558100495 -0.008023630892870517
+#
+#weight = 1.2272235085352101 +0.041498308571144005 -0.045090516652675605
+#weight_l = 326.1221554562227 +303.61159764212084 -170.43182230623023
+#
+#likelihood = -1994.4596277438975 +249.23328579903205 -640.8433431740434
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(500, 30, 1.1, 0.1)
 weight = weightFunction.SquaredExponential(10, 1.1)
 
-node = nodeFunction.QuasiPeriodic(264.387871792302, 27.851231298369818,
-                                  0.5024389901162527, 0.35084377187377946)
+node = nodeFunction.QuasiPeriodic(198.2127666306486, 29.286125227817745,
+                                  1.240356424292018, 0.10295035900779088)
 
-weight = weightFunction.SquaredExponential(2.0057379603144745, 6.258800878357019)
+weight = weightFunction.SquaredExponential(1.2272235085352101, 326.1221554562227)
 
 
 
@@ -63,8 +76,8 @@ def grad_likelihood(p):
     node_params = node.params_size
     new_node = nodeFunction.QuasiPeriodic(*p[:node_params])
     new_weight = weightFunction.SquaredExponential(*p[node_params:])
-    grad = -gpOBJ.log_likelihood_gradient(new_node, new_weight, mean=None)
-    return grad
+    grad = gpOBJ.log_likelihood_gradient(new_node, new_weight, mean=None)
+    return -grad
 
 
 ##### Optimization routine #####
@@ -80,11 +93,11 @@ final_node = nodeFunction.QuasiPeriodic(*results.x[:node_params])
 final_weight = weightFunction.SquaredExponential(*results.x[node_params:])
 log_like = gpOBJ.log_likelihood(final_node, final_weight, mean = None)
 print('final log like', log_like)
-#mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
-#                                      time = np.linspace(t.min(), t.max(), 500))
-#plt.figure()
-#plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
-#plt.fill_between(np.linspace(t.min(), t.max(), 500), 
-#                 mu22+std22, mu22-std22, color="grey", alpha=0.5)
-#plt.plot(t,rv,"b.")
-#plt.ylabel("RVs")
+mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
+                                      time = np.linspace(t.min(), t.max(), 500))
+plt.figure()
+plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
+plt.fill_between(np.linspace(t.min(), t.max(), 500), 
+                 mu22+std22, mu22-std22, color="grey", alpha=0.5)
+plt.plot(t,rv,"b.")
+plt.ylabel("RVs")

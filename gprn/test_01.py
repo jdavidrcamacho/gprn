@@ -7,7 +7,6 @@ plt.close('all')
 from gprn.simpleGP import simpleGP
 from gprn import weightFunction, nodeFunction
 
-from matplotlib.ticker import MaxNLocator
 from scipy import stats
 import emcee
 
@@ -16,10 +15,13 @@ import emcee
 phase, rv = np.loadtxt("data/SOAP_2spots.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
-t = 25.05 * phase
-rv = 1000 * rv * np.linspace(1,0.5, t.size)
+phase = np.concatenate((phase,1+phase, 2+phase))
+rv = np.concatenate((rv,rv, rv))
+
+t = 25.05 * phase 
+rv = 1000 * rv * np.linspace(1, 0.2, t.size)
 rms_rv = np.sqrt((1./rv.size * np.sum(rv**2)))
-rverr = np.random.uniform(0.1, 0.5, 100) * rms_rv * np.ones(rv.size)
+rverr = np.random.uniform(0.1, 0.2, t.size) * rms_rv * np.ones(rv.size)
 
 plt.figure()
 plt.errorbar(t, rv, rverr, fmt = '.')
@@ -28,7 +30,7 @@ plt.close()
 
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1.1, 0.1)
-weight = weightFunction.SquaredExponential(10, 1.1)
+weight = weightFunction.Exponential(10, 1.1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -51,43 +53,30 @@ print(log_like)
 
 
 ##### Seting priors #####
-#weight function
-weight_const = stats.uniform(1, 100 -1) #from exp(-10) to 100
-weight_ell = stats.uniform(1, 1000-1)
 #node function
 node_le = stats.uniform(100, 1000 -100) #from exp(-10) to 1
-node_p = stats.uniform(15, 50 -15) #from 15 to 35
+node_p = stats.uniform(15, 30 -15) #from 15 to 35
 node_lp = stats.uniform(0.1, 2 -0.1) #from exp(-10) to exp(10)
 #node_lp = stats.halfcauchy(0,1)
 #node_wn = stats.uniform(np.exp(-10), 0.1 -np.exp(-10)) #from exp(-10) to exp(10)
-node_wn = stats.halfcauchy(0,1)
-
+node_wn = stats.halfcauchy(0, 1)
+#weight function
+weight_const = stats.uniform(1, 100 -1) #from exp(-10) to 100
+weight_ell = stats.uniform(1, 1000-1)
 
 def from_prior():
-    wn = node_wn.rvs()
-    #to truncate the wn between 0 and 0.1
-    while wn > 1:
-        wn = node_wn.rvs()
-    #to truncate the lp between 0 and 1
-#    lp = node_lp.rvs()
-#    while lp > 1:
-#        lp = node_lp.rvs()
-
-    return np.array([ node_le.rvs(), node_p.rvs(), node_lp.rvs(), wn,
+    return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
                      weight_const.rvs(), weight_ell.rvs()])
-#    return np.array([weight_const.rvs(), node_le.rvs(), node_p.rvs(), 
-#                     node_lp.rvs(), node_wn.rvs(), weight_amp.rvs()])
 
 
 ##### MCMC properties #####
-runs, burns = 50000, 50000 #Defining runs and burn-ins
+runs, burns = 10000, 10000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
     if any([p[0] < np.log(100), p[0] > np.log(1000), 
-            p[1] < np.log(15), p[1] > np.log(50), 
+            p[1] < np.log(15), p[1] > np.log(30), 
             p[2] < np.log(0.1), p[2] > np.log(2), 
-            p[3] < -100, p[3] > np.log(1),
             
             p[4] < np.log(1), p[4] > np.log(100),
             p[5] < np.log(1), p[5] > np.log(1000),]):
@@ -179,12 +168,12 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('samples_test_01.npy', datafinal)
+np.save('test_sspots_ExpQP.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -400)
+values = np.where(samples[:,-1] > -1000)
 #values = np.where(samples[:,-1] < -300)
 likelihoods = samples[values,-1].T
 plt.figure()
@@ -212,3 +201,14 @@ print('weight_l = {0[0]} +{0[1]} -{0[2]}'.format(w2))
 print()
 print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()
+
+final_node = nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])
+final_weight = weightFunction.SquaredExponential(w1[0],w2[0])
+mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
+                                      time = np.linspace(t.min(), t.max(), 500))
+plt.figure()
+plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
+plt.fill_between(np.linspace(t.min(), t.max(), 500), 
+                 mu22+std22, mu22-std22, color="grey", alpha=0.5)
+plt.plot(t,rv,"b.")
+plt.ylabel("RVs")
