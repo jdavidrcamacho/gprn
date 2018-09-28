@@ -8,8 +8,8 @@ from gprn.simpleGP import simpleGP
 from gprn import weightFunction, nodeFunction
 
 
-soap_file = "data/SOAP_2spots.rdb"
-samples_file = 'test_2spots_SEQP.npy'
+soap_file = "data/SOAP_1spot.rdb"
+samples_file = 'test_1spot_ExpQP.npy'
 
 
 ##### Data #####
@@ -37,7 +37,7 @@ gpOBJ = simpleGP(node = node, weight = weight, mean = None,
 
 samples = np.load(samples_file)
 ##### checking the likelihood that matters to us #####
-values = np.where(samples[:,-1] > -3000)
+values = np.where(samples[:,-1] > -1500)
 #values = np.where(samples[:,-1] < -2500)
 likelihoods = samples[values,-1].T
 plt.figure()

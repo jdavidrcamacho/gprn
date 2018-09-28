@@ -12,7 +12,7 @@ import emcee
 
 
 ##### Data #####
-phase, rv = np.loadtxt("data/SOAP_2spots.rdb",
+phase, rv = np.loadtxt("data/SOAP_1spot.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
 phase = np.concatenate((phase,1+phase, 2+phase))
@@ -30,7 +30,7 @@ plt.close()
 
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1.1, 0.1)
-weight = weightFunction.Exponential(10, 1.1)
+weight = weightFunction.Matern52(10, 1.1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -84,7 +84,7 @@ def logprob(p):
     else:
         logprior = 0.0
         #new kernels
-        new_weight = weightFunction.SquaredExponential(np.exp(p[4]), np.exp(p[5]))
+        new_weight = weightFunction.Matern52(np.exp(p[4]), np.exp(p[5]))
         new_node = nodeFunction.QuasiPeriodic( np.exp(p[1]), np.exp(p[2]), 
                                               np.exp(p[3]), np.exp(p[4]))
 
@@ -159,7 +159,7 @@ for i in range(sampler.lnprobability.shape[0]):
 ##### likelihood calculations #####
 likes=[]
 for i in range(samples[:,0].size):
-    new_weight = weightFunction.SquaredExponential(samples[i,4], samples[i,5])
+    new_weight = weightFunction.Matern52(samples[i,4], samples[i,5])
     new_node = nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
                                           samples[i,2], samples[i,3])
     likes.append(gpOBJ.log_likelihood(new_node, new_weight, mean = None))
@@ -168,7 +168,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_sspots_ExpQP.npy', datafinal)
+np.save('test_1spot_M52QP.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
@@ -203,7 +203,7 @@ print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()
 
 final_node = nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])
-final_weight = weightFunction.SquaredExponential(w1[0],w2[0])
+final_weight = weightFunction.Matern52(w1[0],w2[0])
 mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
                                       time = np.linspace(t.min(), t.max(), 500))
 plt.figure()
