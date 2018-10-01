@@ -12,13 +12,13 @@ import emcee
 
 
 ##### Data #####
-phase, rv = np.loadtxt("data/1spot_100points.rdb",
+phase, rv = np.loadtxt("data/1spot_25points.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
 
 
 t = 25.05 * phase 
-rv = 1000 * rv #* np.linspace(1, 0.2, t.size)
+rv = 1000 * rv * np.linspace(1, 0.2, t.size)
 rms_rv = np.sqrt((1./rv.size * np.sum(rv**2)))
 rverr = np.random.uniform(0.1, 0.2, t.size) * rms_rv * np.ones(rv.size)
 
@@ -30,8 +30,8 @@ plt.close()
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1.1, 0.1)
 #weight = weightFunction.SquaredExponential(10, 1.1)
-#weight = weightFunction.Linear(10, 5)
-weight = weightFunction.Constant(1)
+weight = weightFunction.Linear(10, 5)
+#weight = weightFunction.Constant(1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -161,14 +161,14 @@ likes=[]
 for i in range(samples[:,0].size):
     new_node = nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
                                           samples[i,2], samples[i,3])
-    new_weight = weightFunction.SquaredExponential(samples[i,4], samples[i,5])
+    new_weight = weightFunction.Constant(samples[i,4])
     likes.append(gpOBJ.log_likelihood(new_node, new_weight, mean = None))
 
 #plt.figure()
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_1spot100points_LinQP.npy', datafinal)
+np.save('test_1spot25points_LinQP.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
@@ -185,7 +185,7 @@ plt.ylabel("Samples")
 samples = samples[values,:]
 samples = samples.reshape(-1, 6)
 
-l1, p1, l2, wn1, w1, w2,likes = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+l1, p1, l2, wn1, w1, likes = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
 
 #printing results
@@ -197,7 +197,6 @@ print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
 print('weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
-print('weight_l = {0[0]} +{0[1]} -{0[2]}'.format(w2))
 print()
 print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()

@@ -26,13 +26,11 @@ class simpleGP(object):
         else:
             self.yerr = yerr        #measurements errors
 
-
     def _kernel_pars(self, kernel):
         """
             Returns a kernel parameters
         """
         return kernel.pars
-
 
     def _kernel_matrix(self, kernel, time = None):
         """
@@ -48,7 +46,6 @@ class simpleGP(object):
         K = kernel(r)
         return K
 
-
     def _predict_kernel_matrix(self, kernel, time, tstar):
         """
             To be used in predict_gp()
@@ -56,7 +53,6 @@ class simpleGP(object):
         r = time[:, None] - self.time[None, :]
         K = kernel(r)
         return K
-
 
     def _mean_function(self, mean):
         """
@@ -68,6 +64,7 @@ class simpleGP(object):
         else:
             m = mean(self.time)
         return m
+
 
 ##### marginal likelihood functions
     def _covariance_matrix(self, node, weight, time):
@@ -89,7 +86,6 @@ class simpleGP(object):
         nodePars = self._kernel_pars(node)
         #hyperparameteres of the weight function
         weightPars = self._kernel_pars(weight)
-
         #node and weight functions kernel
         f = self._kernel_matrix(type(self.node)(*nodePars),time)
         if type(self.weight) == Linear:
@@ -121,11 +117,9 @@ class simpleGP(object):
         K = np.zeros((time.size, time.size))
         #Then we calculate the covariance matrix
         k = self._covariance_matrix(node, weight, self.time)
-        
         #addition of the measurement errors
         diag = self.yerr * np.identity(self.time.size)
         K = k + diag
-
         #more "weight" to the diagonal to avoid a ill-conditioned matrix
         if nugget:
             nugget_value = 0.01 #might be too big
@@ -149,8 +143,7 @@ class simpleGP(object):
         """
         #calculates the  covariance matrix
         K = self.compute_matrix(node, weight, self.time)
-
-        #calculate mean and residuals
+        #calculation of the mean
         if mean:
             #in case we defined a new mean function
             mean = mean
@@ -161,9 +154,8 @@ class simpleGP(object):
                 #in case we defined it to be a zero mean GP
                 y = self.y 
             else:
-                #in case we defined a mean at the start of our simpleGP
+                #in case we defined a mean at the start of our complexGP
                 y = self.y - self.mean(self.time)
-
         #log marginal likelihood calculation
         try:
             L1 = cho_factor(K, overwrite_a=True, lower=False)
@@ -190,14 +182,11 @@ class simpleGP(object):
         """
         #our matrix starts empty
         A = np.zeros((self.time.size, self.time.size))
-
         #measurement errors, should I add the errors in the derivatives???
         diag = self.yerr * np.identity(self.time.size)
-
         #node and weight functions in use
         a1 = self._kernel_matrix(kernel_to_derive,self.time)
         a2 = self._kernel_matrix(kernel, self.time)
-
         #final matrix
         A = A + a1 * a2 + diag
         #to avoid a ill-conditioned matrix
@@ -227,13 +216,11 @@ class simpleGP(object):
         Kinv = np.linalg.inv(K)
         #calculates the  covariance matrix of dK/dOmega
         dK = self._compute_matrix_derivative(kernel_to_derive, kernel, nugget)
-
         #d(log marginal likelihood)/dOmega calculation
         try:
             alpha = np.dot(Kinv, self.y) #gives an array
             A = np.einsum('i,j',alpha, alpha) - Kinv #= alpha @ alpha.T - Kinv
             log_like_grad = 0.5 * np.einsum('ij,ij', A, dK) #= trace(a @ dK)
-
         except LinAlgError:
             return -np.inf
         return log_like_grad
@@ -259,7 +246,6 @@ class simpleGP(object):
             loglike = self._log_like_grad(derivative, weight, 
                                           node, weight, mean, nugget)
             node_array.append(loglike)
-
         #Then we derive the weight
         parameters = weight.pars #kernel parameters to use
         k = type(weight).__subclasses__() #derivatives list
@@ -269,7 +255,6 @@ class simpleGP(object):
             loglike = self._log_like_grad(derivative, node, 
                                           node, weight, mean, nugget)
             weight_array.append(loglike)
-
         #To finalize we merge both list into an array
         grads = np.array(node_array + weight_array)
         return grads
@@ -302,8 +287,7 @@ class simpleGP(object):
         else:
             #To use the one we defined earlier 
             weight = self.weight
-
-        #calculate mean and residuals
+        #calculation of the mean
         if mean:
             #To use a new mean
             mean = mean
@@ -320,17 +304,15 @@ class simpleGP(object):
         cov = self._covariance_matrix(node, weight, self.time)
         L1 = cho_factor(cov)
         sol = cho_solve(L1, r)
-
         #Kstar calculation
         fstar = self._predict_kernel_matrix(node, time, self.time)
         wstar = self._predict_kernel_matrix(weight, time, self.time)
         Kstar = wstar * fstar
-
         #Kstarstar
         fstarstar = self._kernel_matrix(node, time)
         wstarstar = self._kernel_matrix(weight, time)
         Kstarstar =  wstarstar * fstarstar
-
+        #final calculations
         y_mean = np.dot(Kstar, sol) #mean
         kstarT_k_kstar = []
         for i, e in enumerate(time):
@@ -339,3 +321,6 @@ class simpleGP(object):
         y_var = np.diag(y_cov) #variance
         y_std = np.sqrt(y_var) #standard deviation
         return y_mean, y_std, y_cov
+
+
+### END
