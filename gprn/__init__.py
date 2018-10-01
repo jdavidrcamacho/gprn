@@ -11,3 +11,5 @@ from gprn import weightFunction
 from gprn import nodeFunction
 #simple gp regression
 from gprn import simpleGP
+#gp regression with two datasets
+from gprn import complexGP
