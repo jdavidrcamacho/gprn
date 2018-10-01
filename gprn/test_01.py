@@ -12,14 +12,13 @@ import emcee
 
 
 ##### Data #####
-phase, rv = np.loadtxt("data/SOAP_1spot.rdb",
+phase, rv = np.loadtxt("data/1spot_100points.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
-phase = np.concatenate((phase,1+phase, 2+phase))
-rv = np.concatenate((rv,rv, rv))
+
 
 t = 25.05 * phase 
-rv = 1000 * rv * np.linspace(1, 0.2, t.size)
+rv = 1000 * rv #* np.linspace(1, 0.2, t.size)
 rms_rv = np.sqrt((1./rv.size * np.sum(rv**2)))
 rverr = np.random.uniform(0.1, 0.2, t.size) * rms_rv * np.ones(rv.size)
 
@@ -30,7 +29,9 @@ plt.close()
 
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1.1, 0.1)
-weight = weightFunction.Matern52(10, 1.1)
+#weight = weightFunction.SquaredExponential(10, 1.1)
+#weight = weightFunction.Linear(10, 5)
+weight = weightFunction.Constant(1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -54,19 +55,19 @@ print(log_like)
 
 ##### Seting priors #####
 #node function
-node_le = stats.uniform(100, 1000 -100) #from exp(-10) to 1
-node_p = stats.uniform(15, 30 -15) #from 15 to 35
-node_lp = stats.uniform(0.1, 2 -0.1) #from exp(-10) to exp(10)
+node_le = stats.uniform(10, np.exp(10) -10) #from exp(-10) to 1
+node_p = stats.uniform(15, 35-15) #from 15 to 35
+node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) #from exp(-10) to exp(10)
 #node_lp = stats.halfcauchy(0,1)
 #node_wn = stats.uniform(np.exp(-10), 0.1 -np.exp(-10)) #from exp(-10) to exp(10)
-node_wn = stats.halfcauchy(0, 1)
+node_wn = stats.uniform(np.exp(-10), 1 -np.exp(-10))
 #weight function
-weight_const = stats.uniform(1, 100 -1) #from exp(-10) to 100
-weight_ell = stats.uniform(1, 1000-1)
+weight_const = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10)) #from exp(-10) to 100
+weight_ell = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10))
 
 def from_prior():
     return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
-                     weight_const.rvs(), weight_ell.rvs()])
+                     weight_const.rvs()])
 
 
 ##### MCMC properties #####
@@ -74,26 +75,25 @@ runs, burns = 10000, 10000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
-    if any([p[0] < np.log(100), p[0] > np.log(1000), 
-            p[1] < np.log(15), p[1] > np.log(30), 
-            p[2] < np.log(0.1), p[2] > np.log(2), 
+    if any([p[0] < np.log(10), p[0] > 10, 
+            p[1] < np.log(15), p[1] > np.log(35), 
+            p[2] < -10, p[2] > np.log(1), 
+            p[3] < -10, p[2] > np.log(1), 
             
-            p[4] < np.log(1), p[4] > np.log(100),
-            p[5] < np.log(1), p[5] > np.log(1000),]):
+            p[4] < -10, p[4] > 10,]):
         return -np.inf
     else:
         logprior = 0.0
         #new kernels
-        new_weight = weightFunction.Matern52(np.exp(p[4]), np.exp(p[5]))
-        new_node = nodeFunction.QuasiPeriodic( np.exp(p[1]), np.exp(p[2]), 
-                                              np.exp(p[3]), np.exp(p[4]))
-
+        new_node = nodeFunction.QuasiPeriodic( np.exp(p[0]), np.exp(p[1]), 
+                                              np.exp(p[2]), np.exp(p[3]))
+        new_weight = weightFunction.Constant(np.exp(p[4]))
         #print(gpOBJ.log_likelihood(new_node, new_weight, new_weight_value, mean = None))
         #print(np.exp(p))
         return logprior + gpOBJ.log_likelihood(new_node, new_weight, mean = None)
 
 #Setingt up the sampler
-nwalkers, ndim = 2*6, 6
+nwalkers, ndim = 2*5, 5
 sampler = emcee.EnsembleSampler(nwalkers, ndim, logprob, threads= 4)
 
 #Initialize the walkers
@@ -111,7 +111,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
 
 #median and quantiles
-l1, p1, l2, wn1,w1, w2 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+l1, p1, l2, wn1, w1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
 
 #printing results
@@ -122,7 +122,7 @@ print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
 print('weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
-print('weight_l = {0[0]} +{0[1]} -{0[2]}'.format(w2))
+
 print()
 
 ##plotting the results
@@ -159,21 +159,21 @@ for i in range(sampler.lnprobability.shape[0]):
 ##### likelihood calculations #####
 likes=[]
 for i in range(samples[:,0].size):
-    new_weight = weightFunction.Matern52(samples[i,4], samples[i,5])
     new_node = nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
                                           samples[i,2], samples[i,3])
+    new_weight = weightFunction.SquaredExponential(samples[i,4], samples[i,5])
     likes.append(gpOBJ.log_likelihood(new_node, new_weight, mean = None))
 
 #plt.figure()
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_1spot_M52QP.npy', datafinal)
+np.save('test_1spot100points_LinQP.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -1000)
+values = np.where(samples[:,-1] > -200)
 #values = np.where(samples[:,-1] < -300)
 likelihoods = samples[values,-1].T
 plt.figure()
@@ -183,7 +183,7 @@ plt.xlabel("Value")
 plt.ylabel("Samples")
 
 samples = samples[values,:]
-samples = samples.reshape(-1, 7)
+samples = samples.reshape(-1, 6)
 
 l1, p1, l2, wn1, w1, w2,likes = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
@@ -203,12 +203,12 @@ print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()
 
 final_node = nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])
-final_weight = weightFunction.Matern52(w1[0],w2[0])
+final_weight = weightFunction.Constant(w1[0])
 mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
                                       time = np.linspace(t.min(), t.max(), 500))
 plt.figure()
 plt.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
 plt.fill_between(np.linspace(t.min(), t.max(), 500), 
                  mu22+std22, mu22-std22, color="grey", alpha=0.5)
-plt.plot(t,rv,"b.")
+plt.errorbar(t,rv, rverr, fmt = "b.")
 plt.ylabel("RVs")

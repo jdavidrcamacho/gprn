@@ -28,7 +28,7 @@ plt.close()
 
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(0,0,0,0)
-weight = weightFunction.SquaredExponential(0,0)
+weight = weightFunction.Matern32(0,0)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
@@ -67,7 +67,7 @@ print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()
 
 final_node = nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])
-final_weight = weightFunction.SquaredExponential(w1[0],w2[0])
+final_weight = weightFunction.Matern32(w1[0],w2[0])
 mu22, std22, cov22 = gpOBJ.predict_gp(node = final_node, weight= final_weight, 
                                       time = np.linspace(t.min(), t.max(), 500))
 plt.figure()

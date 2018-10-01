@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve, LinAlgError
+from gprn.weightFunction import Linear
 
 class simpleGP(object):
     """ 
@@ -91,7 +92,10 @@ class simpleGP(object):
 
         #node and weight functions kernel
         f = self._kernel_matrix(type(self.node)(*nodePars),time)
-        w = self._kernel_matrix(type(self.weight)(*weightPars), time)
+        if type(self.weight) == Linear:
+            w = self.weight(time)
+        else:
+            w = self._kernel_matrix(type(self.weight)(*weightPars), time)
         #now we add all the necessary elements to A_ii
         a_ii = w * f
         #now we fill our matrix

@@ -672,4 +672,22 @@ class dMatern52_dell(Matern52):
                            *exp(-(sqrt(5)*r)/self.ell)*self.weight**2)
 
 
+#### Linear ####################################################################
+class Linear(weightFunction):
+    """
+        Definition of the Linear kernel.
+            weight = weight/amplitude of the kernel
+            c = constant
+    """
+    def __init__(self, weight, c):
+        super(Linear, self).__init__(weight, c)
+        self.weight = c
+        self.c = c
+        self.type = 'non-stationary and anisotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
+
+    def __call__(self, time):
+        return (time[:, None] - self.c) * (time[None, :] - self.c)
+
 ### END
