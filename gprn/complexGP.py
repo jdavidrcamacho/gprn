@@ -24,11 +24,11 @@ class complexGP(object):
             *args = the data, it should be given as data1, data1_error, etc...
     """ 
     def  __init__(self, nodes, weight, weight_values, means, time, *args):
-        #node functions, the f(x) in Wilson et al. (2012)
+        #node functions; f(x) in Wilson et al. (2012)
         self.nodes = np.array(nodes)
-        #number of nodes being used, the q in Wilson et al. (2012)
+        #number of nodes being used; q in Wilson et al. (2012)
         self.q = len(self.nodes)
-        #weight function, the w(x) in Wilson et al. (2012)
+        #weight function; w(x) in Wilson et al. (2012)
         self.weight = weight
         #amplitudes of the weight function
         self.weight_values = np.array(weight_values)
@@ -38,13 +38,10 @@ class complexGP(object):
         self.time = time 
         #the data, it should be given as data1, data1_error, data2, ...
         self.args = args 
-        #number of components of y(x), the p in Wilson et al. (2012)
+        #number of components of y(x); p in Wilson et al. (2012)
         self.p = int(len(self.args)/2)
-
         #total number of weights we will have
         self.qp =  self.q * self.p
-        self.totalweights = np.ones(self.qp).astype(object)
-        self.totalweights[:] = self.weight
 
         #to organize the data we now join everything
         self.tt = np.tile(time, self.p) #"extended" time
@@ -68,7 +65,7 @@ class complexGP(object):
             Returns the covariance matrix created by evaluating a given kernel 
         at inputs time.
         """
-        #if time is None we use the time of our simpleGP
+        #if time is None we use the time of our complexGP
         if time is None:
             r = self.time[:, None] - self.time[None, :]
         #if we define a new time we will use that time
@@ -77,11 +74,11 @@ class complexGP(object):
         K = kernel(r)
         return K
 
-    def _predict_kernel_matrix(self, kernel, time, tstar):
+    def _predict_kernel_matrix(self, kernel, tstar):
         """
             To be used in predict_gp()
         """
-        r = time[:, None] - self.time[None, :]
+        r = tstar[:, None] - self.time[None, :]
         K = kernel(r)
         return K
 
@@ -140,8 +137,8 @@ class complexGP(object):
         """ 
             Creates the smaller matrices that will be used in a big final matrix
             Parameters:
-                node = the latent noide functions f(x) (f hat)
-                weight = the latent weight funtion w(x)
+                node = the node functions f(x) (f hat)
+                weight = the weight funtion w(x)
                 weight_values = array with the weights of w11, w12, etc... 
                 time = time 
                 position_p = position necessary to use the correct node
@@ -159,26 +156,13 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
-            f = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
-            w = self._kernel_matrix(type(self.weight)(*weightPars), time)
-            #now we add all the necessary elements to a_ii and b_ii
-            a_ii = (w * f)
-            for j in range(1,self.q + 1):
-                #hyperparameteres of the node of a given position
-                nodePars = self._kernel_pars(nodes[j-1])
-                #same parameters of the weight function
-                weightPars = self._kernel_pars(weight)
-                #except for the amplitude
-                weightPars[0] =  weight_values[j-1 + self.q*(position_p-1)]
-                #node and weight functions kernel
-                f = self._kernel_matrix(
-                        type(self.nodes[j-1])(*nodePars),time)
-                w = self._kernel_matrix(
-                        type(self.weight)(*weightPars), time)
-                #now we add all the necessary elements to a_ii and b_ii
-                b_ii = w * f
-                #block matrix k_ii to be used in the final covariance matrix
-                k_ii = k_ii + (a_ii * b_ii)
+            w_xa = type(self.weight)(*weightPars)(time[:,None])
+            f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
+            w_xw = type(self.weight)(*weightPars)(time[None,:])
+            #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
+            k_ii = k_ii + (w_xa * f_hat * w_xw)
+#            print(weightPars[0], self.weight,'*',self.nodes[i - 1],'*',self.weight)
+#        print()
         return k_ii
 
     def compute_matrix(self, nodes, weight,weight_values, time, 
@@ -225,8 +209,8 @@ class complexGP(object):
             Calculates the marginal log likelihood.
         See Rasmussen & Williams (2006), page 113.
             Parameters:
-                nodes = the latent noide functions f(x) (f hat)
-                weight = the latent weight funtion w(x)
+                nodes = the node functions f(x) (f hat)
+                weight = the weight funtion w(x)
                 weight_values = array with the weights of w11, w12, etc... 
                 means = mean function being used
             Returns:
@@ -247,4 +231,97 @@ class complexGP(object):
         except LinAlgError:
             return -np.inf
         return log_like
+
+
+##### GP prediction funtions
+    def predict_gp(self, nodes = None, weight = None, weight_values = None,
+                   means = None, time = None, dataset = 1):
+        """ 
+            NOTE: NOT WORKING PROPERLY
+            Conditional predictive distribution of the Gaussian process
+            Parameters:
+                time = values where the predictive distribution will be calculated
+                nodes = the node functions f(x) (f hat)
+                weight = the weight function w(x)
+                weight_values = array with the weights of w11, w12, etc...
+                means = list of means being used 
+                dataset = 1,2,3,... accordingly to the data we are using, 
+                        1 represents the first y(x), 2 the second y(x), etc...
+            Returns:
+                y_mean = mean vector
+                y_std = standard deviation vector
+                y_cov = covariance matrix
+        """
+        print('Working with dataset {0}'.format(dataset))
+        #Nodes
+        if nodes:
+            #To use a new node function
+            pass
+        else:
+            #To use the one we defined at start
+            nodes = self.nodes
+        #Weights
+        if weight:
+            #To use a new weight function
+            pass
+        else:
+            #To use the one we defined at start
+            weight = self.weight
+        #Weight values
+        if weight:
+            #To use new weight values
+            pass
+        else:
+            #To use the one we defined at start
+            weight_values = self.weight_values
+        #Means
+        if means:
+            #To use the new defined mean
+            yy = np.concatenate(self.y)
+            yy =  yy - self._mean(means)
+        else:
+            #to not use a mean
+            yy = np.concatenate(self.y)
+        #Time
+        if time.any():
+            #To use a new time
+            pass
+        else:
+            #to use the one defined earlier
+            time = self.time
+
+        new_y = np.array_split(yy, self.p)
+        cov = self._covariance_matrix(nodes, weight, weight_values, 
+                                      self.time, dataset)
+        L1 = cho_factor(cov)
+        sol = cho_solve(L1, new_y[dataset - 1])
+        tshape = time[:, None] - self.time[None, :]
+
+        k_ii = np.zeros((tshape.shape[0],tshape.shape[1]))
+        for i in range(1,self.q + 1):
+            #hyperparameteres of the kernel of a given position
+            nodePars = self._kernel_pars(nodes[i - 1])
+            #all weight function will have the same parameters
+            weightPars = self._kernel_pars(weight)
+            #except for the amplitude
+            weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
+            #node and weight functions kernel
+            w_xa = type(self.weight)(*weightPars)(time[:,None])
+            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+            w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+            #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
+            k_ii = k_ii + (w_xa * f_hat * w_xw)
+
+        Kstar = k_ii
+        Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
+                                            dataset)
+
+        y_mean = np.dot(Kstar, sol) #mean
+        kstarT_k_kstar = []
+        for i, e in enumerate(time):
+            kstarT_k_kstar.append(np.dot(Kstar, cho_solve(L1, Kstar[i,:])))
+        y_cov = Kstarstar - kstarT_k_kstar
+        y_var = np.diag(y_cov) #variance
+        y_std = np.sqrt(y_var) #standard deviation
+        return y_mean, y_std, y_cov
 

@@ -267,7 +267,7 @@ class simpleGP(object):
             Conditional predictive distribution of the Gaussian process
             Parameters:
                 node = the latent noide functions f(x) (f hat)
-                weight = the latent weight funtion w(x)
+                weight = the latent weight function w(x)
                 weight_value = weight value, basically the amplitude of the 
                                 weight function
                 mean = mean function being used
@@ -276,21 +276,20 @@ class simpleGP(object):
             mean vector, covariance matrix, standard deviation vector
         """
         if node:
-            #To use a new node funtion
-            node = node
+            #To use a new node function
+            pass
         else:
             #To use the one we defined earlier 
             node = self.node
         if weight:
-            #To use a new weight funtion
-            weight = weight
+            #To use a new weight function
+            pass
         else:
             #To use the one we defined earlier 
             weight = self.weight
         #calculation of the mean
         if mean:
             #To use a new mean
-            mean = mean
             r = self.y - mean(self.time)
         else:
             mean = self.mean
@@ -299,7 +298,7 @@ class simpleGP(object):
                 r = self.y 
             else:
                 #In case we defined a mean at the start of our GP class
-                r = self.y - mean(self.time)
+                r = self.y - self.mean(self.time)
 
         cov = self._covariance_matrix(node, weight, self.time)
         L1 = cho_factor(cov)
