@@ -201,7 +201,7 @@ class complexGP(object):
         if shift:
             shift = 0.01
             K = K + shift*np.identity(self.time.size * self.p)
-        plt.imshow(K)
+#        plt.imshow(K)
         return K
 
     def log_likelihood(self, nodes, weight, weight_values, means):

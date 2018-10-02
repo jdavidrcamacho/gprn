@@ -29,12 +29,13 @@ rverr2 = 2 * np.random.uniform(0.1, 0.2, t.size) * rms_rv2 * np.ones(rv2.size)
 #plt.errorbar(t, rv1, rverr1, fmt = '.')
 #plt.errorbar(t, rv2, rverr2, fmt = '.')
 
-nodes = [nodeFunction.QuasiPeriodic(1, 10, 1, 0.1)]#,nodeFunction.Periodic(1,15, 0.5)]
+nodes = [nodeFunction.QuasiPeriodic(1, 10, 1, 0.1)]
 weight = weightFunction.Constant(0)
-weight_values = [10, 5]#, 3,4]
+weight_values = [10, 5]
 means= [None, None]
 
-GPobj = complexGP(nodes, weight, weight_values, means, t, rv1, rverr1, rv2, rverr2)
+GPobj = complexGP(nodes, weight, weight_values, means, t, 
+                  rv1, rverr1, rv2, rverr2)
 loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
 print(loglike)
 
@@ -58,7 +59,7 @@ def from_prior():
 
     
 ##### MCMC properties #####
-runs, burns = 5000, 5000 #Defining runs and burn-ins
+runs, burns = 10000, 10000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
@@ -76,8 +77,6 @@ def logprob(p):
         new_node = [nodeFunction.QuasiPeriodic( np.exp(p[0]), np.exp(p[1]), 
                                               np.exp(p[2]), np.exp(p[3]))]
         new_weights = [np.exp(p[4]), np.exp(p[5])]
-        #print(gpOBJ.log_likelihood(new_node, new_weight, new_weight_value, mean = None))
-        #print(np.exp(p))
         return logprior + GPobj.log_likelihood(new_node, weight, new_weights, means)
 
 #Seting up the sampler
@@ -109,8 +108,8 @@ print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
 print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
-print('weight 1= {0[0]} +{0[1]} -{0[2]}'.format(w1))
-print('weight 2= {0[0]} +{0[1]} -{0[2]}'.format(w2))
+print('weight 1 = {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('weight 2 = {0[0]} +{0[1]} -{0[2]}'.format(w2))
 print()
 
 #plt.figure()
@@ -156,8 +155,8 @@ print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
 print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
-print('weight 1= {0[0]} +{0[1]} -{0[2]}'.format(w1))
-print('weight 2= {0[0]} +{0[1]} -{0[2]}'.format(w2))
+print('weight 1=  {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('weight 2 = {0[0]} +{0[1]} -{0[2]}'.format(w2))
 print()
 print('likelihood = {0[0]} +{0[1]} -{0[2]}'.format(likes))
 print()
