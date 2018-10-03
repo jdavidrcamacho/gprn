@@ -5,6 +5,7 @@ from scipy.linalg import cho_factor, cho_solve, LinAlgError
 from copy import copy
 
 import matplotlib.pyplot as plt
+from gprn.weightFunction import Linear
 
 class complexGP(object):
     """ 
@@ -71,7 +72,10 @@ class complexGP(object):
         #if we define a new time we will use that time
         else:
             r = time[:, None] - time[None, :]
-        K = kernel(r)
+        if isinstance(kernel, Linear):
+            K = kernel(None, time[:, None], time[None, :])
+        else:
+            K = kernel(r)
         return K
 
     def _predict_kernel_matrix(self, kernel, tstar):

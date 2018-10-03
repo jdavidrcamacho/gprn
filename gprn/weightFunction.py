@@ -16,7 +16,7 @@ class weightFunction(object):
         """
         self.pars = np.array(args)
 
-    def __call__(self, r):
+    def __call__(self, r, t1 = None, t2=None):
         """
             r = t - t' 
             Not sure if this is a good approach since will make our life harder 
@@ -681,13 +681,13 @@ class Linear(weightFunction):
     """
     def __init__(self, weight, c):
         super(Linear, self).__init__(weight, c)
-        self.weight = c
+        self.weight = weight
         self.c = c
         self.type = 'non-stationary and anisotropic'
         self.derivatives = 2    #number of derivatives in this kernel
         self.params_size = 2    #number of hyperparameters
 
-    def __call__(self, time):
-        return (time[:, None] - self.c) * (time[None, :] - self.c)
+    def __call__(self, r, t1, t2):
+        return self.weight**2 * (t1 - self.c) * (t2 - self.c)
 
 ### END
