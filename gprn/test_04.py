@@ -75,7 +75,7 @@ def logprob(p):
     if any([p[0] < np.log(10), p[0] > 10, 
             p[1] < np.log(15), p[1] > np.log(35), 
             p[2] < -10, p[2] > np.log(1), 
-            p[3] < -10, p[2] > np.log(1), 
+            p[3] < -10, p[3] > np.log(1), 
             
             p[4] < -10, p[4] > np.log(10), 
             p[5] < np.log(15), p[5] > np.log(35), 
@@ -152,7 +152,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_1spot25points_2nodes2datasets.npy', datafinal)
+np.save('test_1spot25points_2nodes2datasets_RVsRVs.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
