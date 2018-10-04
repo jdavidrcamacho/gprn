@@ -21,7 +21,7 @@ rv1 = 1000 * rv * np.linspace(1, 0.2, t.size)
 rms_rv1 = np.sqrt(1./rv1.size * np.sum(rv1**2))
 rverr1 = np.random.uniform(0.1, 0.2, t.size) * rms_rv1 * np.ones(rv1.size)
 
-rv2 = rv1/2 + 10*np.cos(2*np.pi/31 * t)
+rv2 = rv1/2 
 rms_rv2 = np.sqrt(1./rv2.size * np.sum(rv2**2))
 rverr2 = 2 * np.random.uniform(0.1, 0.2, t.size) * rms_rv2 * np.ones(rv2.size)
 
@@ -31,7 +31,7 @@ rverr2 = 2 * np.random.uniform(0.1, 0.2, t.size) * rms_rv2 * np.ones(rv2.size)
 #plt.errorbar(t, rv2, rverr2, fmt = '.')
 
 nodes = [nodeFunction.QuasiPeriodic(1, 10, 1, 0.1)]
-weight = weightFunction.Cosine(1, 1)
+weight = weightFunction.Linear(1,10)
 weight_values = [10, 5]
 means= [None, None]
 
@@ -51,10 +51,10 @@ node_p = stats.uniform(15, 35-15) #from 15 to 35
 node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) #from exp(-10) to exp(10)
 node_wn = stats.uniform(np.exp(-10), 1 -np.exp(-10))
 #weight function
-weight_1w = stats.uniform(np.exp(-10), 20 -np.exp(-10)) #from exp(-10) to 100
-weight_1p = stats.uniform(np.exp(-10), 50 -np.exp(-10))
-weight_2w = stats.uniform(np.exp(-10), 20 -np.exp(-10)) #from exp(-10) to 100
-weight_2p = stats.uniform(np.exp(-10), 50 -np.exp(-10))
+weight_1w = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10)) #from exp(-10) to 100
+weight_1p = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10))
+weight_2w = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10)) #from exp(-10) to 100
+weight_2p = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10))
 
 def from_prior():
     return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
@@ -72,17 +72,17 @@ def logprob(p):
             p[2] < -10, p[2] > np.log(1), 
             p[3] < -10, p[3] > np.log(1), 
             
-            p[4] < -10, p[4] > np.log(20),
-            p[5] < -10, p[5] > np.log(50),
-            p[6] < -10, p[6] > np.log(20),
-            p[7] < -10, p[7] > np.log(50)]):
+            p[4] < -10, p[4] > 10,
+            p[5] < -10, p[5] > 10,
+            p[6] < -10, p[6] > 10,
+            p[7] < -10, p[7] > 10]):
         return -np.inf
     else:
         logprior = 0.0
         #new nodes
         new_node = [nodeFunction.QuasiPeriodic( np.exp(p[0]), np.exp(p[1]), 
                                               np.exp(p[2]), np.exp(p[3]))]
-        new_weights = [np.exp(p[4]), np.exp(p[5]), np.exp(p[6]), np.exp(p[7])]
+        new_weights = [np.exp(p[4]), np.exp(p[5]),np.exp(p[6]), np.exp(p[7])]
         return logprior + GPobj.log_likelihood(new_node, weight, new_weights, means)
 
 #Seting up the sampler
@@ -115,9 +115,9 @@ print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
 print('weight 1 amp = {0[0]} +{0[1]} -{0[2]}'.format(w1w))
-print('weight 1 per = {0[0]} +{0[1]} -{0[2]}'.format(w1p))
+print('weight 1 c = {0[0]} +{0[1]} -{0[2]}'.format(w1p))
 print('weight 2 amp = {0[0]} +{0[1]} -{0[2]}'.format(w2w))
-print('weight 2 per = {0[0]} +{0[1]} -{0[2]}'.format(w2p))
+print('weight 2 c = {0[0]} +{0[1]} -{0[2]}'.format(w2p))
 print()
 
 #plt.figure()
@@ -136,7 +136,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_1spot25points_1node2datasets_RVsRVs.npy', datafinal)
+np.save('test_1spot25points_1node2datasets_RVsRVs_b.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
@@ -164,15 +164,15 @@ print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
 print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
 print('weight 1 amp = {0[0]} +{0[1]} -{0[2]}'.format(w1w))
-print('weight 1 per = {0[0]} +{0[1]} -{0[2]}'.format(w1p))
+print('weight 1 c = {0[0]} +{0[1]} -{0[2]}'.format(w1p))
 print('weight 2 amp = {0[0]} +{0[1]} -{0[2]}'.format(w2w))
-print('weight 2 per = {0[0]} +{0[1]} -{0[2]}'.format(w2p))
+print('weight 2 c = {0[0]} +{0[1]} -{0[2]}'.format(w2p))
 print()
 
 
 #final result
 nodes = [nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])]
-weight = weightFunction.Cosine(1,1)
+weight = weightFunction.Linear(1, 1)
 weight_values = [w1w[0], w1p[0], w2w[0], w2p[0]]
 
 
