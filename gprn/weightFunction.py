@@ -31,6 +31,35 @@ class weightFunction(object):
         return "{0}({1})".format(self.__class__.__name__,
                                  ", ".join(map(str, self.pars)))
 
+#Not working yet!
+#    def __minus__(self, b):
+#        return Minus(self, b)
+#    def __rminus__(self, b):
+#        return self.__minus__(b)
+#
+#
+#class _operator(weightFunction):
+#    """ 
+#        To allow operations between two kernels 
+#    """
+#    def __init__(self, k1):
+#        self.k1 = k1
+#
+#    @property
+#    def pars(self):
+#        return np.append(self.k1.pars)
+#
+#
+#class Minus(_operator):
+#    """ 
+#        To allow a "minus" linear kernel
+#    """
+#    def __repr__(self):
+#        return "-{0}".format(self.k1)
+#
+#    def __call__(self, r):
+#        return -self.k1(r)
+
 
 ##### Constant #################################################################
 class Constant(weightFunction):

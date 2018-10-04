@@ -51,10 +51,10 @@ node_p = stats.uniform(15, 35-15) #from 15 to 35
 node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) #from exp(-10) to exp(10)
 node_wn = stats.uniform(np.exp(-10), 1 -np.exp(-10))
 #weight function
-weight_1w = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10)) #from exp(-10) to 100
-weight_1p = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10))
-weight_2w = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10)) #from exp(-10) to 100
-weight_2p = stats.uniform(np.exp(-10), np.exp(10) -np.exp(-10))
+weight_1w = stats.uniform(np.exp(-10), 50 -np.exp(-10)) #from exp(-10) to 100
+weight_1p = stats.uniform(np.exp(-10), 50 -np.exp(-10))
+weight_2w = stats.uniform(np.exp(-10), 50 -np.exp(-10)) #from exp(-10) to 100
+weight_2p = stats.uniform(np.exp(-10), 50 -np.exp(-10))
 
 def from_prior():
     return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
@@ -72,10 +72,10 @@ def logprob(p):
             p[2] < -10, p[2] > np.log(1), 
             p[3] < -10, p[3] > np.log(1), 
             
-            p[4] < -10, p[4] > 10,
-            p[5] < -10, p[5] > 10,
-            p[6] < -10, p[6] > 10,
-            p[7] < -10, p[7] > 10]):
+            p[4] < -10, p[4] > np.log(50),
+            p[5] < -10, p[5] > np.log(50),
+            p[6] < -10, p[6] > np.log(50),
+            p[7] < -10, p[7] > np.log(50)]):
         return -np.inf
     else:
         logprior = 0.0
