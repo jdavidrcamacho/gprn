@@ -156,20 +156,28 @@ class complexGP(object):
             #hyperparameteres of the kernel of a given position
             nodePars = self._kernel_pars(nodes[i - 1])
             #all weight function will have the same parameters
-            weightPars = self._kernel_pars(weight)
+            if isinstance(weight, Linear):
+                weightPars = weight.pars
+            else:
+                weightPars = self._kernel_pars(weight)
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
-            w_xa = type(self.weight)(*weightPars)(time[:,None])
-            f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
-            w_xw = type(self.weight)(*weightPars)(time[None,:])
+            if isinstance(weight, Linear):
+                w_xa = type(self.weight)(*weightPars)(None, time[:,None], np.zeros(time.size))
+                f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
+                w_xw = type(self.weight)(*weightPars)(None, np.zeros(time.size), time[None,:])
+            else:
+                w_xa = type(self.weight)(*weightPars)(time[:,None])
+                f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
+                w_xw = type(self.weight)(*weightPars)(time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
             k_ii = k_ii + (w_xa * f_hat * w_xw)
 #            print(weightPars[0], self.weight,'*',self.nodes[i - 1],'*',self.weight)
 #        print()
         return k_ii
 
-    def compute_matrix(self, nodes, weight,weight_values, time, 
+    def compute_matrix(self, nodes, weight, weight_values, time, 
                        nugget = False, shift = False):
         """
             Creates the big covariance matrix K that will be used in the 
@@ -310,9 +318,18 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
-            w_xa = type(self.weight)(*weightPars)(time[:,None])
-            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
-            w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+            if isinstance(weight, Linear):
+                w_xa = type(self.weight)(*weightPars)(None, time[:,None], 0)
+                f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
+                w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
+            else:
+                w_xa = type(self.weight)(*weightPars)(time[:,None])
+                f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+                w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+#            w_xa = type(self.weight)(*weightPars)(time[:,None])
+#            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+#            w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+                
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
             k_ii = k_ii + (w_xa * f_hat * w_xw)
 
