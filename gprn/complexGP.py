@@ -4,9 +4,10 @@ import numpy as np
 from scipy.linalg import cho_factor, cho_solve, LinAlgError
 from copy import copy
 
-import matplotlib.pyplot as plt
-from gprn.nodeFunction import Linear, Polynomial
-from gprn.weightFunction import Linear
+from gprn.nodeFunction import Linear as nodeL
+from gprn.nodeFunction import Polynomial as nodeP
+from gprn.weightFunction import Linear as weightL
+from gprn.weightFunction import Polynomial as weightP
 
 class complexGP(object):
     """ 
@@ -74,30 +75,21 @@ class complexGP(object):
         else:
             r = time[:, None] - time[None, :]
         #to deal with the non-stationary kernels problem
-        try:
-            K = kernel(r)
-        except TypeError:
+        if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
             K = kernel(None, time[:, None], time[None, :])
-#        if isinstance(kernel, Linear) or isinstance(kernel, Polynomial):
-#            K = kernel(None, time[:, None], time[None, :])
-#        else:
-#            K = kernel(r)
+        else:
+            K = kernel(r)
         return K
 
     def _predict_kernel_matrix(self, kernel, tstar):
         """
             To be used in predict_gp()
         """
-        try:
+        if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
+            K = kernel(None, tstar[:, None], self.time[None, :])
+        else:
             r = tstar[:, None] - self.time[None, :]
             K = kernel(r)
-        except TypeError:
-            K = kernel(None, tstar[:, None], self.time[None, :])
-#        if isinstance(kernel, Linear) or isinstance(kernel, Polynomial):
-#            K = kernel(None, tstar[:, None], self.time[None, :])
-#        else:
-#            r = tstar[:, None] - self.time[None, :]
-#            K = kernel(r)
         return K
 
     def _kernel_pars(self, kernel):
@@ -178,7 +170,7 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
-            if isinstance(weight, Linear):
+            if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
                 w_xa = type(self.weight)(*weightPars)(None, time[:,None], np.zeros(time.size))
                 f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
                 w_xw = type(self.weight)(*weightPars)(None, np.zeros(time.size), time[None,:])
@@ -335,7 +327,7 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
-            if isinstance(weight, Linear):
+            if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
                 w_xa = type(self.weight)(*weightPars)(None, time[:,None], 0)
                 f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
                 w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
