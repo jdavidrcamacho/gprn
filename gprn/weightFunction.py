@@ -603,7 +603,6 @@ class Matern32(weightFunction):
     v=3/2 in the matern family of kernels
         Parameters:
             weight = weight/amplitude of the kernel
-            theta = amplitude of the kernel
             ell = characteristic lenght scale
     """
     def __init__(self, weight, ell):
@@ -653,7 +652,6 @@ class Matern52(weightFunction):
     v=5/2 in the matern family of kernels
         Parameters:
             weight = weight/amplitude of the kernel
-            theta = amplitude of the kernel
             ell = characteristic lenght scale  
     """
     def __init__(self, weight, ell):
