@@ -742,4 +742,146 @@ class dLinear_dc(Linear):
         return self.c * (-t1 - t2 + 2*self.c) * self.weight**2
 
 
+##### Gamma-exponential ########################################################
+class GammaExp(weightFunction):
+    """
+        Definition of the gamma-exponential kernel
+            weight = weight/amplitude
+            gamma = shape parameter ( 0 < gamma <= 2)
+            ell = lenght scale
+    """
+    def __init__(self, weight, gamma, ell):
+        super(GammaExp, self).__init__(weight, gamma, ell)
+        self.weight = weight
+        self.gamma = gamma
+        self.ell = ell
+        self.type = 'non-stationary and anisotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r):
+        return self.weight**2 * exp( -(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dweight(Linear):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, gamma, ell):
+        super(dGammaExp_dweight, self).__init__(weight, gamma, ell)
+        self.weight = weight
+        self.gamma = gamma
+        self.ell = ell
+
+    def __call__(self, r, t1, t2):
+        return 2 * self.weight**2 * exp( -(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dgamma(GammaExp):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, gamma, ell):
+        super(dGammaExp_dgamma, self).__init__(weight, gamma, ell)
+        self.weight = weight
+        self.gamma = gamma
+        self.ell = ell
+
+    def __call__(self, r):
+        return -self.weight**2 * self.gamma * (np.abs(r)/self.ell)**self.gamma \
+                *np.log(np.abs(r)/self.ell) * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dell(GammaExp):
+    """
+        Log-derivative in order to gamma
+    """
+    def __init__(self, weight, gamma, ell):
+        super(dGammaExp_dell, self).__init__(weight, gamma, ell)
+        self.weight = weight
+        self.gamma = gamma
+        self.ell = ell
+
+    def __call__(self, r):
+        return self.weight**2 * (np.abs(r)/self.ell)**self.gamma \
+                * self.gamma*exp(-(np.abs(r)/self.ell)**self.gamma)
+
+
+##### Polinomial ###############################################################
+class Polynomial(weightFunction):
+    """
+        Definition of the polinomial kernel
+            weight = weight/amplitude
+            a = real value > 0
+            b = real value >= 0
+            c = integer value
+    """
+    def __init__(self, weight, a, b, c):
+        super(Polynomial, self).__init__(weight, a, b, c)
+        self.weight = weight
+        self.a = a
+        self.b = b
+        self.c = c
+
+
+    def __call__(self, r, t1, t2):
+        return self.weight**2 * (self.a * t1 * t2 + self.b)**self.c 
+
+class dPolynomial_dweight(Polynomial):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, a, b, c):
+        super(dPolynomial_dweight, self).__init__(weight, a, b, c)
+        self.weight = weight
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __call__(self, r, t1, t2):
+        return 2 * self.weight**2 * (self.a * t1 * t2 + self.b)**self.c 
+
+class dPolynomial_da(Polynomial):
+    """
+        Log-derivative in order to a
+    """
+    def __init__(self, weight, a, b, c):
+        super(dPolynomial_da, self).__init__(weight, a, b, c)
+        self.weight = weight
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __call__(self, r, t1, t2):
+        return self.weight**2 * self.a * self.c * t1 * t2 \
+                * (self.b + self.a * t1 * t2)**(self.c-1)
+
+class dPolynomial_db(Polynomial):
+    """
+        Log-derivative in order to b
+    """
+    def __init__(self, weight, a, b, c):
+        super(dPolynomial_db, self).__init__(weight, a, b, c)
+        self.weight = weight
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __call__(self, r, t1, t2):
+        return self.weight**2 * self.c * self.b \
+                * (self.b +self.a * t1 * t2)**(self.c-1)
+
+class dPolynomial_dc(Polynomial):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, weight, a, b, c):
+        super(dPolynomial_dc, self).__init__(weight, a, b, c)
+        self.weight = weight
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __call__(self, r, t1, t2):
+        return self.weight**2 * self.c * (self.b + self.a * t1 * t2)**self.c \
+                * np.log(self.a * t1 * t2 + self.b)
+
+
 ### END

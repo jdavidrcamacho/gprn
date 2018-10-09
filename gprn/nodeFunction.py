@@ -15,7 +15,7 @@ class nodeFunction(object):
         """
         self.pars = np.array(args)
 
-    def __call__(self, r):
+    def __call__(self, r, t1 = None, t2=None):
         """
             r = t - t' 
             Not sure if this is a good approach since will make our life harder 
@@ -786,6 +786,158 @@ class dLinear_dwn(Linear):
     """
     def __init__(self, c, wn):
         super(dLinear_dwn, self).__init__(c, wn)
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+
+
+##### Gamma-exponential ########################################################
+class GammaExp(nodeFunction):
+    """
+        Definition of the gamma-exponential kernel
+            gamma = shape parameter ( 0 < gamma <= 2)
+            ell = lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, gamma, ell, wn):
+        super(GammaExp, self).__init__(gamma, ell, wn)
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+        self.type = 'non-stationary and anisotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r):
+        try: 
+            return exp( -(np.abs(r)/self.ell)**self.gamma) \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return exp( - (np.abs(r)/self.ell) ** self.gamma) 
+
+class dGammaExp_dgamma(GammaExp):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, gamma, ell, wn):
+        super(dGammaExp_dgamma, self).__init__(gamma, ell, wn)
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return -self.gamma * (np.abs(r)/self.ell)**self.gamma \
+                *np.log(np.abs(r)/self.ell) * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dell(GammaExp):
+    """
+        Log-derivative in order to gamma
+    """
+    def __init__(self, gamma, ell, wn):
+        super(dGammaExp_dell, self).__init__(gamma, ell, wn)
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return (np.abs(r)/self.ell)**self.gamma \
+                * self.gamma * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dwn(GammaExp):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, gamma, ell, wn):
+        super(dGammaExp_dwn, self).__init__(gamma, ell, wn)
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+
+
+##### Polinomial ###############################################################
+class Polynomial(nodeFunction):
+    """
+        Definition of the polinomial kernel
+            a = real value > 0
+            b = real value >= 0
+            c = integer value
+            wn = white noise amplitude
+    """
+    def __init__(self, a, b, c, wn):
+        super(Polynomial, self).__init__(a, b, c, wn)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        try: 
+            return (self.a * t1 * t2 + self.b)**self.c \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return (self.a * t1 * t2 + self.b)**self.c 
+
+class dPolynomial_da(Polynomial):
+    """
+        Log-derivative in order to a
+    """
+    def __init__(self, a, b, c, wn):
+        super(dPolynomial_da, self).__init__(a, b, c, wn)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.c * t1 * t2 * (self.b + self.a*t1*t2)**(self.c-1) * self.a
+
+class dPolynomial_db(Polynomial):
+    """
+        Log-derivative in order to b
+    """
+    def __init__(self, a, b, c, wn):
+        super(dPolynomial_db, self).__init__(a, b, c, wn)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.c * (self.b +self.a * t1 * t2)**(self.c-1) * self.b
+
+class dPolynomial_dc(Polynomial):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, a, b, c, wn):
+        super(dPolynomial_dc, self).__init__(a, b, c, wn)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.c * (self.b + self.a*t1*t2)**self.c*np.log(self.a*t1*t2 + self.b)
+
+class dPolynomial_dwn(Polynomial):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, a, b, c, wn):
+        super(dPolynomial_dwn, self).__init__(a, b, c, wn)
+        self.a = a
+        self.b = b
         self.c = c
         self.wn = wn
 
