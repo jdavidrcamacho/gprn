@@ -733,7 +733,7 @@ class dMatern52_dell(Matern52):
 
 class dMatern52_dwn(Matern52):
     """
-        Log-derivative in order to the weight
+        Log-derivative in order to the white noise
     """
     def __init__(self, ell, wn):
         super(dMatern52_dwn, self).__init__(ell, wn)
@@ -767,6 +767,33 @@ class Linear(nodeFunction):
                 + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return  (t1 - self.c) * (t2 - self.c)
+
+class dLinear_dc(Linear):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, c, wn):
+        super(dLinear_dc, self).__init__(c, wn)
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.c * (-t1 - t2 + 2*self.c)
+
+class dLinear_dwn(Linear):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, c, wn):
+        super(dLinear_dwn, self).__init__(c, wn)
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
 
 
 ### END
