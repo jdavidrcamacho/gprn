@@ -5,6 +5,7 @@ from scipy.linalg import cho_factor, cho_solve, LinAlgError
 from copy import copy
 
 import matplotlib.pyplot as plt
+from gprn.nodeFunction import Linear, Polynomial
 from gprn.weightFunction import Linear
 
 class complexGP(object):
@@ -72,18 +73,31 @@ class complexGP(object):
         #if we define a new time we will use that time
         else:
             r = time[:, None] - time[None, :]
-        if isinstance(kernel, Linear):
-            K = kernel(None, time[:, None], time[None, :])
-        else:
+        #to deal with the non-stationary kernels problem
+        try:
             K = kernel(r)
+        except TypeError:
+            K = kernel(None, time[:, None], time[None, :])
+#        if isinstance(kernel, Linear) or isinstance(kernel, Polynomial):
+#            K = kernel(None, time[:, None], time[None, :])
+#        else:
+#            K = kernel(r)
         return K
 
     def _predict_kernel_matrix(self, kernel, tstar):
         """
             To be used in predict_gp()
         """
-        r = tstar[:, None] - self.time[None, :]
-        K = kernel(r)
+        try:
+            r = tstar[:, None] - self.time[None, :]
+            K = kernel(r)
+        except TypeError:
+            K = kernel(None, tstar[:, None], self.time[None, :])
+#        if isinstance(kernel, Linear) or isinstance(kernel, Polynomial):
+#            K = kernel(None, tstar[:, None], self.time[None, :])
+#        else:
+#            r = tstar[:, None] - self.time[None, :]
+#            K = kernel(r)
         return K
 
     def _kernel_pars(self, kernel):
@@ -156,10 +170,11 @@ class complexGP(object):
             #hyperparameteres of the kernel of a given position
             nodePars = self._kernel_pars(nodes[i - 1])
             #all weight function will have the same parameters
-            if isinstance(weight, Linear):
-                weightPars = weight.pars
-            else:
-                weightPars = self._kernel_pars(weight)
+            weightPars = weight.pars
+#            if isinstance(weight, Linear):
+#                weightPars = weight.pars
+#            else:
+#                weightPars = self._kernel_pars(weight)
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
@@ -173,6 +188,8 @@ class complexGP(object):
                 w_xw = type(self.weight)(*weightPars)(time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
             k_ii = k_ii + (w_xa * f_hat * w_xw)
+#            k_ii = k_ii + self._kernel_matrix(type(self.weight)(*weightPars),time) \
+#                    *self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
 #            print(weightPars[0], self.weight,'*',self.nodes[i - 1],'*',self.weight)
 #        print()
         return k_ii
