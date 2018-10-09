@@ -28,13 +28,13 @@ bis = bis * 1000
 rms_bis = np.sqrt(1./bis.size * np.sum(bis**2))
 biserr = np.random.uniform(0.1, 0.2, t.size) * rms_bis * np.ones(bis.size)
 
-f, (ax1, ax2) = plt.subplots(2, sharex=True)
-ax1.set_title(' ')
-ax1.errorbar(t,rv, rverr, fmt = "b.")
-ax1.set_ylabel("RVs")
-ax2.errorbar(t, bis, biserr, fmt = "b.")
-ax2.set_ylabel("BIS")
-plt.show()
+#f, (ax1, ax2) = plt.subplots(2, sharex=True)
+#ax1.set_title(' ')
+#ax1.errorbar(t,rv, rverr, fmt = "b.")
+#ax1.set_ylabel("RVs")
+#ax2.errorbar(t, bis, biserr, fmt = "b.")
+#ax2.set_ylabel("BIS")
+#plt.show()
 
 nodes = [nodeFunction.Periodic(1, 25, 0.1), 
          nodeFunction.SquaredExponential(100, 0.1)]
@@ -58,7 +58,7 @@ mu22, std22, cov22 = GPobj.predict_gp(nodes = nodes, weight = weight,
                                       dataset = 2)
 
 f, (ax1, ax2) = plt.subplots(2, sharex=True)
-ax1.set_title(' ')
+ax1.set_title('Model 2')
 ax1.fill_between(np.linspace(t.min(), t.max(), 500), 
                  mu11+std11, mu11-std11, color="grey", alpha=0.5)
 ax1.plot(np.linspace(t.min(), t.max(), 500), mu11, "k--", alpha=1, lw=1.5)
