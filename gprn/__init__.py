@@ -7,8 +7,10 @@
 
 #weight functions
 from gprn import weightFunction
-#node funtions
+#node functions
 from gprn import nodeFunction
+#mean functions
+from gprn import meanFunction
 #simple gp regression
 from gprn import simpleGP
 #gp regression with two datasets
