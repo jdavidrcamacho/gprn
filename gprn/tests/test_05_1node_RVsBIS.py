@@ -95,8 +95,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
 
 #median and quantiles
-l1,p1,l2,wn1, w1,w2 = map(lambda v: (v[1], v[2]-v[1], 
-                                                         v[1]-v[0]),
+l1,p1,l2,wn1, w1,w2 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
 
 #printing results

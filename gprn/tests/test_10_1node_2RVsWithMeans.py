@@ -11,7 +11,7 @@ from gprn import weightFunction, nodeFunction, meanFunction
 
 
 ##### Data #####
-phase, rv = np.loadtxt("data/1spot_25points.rdb",
+phase, rv = np.loadtxt("data/1spot_100points.rdb",
                                   skiprows=2, unpack=True, 
                                   usecols=(0, 2))
 
