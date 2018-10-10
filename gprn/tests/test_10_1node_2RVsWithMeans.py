@@ -78,7 +78,7 @@ ax2.errorbar(t, rv2, rverr2, fmt = "b.")
 ax2.set_ylabel("RVs")
 plt.show()
 
-
+#####
 
 mu11, std11, cov11 = GPobj2.predict_gp(nodes = nodes, weight = weight, 
                                       weight_values = weight_values, means = means2,
@@ -103,7 +103,7 @@ ax2.errorbar(t, rv2, rverr2, fmt = "b.")
 ax2.set_ylabel("RVs")
 plt.show()
 
-
+#####
 
 mu11, std11, cov11 = GPobj3.predict_gp(nodes = nodes, weight = weight, 
                                       weight_values = weight_values, means = means3,
