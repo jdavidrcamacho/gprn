@@ -127,3 +127,4 @@ ax2.plot(np.linspace(t.min(), t.max(), 500), mu22, "k--", alpha=1, lw=1.5)
 ax2.errorbar(t, rv2, rverr2, fmt = "b.")
 ax2.set_ylabel("RVs")
 plt.show()
+

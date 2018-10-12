@@ -9,24 +9,71 @@ from gprn.complexGP import complexGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
 ##### Data #####
-time, rv, rverr = np.loadtxt("corot7.txt", skiprows=2, unpack=True, 
-                            usecols=(0, 1, 2))
+time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("corot7_harps.rdb", skiprows=5, unpack=True, 
+                            usecols=(0, 1, 2, 3, 4, 5, 6))
 
-plt.figure()
-plt.errorbar(time, rv, rverr, fmt = '.')
+#removing NaNs
+time = time[~np.isnan(rhk)]
+rv = rv[~np.isnan(rhk)]
+rverr = rverr[~np.isnan(rhk)]*1000
+fwhm = fwhm[~np.isnan(rhk)]
+bis = bis[~np.isnan(rhk)]
+rhkerr = rhkerr[~np.isnan(rhk)]
+rhk = rhk[~np.isnan(rhk)]
+
+
+rms_fwhm = np.sqrt((1./fwhm.size*np.sum(fwhm**2)))
+rms_bis = np.sqrt((1./bis.size*np.sum(bis**2)))
+fwhmerr = 0.001*rms_fwhm * np.ones(fwhm.size)
+biserr = 0.10*rms_bis * np.ones(bis.size)
+
+#f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
+#ax1.set_title('RVs, fwhm, BIS and Rhk')
+#ax1.errorbar(time,rv, rverr, fmt = "b.")
+#ax1.set_ylabel("RVs")
+#
+#ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
+#ax2.set_ylabel("fwhm")
+#
+#ax3.errorbar(time,bis, biserr, fmt = "g.")
+#ax3.set_ylabel("BIS")
+#
+#ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
+#ax4.set_ylabel("Rhk")
+#plt.show()
 
 
 ##### GP object #####
-nodes = [nodeFunction.QuasiPeriodic(1, 10, 1, 0.1)]
-weight = weightFunction.Constant(0)
-weight_values = [10]
-means= [meanFunction.Keplerian(1, 10, 0.5, 0, 0) + meanFunction.Keplerian(0.5, 7, 0.5, 0, 0)]
+nodes = [nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0.88)]
+weight = weightFunction.Constant(9.31)
+weight_values = [9.31]
+means= [meanFunction.Keplerian(0.85424, 3.97, 0.045, 0, 0) + meanFunction.Keplerian(3.69686, 5.55, 0.026, 0, 0)]
 
-GPobj = complexGP(nodes, weight, weight_values, means, time, rv, rverr)
+GPobj = complexGP(nodes, weight, weight_values, means, time, 
+                  rv, rverr)#, fwhm, fwhmerr, bis, biserr, rhk, rhkerr)
 loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
 print(loglike)
 
 
+###### fit plots #####
+#mu11, std11, cov11 = GPobj.predict_gp(nodes = nodes, weight = weight, 
+#                                      weight_values = weight_values, means = None,
+#                                      time = np.linspace(time.min(), time.max(), 500),
+#                                      dataset = 1)
+#
+#
+#f, (ax1) = plt.subplots(1, sharex=True)
+#ax1.set_title(' ')
+#ax1.fill_between(np.linspace(time.min(), time.max(), 500), 
+#                 mu11+std11, mu11-std11, color="grey", alpha=0.5)
+#ax1.plot(np.linspace(time.min(), time.max(), 500), mu11, "k--", alpha=1, lw=1.5)
+#ax1.errorbar(time,rv, rverr, fmt = "b.")
+#ax1.set_ylabel("RVs")
+#plt.show()
+
+i=1
+if i == 0:
+    raise SystemExit()
 ##### Seting priors #####
 from scipy import stats
 
@@ -201,3 +248,29 @@ print('e 2 = {0[0]} +{0[1]} -{0[2]}'.format(k23))
 print('w 2 = {0[0]} +{0[1]} -{0[2]}'.format(k24))
 print('T0 2 = {0[0]} +{0[1]} -{0[2]}'.format(k25))
 print()
+
+#final result
+nodes = [nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])]
+weight = weightFunction.Constant(0)
+weight_values = [w1[0]]
+means = [meanFunction.Keplerian(k11[0], k12[0], k13[0], k14[0], k15[0]) \
+                    + meanFunction.Keplerian(k21[0], k22[0], k23[0], k24[0], k25[0])]
+loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
+print(loglike)
+
+
+##### final plots #####
+mu11, std11, cov11 = GPobj.predict_gp(nodes = nodes, weight = weight, 
+                                      weight_values = weight_values, means = None,
+                                      time = np.linspace(time.min(), time.max(), 5000),
+                                      dataset = 1)
+
+
+f, (ax1) = plt.subplots(1, sharex=True)
+ax1.set_title(' ')
+ax1.fill_between(np.linspace(time.min(), time.max(), 5000), 
+                 mu11+std11, mu11-std11, color="grey", alpha=0.5)
+ax1.plot(np.linspace(time.min(), time.max(), 5000), mu11, "k--", alpha=1, lw=1.5)
+ax1.errorbar(time,rv, rverr, fmt = "b.")
+ax1.set_ylabel("RVs")
+plt.show()
