@@ -135,6 +135,13 @@ burnin = burns
 samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
 
+import corner
+fig = corner.corner(samples, 
+                    labels=["aper l-scale", "period", "per l-scale", "wn", "amp"],
+                    show_titles=True)
+#fig.savefig("triangle.png")
+
+
 #median and quantiles
 l1,p1,l2,wn1, w1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                              zip(*np.percentile(samples, [16, 50, 84],axis=0)))
@@ -153,6 +160,11 @@ plt.figure()
 for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
+i=0
+if i == 0:
+    print()
+    raise SystemExit()
+
 
 ##### likelihood calculations #####
 likes=[]
@@ -166,7 +178,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_corot7_justRVs.npy', datafinal)
+np.save('test_corot7_3.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####

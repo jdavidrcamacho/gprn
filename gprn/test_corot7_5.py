@@ -128,7 +128,7 @@ node_lp = stats.uniform(0.1, 10 -0.1)
 node_wn = stats.cauchy(loc=0, scale=1)
 
 #weight function
-weight_1 = stats.uniform(0.1, 50 -0.1)
+weight_1 = stats.uniform(0.1**2, 50**2 -0.1**2)
 
 def from_prior():
     wn = node_wn.rvs()
@@ -148,7 +148,7 @@ def logprob(p):
             p[1] < np.log(10), p[1] > np.log(40), 
             p[2] < np.log(0.1), p[2] > np.log(10), 
             
-            p[4] < np.log(0.1), p[4] > np.log(50)]):
+            p[4] < np.log(0.1**2), p[4] > np.log(50**2)]):
         return -np.inf
     else:
         logprior = 0.0
@@ -223,7 +223,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_corot7_justRVs.npy', datafinal)
+np.save('test_corot7_2.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
