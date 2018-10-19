@@ -3,7 +3,6 @@
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve, LinAlgError
 from copy import copy
-import matplotlib.pyplot as plt
 
 from gprn.nodeFunction import Linear as nodeL
 from gprn.nodeFunction import Polynomial as nodeP
@@ -211,9 +210,6 @@ class complexGP(object):
         if shift:
             shift = 0.01
             K = K + shift*np.identity(self.time.size * self.p)
-#        plt.figure()
-#        plt.imshow(K)
-#        plt.show()
         return K
 
     def log_likelihood(self, nodes, weight, weight_values, means):
