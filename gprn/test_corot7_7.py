@@ -5,26 +5,30 @@ np.random.seed(2102018)
 import matplotlib.pyplot as plt
 plt.close('all')
 
-from gprn.complexGP import complexGP
+from gprn.simpleGP import simpleGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
 ##### Data .rdb file #####
-time, rv, rverr = np.loadtxt("corot7.txt", skiprows=112-3, unpack=True, usecols=(0, 1, 2))
+time, rv, rverr = np.loadtxt("corot7.txt", skiprows=2, unpack=True, usecols=(0, 1, 2))
 
-
+#removinhg 'planets'
+from tedi import astro
+_, p1 = astro.keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, 
+                        T = 4398.21, t = time)
+_, p2 = astro.keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, 
+                        T = 5953.3, t=time)
+rv = rv - p1 -p2
 
 
 ##### GP object #####
-nodes = [nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0.88)]
+node = nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0.88)
 weight = weightFunction.Constant(9.31)
-weight_values = [9.31]
-#means = [None, None, None, None]
-means= [meanFunction.Keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, T0 = 4398.21) \
-                    + meanFunction.Keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, T0 = 5953.3)]
+mean = meanFunction.Keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, T0 = 4398.21) \
+                    + meanFunction.Keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, T0 = 5953.3)
 
-GPobj = complexGP(nodes, weight, weight_values, means, time, 
-                  rv, rverr)#, fwhm, fwhmerr, bis, biserr, rhk, rhkerr)
-loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
+GPobj = simpleGP(node = node, weight = weight, mean = mean, time = time, 
+                  y = rv, yerr = rverr)
+loglike = GPobj.log_likelihood(node, weight, mean = mean)
 print(loglike)
 
 
@@ -45,7 +49,7 @@ node_wn = stats.uniform(np.exp(-10), 5 -np.exp(-10))
 #node_wn = stats.cauchy(loc=0, scale=1)
 
 #weight function
-weight_1 = stats.uniform(0.1**2, 50**2 -0.1**2)
+weight_1 = stats.uniform(0.1, 50 -0.1)
 
 def from_prior():
 #    wn = node_wn.rvs()
@@ -65,17 +69,14 @@ def logprob(p):
             p[1] < np.log(10), p[1] > np.log(40), 
             p[2] < np.log(0.1), p[2] > np.log(10), 
             p[3] < -10, p[3] > np.log(5),
-            p[4] < np.log(0.1**2), p[4] > np.log(50**2)]):
+            p[4] < np.log(0.1), p[4] > np.log(50)]):
         return -np.inf
     else:
         logprior = 0.0
-        new_node = [nodeFunction.QuasiPeriodic(np.exp(p[0]), np.exp(p[1]), 
-                                               np.exp(p[2]), np.exp(p[3]))]
-        new_weight_values = [np.exp(p[4])]
-        new_mean = [meanFunction.Keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, T0 = 4398.21) \
-                    + meanFunction.Keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, T0 = 5953.3)]
-        return logprior + GPobj.log_likelihood(new_node, weight, 
-                                               new_weight_values, new_mean)
+        new_node = nodeFunction.QuasiPeriodic(np.exp(p[0]), np.exp(p[1]), 
+                                               np.exp(p[2]), np.exp(p[3]))
+        new_weight = weightFunction.Constant(np.exp(p[4]))
+        return logprior + GPobj.log_likelihood(new_node, new_weight, mean = mean)
 
 #Seting up the sampler
 nwalkers, ndim = 2*5, 5

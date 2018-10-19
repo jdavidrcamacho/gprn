@@ -30,8 +30,8 @@ plt.close()
 ##### Our GP #####
 node = nodeFunction.QuasiPeriodic(10, 10, 1.1, 0.1)
 #weight = weightFunction.SquaredExponential(10, 1.1)
-weight = weightFunction.Linear(10, 5)
-#weight = weightFunction.Constant(1)
+#weight = weightFunction.Linear(10, 5)
+weight = weightFunction.Constant(1)
 
 gpOBJ = simpleGP(node = node, weight = weight, mean = None, 
                  time = t, y = rv, yerr = rverr)
