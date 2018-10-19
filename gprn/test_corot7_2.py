@@ -204,7 +204,7 @@ for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
 
-i=0
+i=1
 if i == 0:
     print()
     raise SystemExit()
@@ -223,7 +223,7 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_corot7_justRVs.npy', datafinal)
+np.save('test_corot7_2.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####

@@ -160,7 +160,7 @@ plt.figure()
 for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
-i=0
+i=1
 if i == 0:
     print()
     raise SystemExit()

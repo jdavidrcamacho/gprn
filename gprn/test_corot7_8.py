@@ -11,11 +11,19 @@ from gprn import weightFunction, nodeFunction, meanFunction
 ##### Data .rdb file #####
 time, rv, rverr = np.loadtxt("corot7.txt", skiprows=112-3, unpack=True, usecols=(0, 1, 2))
 
+#removinhg 'planets'
+from tedi import astro
+_, p1 = astro.keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, 
+                        T = 4398.21, t = time)
+_, p2 = astro.keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, 
+                        T = 5953.3, t=time)
+rv = rv - p1 -p2
+
+
 ##### GP object #####
 node = nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0.88)
 weight = weightFunction.Constant(9.31)
-mean = meanFunction.Keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, T0 = 4398.21) \
-                    + meanFunction.Keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, T0 = 5953.3)
+mean = None
 
 GPobj = simpleGP(node = node, weight = weight, mean = mean, time = time, 
                   y = rv, yerr = rverr)
@@ -67,7 +75,7 @@ def logprob(p):
         new_node = nodeFunction.QuasiPeriodic(np.exp(p[0]), np.exp(p[1]), 
                                                np.exp(p[2]), np.exp(p[3]))
         new_weight = weightFunction.Constant(np.exp(p[4]))
-        return logprior + GPobj.log_likelihood(new_node, new_weight, mean = mean)
+        return logprior + GPobj.log_likelihood(new_node, new_weight, mean)
 
 #Seting up the sampler
 nwalkers, ndim = 2*5, 5
@@ -112,7 +120,6 @@ plt.figure()
 for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
-
 ##### likelihood calculations #####
 likes=[]
 for i in range(samples[:,0].size):
@@ -125,12 +132,12 @@ for i in range(samples[:,0].size):
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_corot7_7.npy', datafinal)
+np.save('test_corot7_8.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -230)
+values = np.where(samples[:,-1] > -250)
 #values = np.where(samples[:,-1] < -300)
 likelihoods = samples[values,-1].T
 #plt.figure()
@@ -162,8 +169,7 @@ print()
 nodes = [nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])]
 weight = weightFunction.Constant(w1[0])
 
-mean = meanFunction.Keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, T0 = 4398.21) \
-                    + meanFunction.Keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, T0 = 5953.3)
+mean = None
 loglike = GPobj.log_likelihood(nodes, weight, mean)
 print(loglike)
 

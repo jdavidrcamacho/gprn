@@ -9,8 +9,12 @@ from gprn.complexGP import complexGP
 from gprn.simpleGP import simpleGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
+data_file = "corot7_harps.rdb"
+results_file = "test_corot7_3.npy"
+
+
 ##### Data .rdb file #####
-time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("corot7_harps.rdb", 
+time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt(data_file, 
                                                      skiprows=112, unpack=True, 
                             usecols=(0, 1, 2, 3, 4, 5, 6))
 
@@ -35,7 +39,13 @@ biserr = 0.10*rms_bis * np.ones(bis.size)
 
 
 ##### MCMC data #####
-samples = np.load("test_corot7_3.npy")
+samples = np.load(results_file)
+
+
+import corner
+fig = corner.corner(samples[:,:-1], 
+                    labels=["$\eta_2$", "$\eta_3$", "$\eta_4$", "s", "$\eta_1$"],
+                    show_titles=True)
 
 #checking the likelihood that matters to us
 values = np.where(samples[:,-1] > -2500)
