@@ -228,7 +228,7 @@ np.save('test_corot7_9.npy', datafinal)
 
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -230)
+values = np.where(samples[:,-1] > -600)
 #values = np.where(samples[:,-1] < -300)
 likelihoods = samples[values,-1].T
 #plt.figure()
