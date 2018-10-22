@@ -273,7 +273,9 @@ class simpleGP(object):
                 mean = mean function being used
                 time = time  
         Returns:
-            mean vector, covariance matrix, standard deviation vector
+                y_mean = mean vector
+                y_std = standard deviation vector
+                y_cov = covariance matrix
         """
         if node:
             #To use a new node function
