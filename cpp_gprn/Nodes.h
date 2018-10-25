@@ -11,13 +11,24 @@ class Nodes
     public:
         Nodes();
         //constant kernel
-        Eigen::MatrixXd Nodes::constant(std::vector<double> vec);
+        Eigen::MatrixXd constant(std::vector<double> vec);
         //squared exponential kernel
-        Eigen::MatrixXd Nodes::squaredExponential(std::vector<double> vec);
+        Eigen::MatrixXd squaredExponential(std::vector<double> vec);
         //periodic kernel
-        Eigen::MatrixXd Nodes::periodic(std::vector<double> vec);
+        Eigen::MatrixXd periodic(std::vector<double> vec);
         //quasi periodic kernel
-        Eigen::MatrixXd Nodes::quasiPeriodic(std::vector<double> vec);
+        Eigen::MatrixXd quasiPeriodic(std::vector<double> vec);
+        //rational quadratic kernel
+        Eigen::MatrixXd rationalQuadratic(std::vector<double> vec);
+        //cosine kernel
+        Eigen::MatrixXd cosine(std::vector<double> vec);
+        //exponential kernel
+        Eigen::MatrixXd exponential(std::vector<double> vec);
+        //matern 3/2 kernel
+        Eigen::MatrixXd matern32(std::vector<double> vec);
+        //matern 5/2 kernel
+        Eigen::MatrixXd matern52(std::vector<double> vec);
+
 
     private:
         Eigen::MatrixXd C {Data::get_instance().N(), Data::get_instance().N()};
