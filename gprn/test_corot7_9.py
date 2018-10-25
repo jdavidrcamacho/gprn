@@ -18,8 +18,7 @@ time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("corot7_harps.rdb",
 time = time[~np.isnan(rhk)]
 
 rv = rv[~np.isnan(rhk)]
-rv_mean = np.mean(rv)
-rv = (rv-rv_mean)*1000 + rv_mean
+rv = (rv-rv.mean()) *1000 + rv.mean()
 rverr = rverr[~np.isnan(rhk)]*1000
 #f, (ax1) = plt.subplots(1, sharex=True)
 #ax1.set_title('RVs')
@@ -113,7 +112,7 @@ print(loglike)
 
 
 ################################################################################
-i=1
+i=0
 if i == 0:
     print()
     raise SystemExit()

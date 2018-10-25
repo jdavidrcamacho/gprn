@@ -1,81 +1,53 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-np.random.seed(2102018)
+#np.random.seed(22102018)
 import matplotlib.pyplot as plt
 plt.close('all')
 
+
+##### SAMPLING #####
+from tedi import process, kernels
+
+#QP(amp, ell_e, P, ell_p. wn)
+kernel = kernels.QuasiPeriodic(10, 50, 31, 1, 0.8)
+mean = None
+time = np.linspace(1, 100, 50)
+y = np.ones_like(time)
+yerr = 0.1*y
+
+GPobj = process.GP(kernel, mean, time, y, yerr)
+sample = GPobj.sample(kernel, time)
+
+#plt.figure()
+#plt.plot(time, sample)
+
+
+##### GPRN construction
 from gprn.complexGP import complexGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
-##### Data .rdb file #####
-time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("corot7_harps.rdb", 
-                                                     skiprows=2, 
-                                                     unpack=True, 
-                                                     usecols=(0, 1, 2, 3, 4, 5, 6))
+time = time
+y = sample
+rms_y = np.sqrt((1./y.size * np.sum(y**2)))
+yerr = 0.2 * rms_y * np.ones(y.size)
 
-#removing NaNs
-time = time[~np.isnan(rhk)]
+#plt.figure()
+#plt.errorbar(time, y, yerr, fmt='.')
 
-rv = rv[~np.isnan(rhk)]
-rv = (rv-rv.mean()) *1000 + rv.mean()
-rverr = rverr[~np.isnan(rhk)]*1000
-#f, (ax1) = plt.subplots(1, sharex=True)
-#ax1.set_title('RVs')
-#ax1.errorbar(time,rv, rverr, fmt = "b.")
-#ax1.set_ylabel("RVs")
-#plt.show()
+# GP object 
+nodes = [nodeFunction.QuasiPeriodic(50, 31, 1, 0.1)]
+weight = weightFunction.Constant(1)
+weight_values = [10]
+means = [None]
 
-#fwhm = fwhm[~np.isnan(rhk)]
-#bis = bis[~np.isnan(rhk)]
-#rhkerr = rhkerr[~np.isnan(rhk)]
-#rhk = rhk[~np.isnan(rhk)]
-#
-##remaning errors
-#rms_fwhm = np.sqrt((1./fwhm.size*np.sum(fwhm**2)))
-#fwhmerr = 0.001*rms_fwhm * np.ones(fwhm.size)
-#rms_bis = np.sqrt((1./bis.size*np.sum(bis**2)))
-#biserr = 0.10*rms_bis * np.ones(bis.size)
-#
-##data plots
-#f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
-#ax1.set_title('RVs, fwhm, BIS and Rhk')
-#ax1.errorbar(time,rv, rverr, fmt = "b.")
-#ax1.set_ylabel("RVs")
-#ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
-#ax2.set_ylabel("fwhm")
-#ax3.errorbar(time,bis, biserr, fmt = "g.")
-#ax3.set_ylabel("BIS")
-#ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
-#ax4.set_ylabel("Rhk")
-#plt.show()
-
-#removinhg 'planets'
-from tedi import astro
-_, p1 = astro.keplerian(P = 0.85359165, K = 3.42, e = 0.12, w = 105*np.pi/180, 
-                        T = 4398.21, t = time)
-_, p2 = astro.keplerian(P = 3.70, K = 6.01, e = 0.12, w = 140*np.pi/180, 
-                        T = 5953.3, t=time)
-rv = rv - p1 -p2
-##data plots
-#f, (ax1) = plt.subplots(1, sharex=True)
-#ax1.set_title('RVs')
-#ax1.errorbar(time,rv, rverr, fmt = "b.")
-#ax1.set_ylabel("RVs")
-#plt.show()
-
-##### GP object #####
-nodes = [nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0.88)]
-weight = weightFunction.Constant(9.31)
-weight_values = [9.31]
-means= [None]
-
-GPobj = complexGP(nodes, weight, weight_values, means, time, rv, rverr)
+GPobj = complexGP(nodes, weight, weight_values, means, time, y, yerr)
 loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
 print(loglike)
 
+
 ################################################################################
-i=0
+i=1
 if i == 0:
     print()
     raise SystemExit()
@@ -83,42 +55,36 @@ if i == 0:
 from scipy import stats
 
 #node function
-node_le = stats.uniform(1, 100 -1) 
-node_p = stats.uniform(10, 40-10) 
-node_lp = stats.uniform(0.1, 10 -0.1) 
-#node_wn = stats.uniform(np.exp(-10), 5 -np.exp(-10))
-node_wn = stats.cauchy(0, 1)
+node_le = stats.uniform(1, 500 -1) 
+node_p = stats.uniform(10, 50-10) 
+node_lp = stats.uniform(0.1, 2 -0.1) 
+node_wn = stats.uniform(0.1, 1.5 -0.1)
 
 #weight function
-weight_1 = stats.uniform(0.1, 50 -0.1)
+weight_1 = stats.uniform(1, 50 -1)
 
 def from_prior():
-    wn = node_wn.rvs()
-    while wn <= 0:
-        wn = node_wn.rvs()
-
-    return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), wn,
+    return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
                      weight_1.rvs()])
 
-    
 ##### MCMC properties #####
 import emcee
-runs, burns = 10000, 10000 #Defining runs and burn-ins
+runs, burns = 50000, 50000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
-    if any([p[0] < np.log(1), p[0] > np.log(100), 
-            p[1] < np.log(10), p[1] > np.log(40), 
-            p[2] < np.log(0.1), p[2] > np.log(10), 
-            
-            p[4] < np.log(0.1), p[4] > np.log(50)]):
+    if any([p[0] < np.log(1), p[0] > np.log(500), 
+            p[1] < np.log(10), p[1] > np.log(50), 
+            p[2] < np.log(0.1), p[2] > np.log(2), 
+            p[3] < np.log(0.1), p[3] > np.log(1.5), 
+            p[4] < np.log(1), p[4] > np.log(50)]):
         return -np.inf
     else:
         logprior = 0.0
         new_node = [nodeFunction.QuasiPeriodic(np.exp(p[0]), np.exp(p[1]), 
                                                np.exp(p[2]), np.exp(p[3]))]
         new_weight_values = [np.exp(p[4])]
-        new_mean = [None]
+        new_mean = mean
         return logprior + GPobj.log_likelihood(new_node, weight, 
                                                new_weight_values, new_mean)
 
@@ -142,10 +108,9 @@ samples = np.exp(samples)
 
 import corner
 fig = corner.corner(samples, 
-                    labels=["aper l-scale", "period", "per l-scale", "wn", "amp"],
+                    labels=["eta 2", "eta 3", "eta 4", "s", "eta 1"],
                     show_titles=True)
 #fig.savefig("triangle.png")
-
 
 #median and quantiles
 l1,p1,l2,wn1, w1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
@@ -153,18 +118,20 @@ l1,p1,l2,wn1, w1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
 
 #printing results
 print()
-print('Aperiodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l1))
-print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
-print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
-print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
+print('eta 1 (amp) = {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('eta 2 (ell_e) = {0[0]} +{0[1]} -{0[2]}'.format(l1))
+print('eta 3 (P) = {0[0]} +{0[1]} -{0[2]}'.format(p1))
+print('eta 4 (ell_p) = {0[0]} +{0[1]} -{0[2]}'.format(l2))
+print('s (wn) = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
-print('weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
 print()
 
 plt.figure()
 for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
+
+################################################################################
 i=1
 if i == 0:
     print()
@@ -177,18 +144,18 @@ for i in range(samples[:,0].size):
     new_node = [nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
                                            samples[i,2], samples[i,3])]
     new_weight = [samples[i,4]]
-    new_means = [None]
+    new_means = mean
     likes.append(GPobj.log_likelihood(new_node, weight, new_weight, new_means))
 #plt.figure()
 #plt.hist(likes, bins = 15, label='likelihood')
 
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
-np.save('test_corot7_10.npy', datafinal)
+np.save('sampling_test1.npy', datafinal)
 
 
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -600)
+values = np.where(samples[:,-1] > -500)
 #values = np.where(samples[:,-1] < -300)
 likelihoods = samples[values,-1].T
 #plt.figure()
@@ -207,20 +174,21 @@ l1,p1,l2,wn1, w1, likes = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
 #printing results
 print()
 print('FINAL SOLUTION')
-print('Aperiodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l1))
-print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
-print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
-print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
+print('eta 1 (amp) = {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('eta 2 (ell_e) = {0[0]} +{0[1]} -{0[2]}'.format(l1))
+print('eta 3 (P) = {0[0]} +{0[1]} -{0[2]}'.format(p1))
+print('eta 4 (ell_p) = {0[0]} +{0[1]} -{0[2]}'.format(l2))
+print('s (wn) = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
 print()
-print('weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
 print()
+
 
 
 #final result
 nodes = [nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])]
 weight = weightFunction.Constant(0)
 weight_values = [w1[0]]
-means = [None]
+means = None
 loglike = GPobj.log_likelihood(nodes, weight, weight_values, means)
 print(loglike)
 
@@ -237,6 +205,6 @@ ax1.set_title(' ')
 ax1.fill_between(np.linspace(time.min(), time.max(), 5000), 
                  mu11+std11, mu11-std11, color="grey", alpha=0.5)
 ax1.plot(np.linspace(time.min(), time.max(), 5000), mu11, "k--", alpha=1, lw=1.5)
-ax1.errorbar(time,rv, rverr, fmt = "b.")
+ax1.errorbar(time, y, yerr, fmt = "b.")
 ax1.set_ylabel("RVs")
 plt.show()
