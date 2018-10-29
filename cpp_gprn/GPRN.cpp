@@ -12,6 +12,7 @@
 using namespace std;
 using namespace Eigen;
 
+GPRN GPRN::instance;
 GPRN::GPRN()
 {}
 
@@ -25,8 +26,12 @@ double extra_sigma;
 Eigen::MatrixXd GPRN::branch(std::vector<double> vec1, std::vector<double> vec2)
 //multiplication of the node with the weight
 {
-    Eigen::MatrixXd weight = Weights::get_instance().constant(vec1);
-    Eigen::MatrixXd node = Nodes::get_instance().constant(vec2);
+    Eigen::MatrixXd w = Weights::get_instance().constant(vec1);
+    Eigen::MatrixXd n = Nodes::get_instance().squaredExponential(vec2);
 
-    return weight.cwiseProduct(node);
+    Eigen::MatrixXd wn = w.cwiseProduct(n);
+
+    return wn;
 }
+
+
