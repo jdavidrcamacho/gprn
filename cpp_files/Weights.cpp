@@ -1,7 +1,6 @@
 #include "Data.h"
 #include "DNest4.h"
 #include "RNG.h"
-
 #include "GPRN.h"
 #include "Weights.h"
 
@@ -20,25 +19,22 @@ Weights::Weights()
 
 
 Eigen::VectorXd Weights::constant(std::vector<double> vec)
-// vec = [weight, constant]
+/* input vector = [weight, constant] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
 const int N = Data::get_instance().get_t().size();
 Eigen::VectorXd C {N};
-//cout << "size = " << C.size() << endl;
     for(size_t i=0; i<N; i++)
     {
-        //cout << vec[0] << endl;
         C[i] = vec[0];
-        //cout << C[i] << endl;
     }
 return C;
 }
 
 
 Eigen::VectorXd Weights::squaredExponential(std::vector<double> vec)
-// vec = [weigth, ell]
+/* input vector = [weigth, ell] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -53,7 +49,7 @@ return C;
 
 
 Eigen::VectorXd Weights::periodic(std::vector<double> vec)
-// vec = [weight, ell, P]
+/* input vector = [weight, ell, P] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -68,7 +64,7 @@ return C;
 
 
 Eigen::VectorXd Weights::quasiPeriodic(std::vector<double> vec)
-// vec = [weight, ell_e, P, ell_p]
+/* input vector = [weight, ell_e, P, ell_p] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -84,7 +80,7 @@ return C;
 
 
 Eigen::VectorXd Weights::rationalQuadratic(std::vector<double> vec)
-// vec = [weight, alpha, ell]
+/* input vector = [weight, alpha, ell] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -99,7 +95,7 @@ return C;
 
 
 Eigen::VectorXd Weights::cosine(std::vector<double> vec)
-// vec = [weight, P]
+/* input vector = [weight, P] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -114,7 +110,7 @@ return C;
 
 
 Eigen::VectorXd Weights::exponential(std::vector<double> vec)
-// vec = [weight, ell]
+/* input vector = [weight, ell] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -129,7 +125,7 @@ return C;
 
 
 Eigen::VectorXd Weights::matern32(std::vector<double> vec)
-// vec = [ell]
+/* input vector = [ell] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -145,7 +141,7 @@ return C;
 
 
 Eigen::VectorXd Weights::matern52(std::vector<double> vec)
-// vec = [weight, ell]
+/* input vector = [weight, ell] */
 {
 const vector<double> t = Data::get_instance().get_t();
 const vector<double> sig = Data::get_instance().get_sig();
@@ -158,7 +154,5 @@ Eigen::VectorXd C {N};
     }
 return C;
 }
-
-
 
 
