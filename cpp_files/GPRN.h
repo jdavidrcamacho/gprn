@@ -16,13 +16,13 @@ class GPRN
         GPRN();
         std::vector<Eigen::MatrixXd> matrixCalculation(std::vector<std::vector<double>> node_priors, 
                                                         std::vector<std::vector<double>> weight_priors,
-                                                        double extra_sigma);
+                                                        std::vector<double> jitter, double extra_sigma);
         Eigen::MatrixXd nodeCheck(std::string check, std::vector<double> node_prior, double extra_sigma);
         Eigen::VectorXd weightCheck(std::string check, std::vector<double> weight_prior);
         /* comes from main.cpp */
         std::vector<std::string> node;
         std::vector<std::string> weight;
-
+        std::vector<std::string> mean;
 
 
     private:

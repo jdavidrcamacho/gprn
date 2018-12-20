@@ -23,20 +23,21 @@ GPRN::GPRN()
 */
 
 const vector<double>& t = Data::get_instance().get_t();
-const vector<double>& sig = Data::get_instance().get_sig();
 int N = Data::get_instance().get_t().size();
 
 
 /* Construction of the covariance matrices */
 std::vector<Eigen::MatrixXd> GPRN::matrixCalculation(std::vector<std::vector<double>> node_priors, 
                                                     std::vector<std::vector<double>> weight_priors,
-                                                    double extra_sigma)
+                                                    std::vector<double> jitter_priors, double extra_sigma)
 {
 
     /* node kernel */
     Eigen::MatrixXd nkernel;
     /* weight kernels */
     Eigen::VectorXd wkernel;
+    /* measurements errors */
+    const vector<double>& sig = Data::get_instance().get_sig();
 
     /* now we do math */
     int n_size = node.size();
@@ -51,9 +52,15 @@ std::vector<Eigen::MatrixXd> GPRN::matrixCalculation(std::vector<std::vector<dou
             nkernel = nodeCheck(node[j], node_priors[j], extra_sigma);
             wkernel = weightCheck(weight[0], weight_priors[j + n_size*i]);
             wn = wkernel.asDiagonal() * nkernel;
-            wnw = nkernel * wkernel.asDiagonal();
-            wnw += wnw;
+            //wnw += nkernel * wkernel.asDiagonal();
+            wnw += wn * wkernel.asDiagonal();
         }
+        for(int j = i*d_size; j<(i+1)*d_size; j++)
+        {
+            wnw(j % d_size, j % d_size) += (sig[j]*sig[j]) 
+                                            + (jitter_priors[i]*jitter_priors[i]);
+        }
+
     matrices_vector[i] = wnw;
     }
 return matrices_vector;
@@ -64,7 +71,7 @@ return matrices_vector;
 Eigen::MatrixXd GPRN::nodeCheck(std::string check, std::vector<double> node_prior, double extra_sigma)
 {
     Eigen::MatrixXd nkernel;
-
+    //extra_sigma = 0;
     if(check == "C")
         nkernel = Nodes::get_instance().constant(node_prior, extra_sigma);
     if(check == "SE")

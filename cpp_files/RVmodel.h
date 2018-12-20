@@ -74,8 +74,9 @@ class RVmodel
         int w_size = 4*n_size; //number of weights
         std::vector<std::vector<double>> node_priors {n_size};
         std::vector<std::vector<double>> weight_priors {w_size};
-        double prior1, prior2, prior3, prior4, prior5;
-        
+        std::vector<double> jitter_priors {4}; //4 datasets with jitter
+        std::vector<std::vector<double>> mean_priors {3}; //3 remaining means
+        std::vector<std::string> mean_type {3}; //type of each mean 
         //QPkernel *kernel;
         //HODLR_Tree<QPkernel> *A;
 
