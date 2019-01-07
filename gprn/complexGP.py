@@ -23,10 +23,13 @@ class complexGP(object):
                         components (self.q * self.p)
             means = array of means functions being used, set it to None if a 
                     model doesn't use it
+            jitters = jitter value of each dataset
             time = time
-            *args = the data, it should be given as data1, data1_error, etc...
+            *args = the data (or components), it needs be given in order of
+                data1, data1_error, data2, data2_error, etc...
     """ 
-    def  __init__(self, nodes, weight, weight_values, means, time, *args):
+    def  __init__(self, nodes, weight, weight_values, means, jitters, time, 
+                  *args):
         #node functions; f(x) in Wilson et al. (2012)
         self.nodes = np.array(nodes)
         #number of nodes being used; q in Wilson et al. (2012)
@@ -37,6 +40,8 @@ class complexGP(object):
         self.weight_values = np.array(weight_values)
         #mean functions
         self.means = np.array(means)
+        #jitters
+        self.jitters = np.array(jitters)
         #time
         self.time = time 
         #the data, it should be given as data1, data1_error, data2, ...
@@ -172,6 +177,7 @@ class complexGP(object):
                 w_xw = type(self.weight)(*weightPars)(time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
             k_ii = k_ii + (w_xa * f_hat * w_xw)
+        
         return k_ii
 
     def compute_matrix(self, nodes, weight, weight_values, time, 
@@ -214,8 +220,10 @@ class complexGP(object):
 
     def log_likelihood(self, nodes, weight, weight_values, means):
         """ 
-            Calculates the marginal log likelihood.
-        See Rasmussen & Williams (2006), page 113.
+            Calculates the marginal log likelihood. This version creates a big
+        covariance matrix K made of block matrices of each dataset and then
+        calculates just one log-likelihood.
+            See Rasmussen & Williams (2006), page 113.
             Parameters:
                 nodes = the node functions f(x) (f hat)
                 weight = the weight funtion w(x)
@@ -226,6 +234,7 @@ class complexGP(object):
         """
         #calculation of the covariance matrix
         K = self.compute_matrix(nodes, weight, weight_values, self.time)
+        
         #calculation of the means
         yy = np.concatenate(self.y)
         means = self.means
@@ -240,10 +249,68 @@ class complexGP(object):
             return -np.inf
         return log_like
 
+    def new_log_like(self, nodes, weight, weight_values, means, jitters):
+        """ 
+            Calculates the marginal log likelihood for a GPRN. The main 
+        difference is that it sums the log likelihoods of each dataset instead 
+        of making a big covariance matrix K to calculate it.
+            See Rasmussen & Williams (2006), page 113.
+            Parameters:
+                nodes = the node functions f(x) (f hat)
+                weight = the weight funtion w(x)
+                weight_values = array with the weights of w11, w12, etc... 
+                means = mean function being used
+                jitters = jitter value of each dataset
+            Returns:
+                log_like  = Marginal log likelihood
+        """
+        #means
+        yy = np.concatenate(self.y)
+        yy = yy - self._mean(means) if means else yy
+        new_y = np.array_split(yy, self.p)
+        yy_err = np.concatenate(self.yerr)
+        new_yyerr = np.array_split(yy_err, self.p)
+
+
+        log_like = 0 #"initial" likelihood starts at zero to then add things
+        #calculation of each log-likelihood
+        for i in range(1, self.p+1):
+            k_ii = np.zeros((self.time.size, self.time.size))
+            for j in range(1,self.q + 1):
+                #hyperparameteres of the kernel of a given position
+                nodePars = self._kernel_pars(nodes[j - 1])
+                #all weight function will have the same parameters
+                weightPars = weight.pars
+                #except for the amplitude
+                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
+                #node and weight functions kernel
+                if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
+                    w_xa = type(self.weight)(*weightPars)(None, self.time[:,None], np.zeros(self.time.size))
+                    f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars), self.time)
+                    w_xw = type(self.weight)(*weightPars)(None, np.zeros(self.time.size), self.time[None,:])
+                else:
+                    w_xa = type(self.weight)(*weightPars)(self.time[:,None])
+                    f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
+                    w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+                #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
+                k_ii = k_ii + (w_xa * f_hat * w_xw)
+            #k_ii = k_ii + diag(error) + diag(jitter)
+            k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
+                    + (self.jitters[i - 1]**2) * np.identity(self.time.size)
+            #log marginal likelihood calculation
+            try:
+                L1 = cho_factor(k_ii, overwrite_a=True, lower=False)
+                log_like += - 0.5*np.dot(new_y[i - 1].T, cho_solve(L1, new_y[i - 1])) \
+                           - np.sum(np.log(np.diag(L1[0]))) \
+                           - 0.5*new_y[i - 1].size*np.log(2*np.pi)
+            except LinAlgError:
+                return -np.inf
+        return log_like
+
 
 ##### GP prediction funtions
     def predict_gp(self, nodes = None, weight = None, weight_values = None,
-                   means = None, time = None, dataset = 1):
+                   means = None, jiiters= None, time = None, dataset = 1):
         """ 
             NOTE: NOT WORKING PROPERLY
             Conditional predictive distribution of the Gaussian process
@@ -252,7 +319,8 @@ class complexGP(object):
                 nodes = the node functions f(x) (f hat)
                 weight = the weight function w(x)
                 weight_values = array with the weights of w11, w12, etc...
-                means = list of means being used 
+                means = list of means being used
+                jitters = jitter of each dataset
                 dataset = 1,2,3,... accordingly to the data we are using, 
                         1 represents the first y(x), 2 the second y(x), etc...
             Returns:
@@ -274,8 +342,14 @@ class complexGP(object):
         time = time if time.any() else self.time
 
         new_y = np.array_split(yy, self.p)
+        yy_err = np.concatenate(self.yerr)
+        new_yerr = np.array_split(yy_err, self.p)
+
+        #cov = k + diag(error) + diag(jitter)
         cov = self._covariance_matrix(nodes, weight, weight_values, 
                                       self.time, dataset)
+        cov += (new_yerr[dataset - 1]**2) * np.identity(self.time.size) \
+                    + (self.jitters[dataset - 1]**2) * np.identity(self.time.size)
         L1 = cho_factor(cov)
         sol = cho_solve(L1, new_y[dataset - 1])
         tshape = time[:, None] - self.time[None, :]
@@ -299,6 +373,7 @@ class complexGP(object):
                 w_xw = type(self.weight)(*weightPars)(self.time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
             k_ii = k_ii + (w_xa * f_hat * w_xw)
+
 
         Kstar = k_ii
         Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
