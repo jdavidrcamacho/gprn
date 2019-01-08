@@ -176,7 +176,7 @@ class Keplerian(MeanModel):
         return RV
 
 
-class Keplerian2(MeanModel):
+class otherKeplerian(MeanModel):
     """
         Keplerian function with phi
         tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
@@ -192,7 +192,7 @@ class Keplerian2(MeanModel):
     """
     _parsize = 5
     def __init__(self, P, K, e, w, phi):
-        super(Keplerian2, self).__init__(P, K, e, w, phi)
+        super(otherKeplerian, self).__init__(P, K, e, w, phi)
 
     @array_input
     def __call__(self, t):
@@ -217,4 +217,68 @@ class Keplerian2(MeanModel):
 
         nu = 2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(E0/2))
         RV = K*(e*np.cos(w)+np.cos(w+nu))
+        return RV
+
+
+class corot7Keplerian(MeanModel):
+    """
+        Keplerian function with phi for two planets (for the CoRoT-7 case)
+        tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
+        E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
+        M(t) = (2*pi*t/tau) + M0 = Mean anomaly
+        P  = period in days
+        e = eccentricity
+        K = RV amplitude in m/s 
+        w = longitude of the periastron
+        phi = orbital phase
+        sis_vel = offset
+
+        RV = K[cos(w+v) + e*cos(w)] + K[cos(w+v) + e*cos(w)] + sis_vel
+    """
+    _parsize = 10
+    def __init__(self, P1, K1, e1, w1, phi1, P2, K2, e2, w2, phi2, sis_vel):
+        super(corot7Keplerian, self).__init__(P1, K1, e1, w1, phi1,
+                                         P2, K2, e2, w2, phi2, sis_vel)
+
+    @array_input
+    def __call__(self, t):
+        P1, K1, e1, w1, phi1, P2, K2, e2, w2, phi2, sis_vel = self.pars
+        #mean anomaly for the 1st planet
+        T0 = t[0] - (P1*phi1)/(2.*np.pi)
+        Mean_anom = 2*np.pi*(t-T0)/P1
+        #eccentric anomaly -> E0=M + e*sin(M) + 0.5*(e**2)*sin(2*M)
+        E0 = Mean_anom + e1*np.sin(Mean_anom) + 0.5*(e1**2)*np.sin(2*Mean_anom)
+        #mean anomaly -> M0=E0 - e*sin(E0)
+        M0 = E0 - e1*np.sin(E0)
+
+        niter=0
+        while niter < 500:
+            aux = Mean_anom - M0
+            E1 = E0 + aux/(1 - e1*np.cos(E0))
+            M1 = E0 - e1*np.sin(E0)
+            niter += 1
+            E0 = E1
+            M0 = M1
+        nu1 = 2*np.arctan(np.sqrt((1+e1)/(1-e1))*np.tan(E0/2))
+        
+        #mean anomaly for the 2nd planet
+        T0 = t[0] - (P2*phi2)/(2.*np.pi)
+        Mean_anom = 2*np.pi*(t-T0)/P2
+        #eccentric anomaly -> E0=M + e*sin(M) + 0.5*(e**2)*sin(2*M)
+        E0 = Mean_anom + e2*np.sin(Mean_anom) + 0.5*(e2**2)*np.sin(2*Mean_anom)
+        #mean anomaly -> M0=E0 - e*sin(E0)
+        M0 = E0 - e2*np.sin(E0)
+
+        niter=0
+        while niter < 500:
+            aux = Mean_anom - M0
+            E1 = E0 + aux/(1 - e2*np.cos(E0))
+            M1 = E0 - e2*np.sin(E0)
+            niter += 1
+            E0 = E1
+            M0 = M1
+        nu2 = 2*np.arctan(np.sqrt((1+e2)/(1-e2))*np.tan(E0/2))
+        
+        RV = K1*(e1*np.cos(w1)+np.cos(w1+nu1)) \
+                + K2*(e2*np.cos(w2)+np.cos(w2+nu2)) + sis_vel
         return RV
