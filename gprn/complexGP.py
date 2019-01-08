@@ -129,17 +129,29 @@ class complexGP(object):
             for j in range(m._parsize):
                 m.pars[j] = pars.pop(0)
 
-    def _mean(self, means):
+    def _mean(self, means, time=None):
         """
             Returns the values of the mean functions
         """
-        N = self.time.size
-        m = np.zeros_like(self.tt)
-        for i, meanfun in enumerate(means):
-            if meanfun is None:
-                continue
-            else:
-                m[i*N : (i+1)*N] = meanfun(self.time)
+
+        if time is None:
+            N = self.time.size
+            m = np.zeros_like(self.tt)
+            for i, meanfun in enumerate(means):
+                if meanfun is None:
+                    continue
+                else:
+                    m[i*N : (i+1)*N] = meanfun(self.time)
+            
+        else:
+            N = time.size
+            ttt = np.tile(time, self.p)
+            m = np.zeros_like(ttt)
+            for i, meanfun in enumerate(means):
+                if meanfun is None:
+                    continue
+                else:
+                    m[i*N : (i+1)*N] = meanfun(time)
         return m
 
 
@@ -295,8 +307,8 @@ class complexGP(object):
                 #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
                 k_ii = k_ii + (w_xa * f_hat * w_xw)
             #k_ii = k_ii + diag(error) + diag(jitter)
-            k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
-                    + (self.jitters[i - 1]**2) * np.identity(self.time.size)
+            k_ii += (new_yyerr[i - 1]) * np.identity(self.time.size) \
+                    + (self.jitters[i - 1]) * np.identity(self.time.size)
             #log marginal likelihood calculation
             try:
                 L1 = cho_factor(k_ii, overwrite_a=True, lower=False)
@@ -310,7 +322,7 @@ class complexGP(object):
 
 ##### GP prediction funtions
     def predict_gp(self, nodes = None, weight = None, weight_values = None,
-                   means = None, jiiters= None, time = None, dataset = 1):
+                   means = None, jitters= None, time = None, dataset = 1):
         """ 
             NOTE: NOT WORKING PROPERLY
             Conditional predictive distribution of the Gaussian process
@@ -338,6 +350,8 @@ class complexGP(object):
         #means
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means) if means else yy
+        #Jitters
+        jitters = jitters if jitters else self.jitters
         #Time
         time = time if time.any() else self.time
 
@@ -348,8 +362,8 @@ class complexGP(object):
         #cov = k + diag(error) + diag(jitter)
         cov = self._covariance_matrix(nodes, weight, weight_values, 
                                       self.time, dataset)
-        cov += (new_yerr[dataset - 1]**2) * np.identity(self.time.size) \
-                    + (self.jitters[dataset - 1]**2) * np.identity(self.time.size)
+        cov += (new_yerr[dataset - 1]) * np.identity(self.time.size) \
+                    + (self.jitters[dataset - 1]) * np.identity(self.time.size)
         L1 = cho_factor(cov)
         sol = cho_solve(L1, new_y[dataset - 1])
         tshape = time[:, None] - self.time[None, :]
@@ -379,7 +393,9 @@ class complexGP(object):
         Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
                                             dataset)
 
-        y_mean = np.dot(Kstar, sol) #mean
+        new_mean = np.array_split(self._mean(means, time), self.p)
+        y_mean = np.dot(Kstar, sol) + new_mean[dataset-1]#mean
+
         kstarT_k_kstar = []
         for i, e in enumerate(time):
             kstarT_k_kstar.append(np.dot(Kstar, cho_solve(L1, Kstar[i,:])))
