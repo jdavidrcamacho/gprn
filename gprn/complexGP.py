@@ -133,7 +133,6 @@ class complexGP(object):
         """
             Returns the values of the mean functions
         """
-
         if time is None:
             N = self.time.size
             m = np.zeros_like(self.tt)
@@ -142,7 +141,6 @@ class complexGP(object):
                     continue
                 else:
                     m[i*N : (i+1)*N] = meanfun(self.time)
-            
         else:
             N = time.size
             ttt = np.tile(time, self.p)
@@ -260,6 +258,7 @@ class complexGP(object):
         except LinAlgError:
             return -np.inf
         return log_like
+
 
     def new_log_like(self, nodes, weight, weight_values, means, jitters):
         """ 

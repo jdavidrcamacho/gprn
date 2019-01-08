@@ -133,7 +133,7 @@ class Sine(MeanModel):
         return self.pars[0] * np.sin(self.pars[1]*t + self.pars[2])
 
 
-class Keplerian(MeanModel):
+class oldKeplerian(MeanModel):
     """
         Keplerian function with T0
         tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
@@ -149,7 +149,7 @@ class Keplerian(MeanModel):
     """
     _parsize = 5
     def __init__(self, P, K, e, w, T0):
-        super(Keplerian, self).__init__(P, K, e, w, T0)
+        super(oldKeplerian, self).__init__(P, K, e, w, T0)
 
     @array_input
     def __call__(self, t):
@@ -176,7 +176,7 @@ class Keplerian(MeanModel):
         return RV
 
 
-class otherKeplerian(MeanModel):
+class Keplerian(MeanModel):
     """
         Keplerian function with phi
         tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
@@ -188,11 +188,11 @@ class otherKeplerian(MeanModel):
         w = longitude of the periastron
         phi = orbital phase
 
-        RV = K[cos(w+v) + e*cos(w)] + sis_vel
+        RV = K[cos(w+v) + e*cos(w)]
     """
     _parsize = 5
     def __init__(self, P, K, e, w, phi):
-        super(otherKeplerian, self).__init__(P, K, e, w, phi)
+        super(Keplerian, self).__init__(P, K, e, w, phi)
 
     @array_input
     def __call__(self, t):
@@ -235,7 +235,7 @@ class corot7Keplerian(MeanModel):
 
         RV = K[cos(w+v) + e*cos(w)] + K[cos(w+v) + e*cos(w)] + sis_vel
     """
-    _parsize = 10
+    _parsize = 11
     def __init__(self, P1, K1, e1, w1, phi1, P2, K2, e2, w2, phi2, sis_vel):
         super(corot7Keplerian, self).__init__(P1, K1, e1, w1, phi1,
                                          P2, K2, e2, w2, phi2, sis_vel)
