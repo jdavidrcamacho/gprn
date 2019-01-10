@@ -306,8 +306,8 @@ class complexGP(object):
                 #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
                 k_ii = k_ii + (w_xa * f_hat * w_xw)
             #k_ii = k_ii + diag(error) + diag(jitter)
-            k_ii += (new_yyerr[i - 1]) * np.identity(self.time.size) \
-                    + (self.jitters[i - 1]) * np.identity(self.time.size)
+            k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
+                    + (self.jitters[i - 1]**2) * np.identity(self.time.size)
             #log marginal likelihood calculation
             try:
                 L1 = cho_factor(k_ii, overwrite_a=True, lower=False)

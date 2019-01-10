@@ -16,18 +16,18 @@ time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("corot7_harps.rdb",
 #remaning errors
 fwhmerr = 2.35 * rverr
 biserr = 2.0* rverr
-#data plots
-f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
-ax1.set_title('RVs, fwhm, BIS and Rhk')
-ax1.errorbar(time,rv, rverr, fmt = "b.")
-ax1.set_ylabel("RVs")
-ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
-ax2.set_ylabel("fwhm")
-ax3.errorbar(time,bis, biserr, fmt = "g.")
-ax3.set_ylabel("BIS")
-ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
-ax4.set_ylabel("Rhk")
-plt.show()
+##data plots
+#f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
+#ax1.set_title('RVs, fwhm, BIS and Rhk')
+#ax1.errorbar(time,rv, rverr, fmt = "b.")
+#ax1.set_ylabel("RVs")
+#ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
+#ax2.set_ylabel("fwhm")
+#ax3.errorbar(time,bis, biserr, fmt = "g.")
+#ax3.set_ylabel("BIS")
+#ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
+#ax4.set_ylabel("Rhk")
+#plt.show()
 
 
 ##### GP object #####
@@ -50,10 +50,10 @@ print(otherloglike)
 from scipy import stats
 
 #node function
-node_le = stats.uniform(np.exp(-10), 50 -np.exp(-10)) 
-node_p = stats.uniform(1, 100- 1) 
-node_lp = stats.uniform(10, 40 -10) 
-node_wn = stats.uniform(np.exp(-10), 1 -np.exp(-10))
+node_le = stats.uniform(np.exp(-10), 16 -np.exp(-10)) 
+node_p = stats.uniform(10, 40- 10) 
+node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) 
+node_wn = stats.uniform(np.exp(-20), np.exp(-10) -np.exp(-20))
 
 #weight function
 weight_1 = stats.uniform(np.exp(-10), 50 -np.exp(-10))
@@ -66,10 +66,10 @@ mean_c4 = stats.uniform(2, 8 -2)
 
 
 #jitter
-jitt1 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt2 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt3 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt4= stats.uniform(np.exp(-20), 20 -np.exp(-20))
+jitt1 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
+jitt2 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
+jitt3 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
+jitt4= stats.uniform(np.exp(-2), 2 -np.exp(-2))
 
 def from_prior():
     return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
@@ -80,14 +80,14 @@ def from_prior():
     
 ##### MCMC properties #####
 import emcee
-runs, burns = 15000, 15000 #Defining runs and burn-ins
+runs, burns = 5000, 5000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
-    if any([p[0] < -10, p[0] > np.log(50), 
-            p[1] < np.log(1), p[1] > np.log(100), 
-            p[2] < np.log(10), p[2] > np.log(40), 
-            p[3] < -10, p[3] > np.log(1), 
+    if any([p[0] < -10, p[0] > np.log(16), 
+            p[1] < np.log(10), p[1] > np.log(40.0), 
+            p[2] < -10, p[2] > np.log(1), 
+            p[3] < -20, p[3] > -10, 
             
             p[4] < -10, p[4] > np.log(50),
             p[5] < -10, p[5] > np.log(50),
@@ -99,10 +99,10 @@ def logprob(p):
             p[10] < -10, p[10] > np.log(10),
             p[11] < np.log(2), p[11] > np.log(8),
 
-            p[12] < -20, p[12] > np.log(20),
-            p[13] < -20, p[13] > np.log(20),
-            p[14] < -20, p[14] > np.log(20),
-            p[15] < -20, p[15] > np.log(20)]):
+            p[12] < -20, p[12] > np.log(2),
+            p[13] < -20, p[13] > np.log(2),
+            p[14] < -20, p[14] > np.log(2),
+            p[15] < -20, p[15] > np.log(2)]):
         return -np.inf
     else:
         logprior = 0.0
@@ -139,13 +139,14 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
 
 #import corner
-#fig = corner.corner(samples, 
+#fig = corner.corner(samples[:,0:8], 
 #                    labels=["eta2", "eta3", "eta4", "s", 
-#                            "w1", "w2", "w3", "w4", 
-#                            "offset1", "offset2", "offset3", "offset4",
+#                            "w1", "w2", "w3", "w4"],
+#                    show_titles=True)
+#fig = corner.corner(samples[:,8:16], 
+#                    labels=["offset1", "offset2", "offset3", "offset4",
 #                            "jitter 1", "jitter 2", "jitter 3", "jitter 4"],
 #                    show_titles=True)
-
 
 fig, axes = plt.subplots(4, figsize=(10, 7), sharex=True)
 labels=["eta2", "eta3", "eta4", "s"]
@@ -220,6 +221,63 @@ print()
 plt.figure()
 for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
+    
+    
+    
+###### likelihood calculations #####
+likes=[]
+for i in range(samples[:,0].size):
+    new_node = [nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
+                                           samples[i,2], samples[i,3])]
+    new_weight = [samples[i,4], samples[i,5], samples[i,6], samples[i,7]]
+    new_means = [meanFunction.Constant(samples[i,8]), meanFunction.Constant(samples[i,9]),
+                 meanFunction.Constant(samples[i,10]), meanFunction.Constant(samples[i,11])]
+    new_jitt = [samples[i,12], samples[i,13], samples[i,14], samples[i,15]]
+    likes.append(GPobj.new_log_like(new_node, weight, new_weight, new_means,
+                                    new_jitt))
+#plt.figure()
+#plt.hist(likes, bins = 15, label='likelihood')
+
+datafinal = np.vstack([samples.T,np.array(likes).T]).T
+##### checking the likelihood that matters to us #####
+samples = datafinal
+values = np.where(samples[:,-1] > -200)
+#values = np.where(samples[:,-1] < -300)
+
+samples = samples[values,:]
+samples = samples.reshape(-1, 17)
+
+#median and quantiles
+l1,p1,l2,wn1, w1, w2,w3,w4, c1, c2, c3, c4, j1, j2, j3, j4, logl = map(lambda v: (v[1], 
+                                                                           v[2]-v[1], 
+                                                                           v[1]-v[0]),
+                             zip(*np.percentile(samples, [16, 50, 84],axis=0)))
+
+#printing results
+print('FINAL SOLUTION')
+print()
+print('Aperiodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l1))
+print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p1))
+print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l2))
+print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
+print()
+print('weight 1 = {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('weight 2 = {0[0]} +{0[1]} -{0[2]}'.format(w2))
+print('weight 3 = {0[0]} +{0[1]} -{0[2]}'.format(w3))
+print('weight 4 = {0[0]} +{0[1]} -{0[2]}'.format(w4))
+print()
+print('offset 1 = {0[0]} +{0[1]} -{0[2]}'.format(c1))
+print('offset 2 = {0[0]} +{0[1]} -{0[2]}'.format(c2))
+print('offset 3 = {0[0]} +{0[1]} -{0[2]}'.format(c3))
+print('offset 4 = {0[0]} +{0[1]} -{0[2]}'.format(c4))
+print()
+print('jitter 1 = {0[0]} +{0[1]} -{0[2]}'.format(j1))
+print('jitter 2 = {0[0]} +{0[1]} -{0[2]}'.format(j2))
+print('jitter 3 = {0[0]} +{0[1]} -{0[2]}'.format(j3))
+print('jitter 4 = {0[0]} +{0[1]} -{0[2]}'.format(j4))
+print()
+
+
 
 
 #final result
