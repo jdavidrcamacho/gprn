@@ -154,7 +154,8 @@ class complexGP(object):
 
 
 ##### marginal likelihood functions
-    def _covariance_matrix(self, nodes, weight, weight_values, time, position_p):
+    def _covariance_matrix(self, nodes, weight, weight_values, time, 
+                           position_p, add_errors = False):
         """ 
             Creates the smaller matrices that will be used in a big final matrix
             Parameters:
@@ -167,6 +168,10 @@ class complexGP(object):
             Return:
                 k_ii = block matrix in position ii
         """
+        #measurement errors
+        yy_err = np.concatenate(self.yerr)
+        new_yyerr = np.array_split(yy_err, self.p)
+        
         #block matrix starts empty
         k_ii = np.zeros((time.size, time.size))
         for i in range(1,self.q + 1):
@@ -186,8 +191,11 @@ class complexGP(object):
                 f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
                 w_xw = type(self.weight)(*weightPars)(time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii + (w_xa * f_hat * w_xw)
-        
+            k_ii += w_xa * f_hat * w_xw
+        #adding measurement errors to our covariance matrix
+        if add_errors:
+            k_ii +=  (new_yyerr[position_p - 1]**2) * np.identity(time.size)
+
         return k_ii
 
     def compute_matrix(self, nodes, weight, weight_values, time, 
@@ -212,7 +220,7 @@ class complexGP(object):
         #now we calculate the block matrices to be added to K
         for i in range(1, self.p+1):
             k = self._covariance_matrix(nodes, weight, weight_values, self.time, 
-                         position_p = i)
+                         position_p = i, add_errors = False)
             K_start[(i-1)*self.time.size : (i)*self.time.size, 
                         (i-1)*self.time.size : (i)*self.time.size] = k
         #addition of the measurement errors
@@ -228,7 +236,7 @@ class complexGP(object):
             K = K + shift*np.identity(self.time.size * self.p)
         return K
 
-    def log_likelihood(self, nodes, weight, weight_values, means):
+    def old_log_like(self, nodes, weight, weight_values, means):
         """ 
             Calculates the marginal log likelihood. This version creates a big
         covariance matrix K made of block matrices of each dataset and then
@@ -360,7 +368,7 @@ class complexGP(object):
 
         #cov = k + diag(error) + diag(jitter)
         cov = self._covariance_matrix(nodes, weight, weight_values, 
-                                      self.time, dataset)
+                                      self.time, dataset, add_errors = False)
         cov += (new_yerr[dataset - 1]) * np.identity(self.time.size) \
                     + (self.jitters[dataset - 1]) * np.identity(self.time.size)
         L1 = cho_factor(cov)
@@ -390,7 +398,7 @@ class complexGP(object):
 
         Kstar = k_ii
         Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
-                                            dataset)
+                                            dataset, add_errors = False)
 
         new_mean = np.array_split(self._mean(means, time), self.p)
         y_mean = np.dot(Kstar, sol) + new_mean[dataset-1]#mean
