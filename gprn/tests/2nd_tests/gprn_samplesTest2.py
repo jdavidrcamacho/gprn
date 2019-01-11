@@ -16,18 +16,18 @@ time, rv, rverr, fwhm, bis, rhk, rhkerr = np.loadtxt("sampled_data.rdb",
 #remaning errors
 fwhmerr = 2.35 * rverr
 biserr = 2.0* rverr
-#data plots
-f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
-ax1.set_title('RVs, fwhm, BIS and Rhk')
-ax1.errorbar(time,rv, rverr, fmt = "b.")
-ax1.set_ylabel("RVs")
-ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
-ax2.set_ylabel("fwhm")
-ax3.errorbar(time,bis, biserr, fmt = "g.")
-ax3.set_ylabel("BIS")
-ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
-ax4.set_ylabel("Rhk")
-plt.show()
+##data plots
+#f, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
+#ax1.set_title('RVs, fwhm, BIS and Rhk')
+#ax1.errorbar(time,rv, rverr, fmt = "b.")
+#ax1.set_ylabel("RVs")
+#ax2.errorbar(time,fwhm, fwhmerr, fmt = "r.")
+#ax2.set_ylabel("fwhm")
+#ax3.errorbar(time,bis, biserr, fmt = "g.")
+#ax3.set_ylabel("BIS")
+#ax4.errorbar(time,rhk, rhkerr, fmt = "y.")
+#ax4.set_ylabel("Rhk")
+#plt.show()
 
 
 ##### GP object #####
