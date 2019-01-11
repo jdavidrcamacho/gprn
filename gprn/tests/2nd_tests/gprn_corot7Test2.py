@@ -8,6 +8,7 @@ plt.close('all')
 from gprn.complexGP import complexGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
+plots = False
 ###### Data .rdb file #####
 time,rv,rverr,fwhm,fwhmerr,bis,biserr,rhk,rhkerr = np.loadtxt("corot7_clean.rdb", 
                                                               skiprows=102, unpack=True, 
@@ -53,7 +54,7 @@ def loguniform(low=0, high=1, size=None):
 
 #node function
 #node_le = stats.uniform(np.exp(-10), 16 -np.exp(-10)) 
-#node_le = loguniform(np.exp(-10), 16)
+node_le = loguniform(np.exp(-10), 16)
 node_p = stats.uniform(10, 40- 10) 
 node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) 
 node_wn = stats.uniform(np.exp(-20), np.exp(-10) -np.exp(-20))
@@ -87,7 +88,7 @@ def from_prior():
     else:
         eta2 = eta2
     return np.array([eta2, node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
-                     weight_1.rvs(), weight_1.rvs(), weight_1.rvs(), weight_1.rvs(),
+                      weight_1.rvs(), weight_1.rvs(), weight_1.rvs(), weight_1.rvs(),
                      mean_Kp.rvs(), mean_Kk.rvs(), mean_Ke.rvs(), mean_Kw.rvs(), mean_Kphi.rvs(),
                      mean_Kp.rvs(), mean_Kk.rvs(), mean_Ke.rvs(), mean_Kw.rvs(), mean_Kphi.rvs(),
                      mean_c1.rvs(), mean_c2.rvs(), mean_c3.rvs(), mean_c4.rvs(),
@@ -292,21 +293,22 @@ ax4.set_ylabel("R'hk")
 plt.show()
 
 
-#### corner plots
-import corner
-fig = corner.corner(samples[:,0:8], 
-                    labels=["eta2", "eta3", "eta4", "s", 
-                            "w1", "w2", "w3", "w4"],
-                    show_titles=True)
-fig = corner.corner(samples[:,8:13], 
-                    labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
-                    show_titles=True)
-fig = corner.corner(samples[:,13:18], 
-                    labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
-                    show_titles=True)
-fig = corner.corner(samples[:,18:22], 
-                    labels=["offset1", "offset2", "offset3", "offset4"],
-                    show_titles=True)
-fig = corner.corner(samples[:,22:26], 
-                    labels=["jitter 1", "jitter 2", "jitter 3", "jitter 4"],
-                    show_titles=True)
+if plots:
+    #### corner plots
+    import corner
+    fig = corner.corner(samples[:,0:8], 
+                        labels=["eta2", "eta3", "eta4", "s", 
+                                "w1", "w2", "w3", "w4"],
+                        show_titles=True)
+    fig = corner.corner(samples[:,8:13], 
+                        labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
+                        show_titles=True)
+    fig = corner.corner(samples[:,13:18], 
+                        labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
+                        show_titles=True)
+    fig = corner.corner(samples[:,18:22], 
+                        labels=["offset1", "offset2", "offset3", "offset4"],
+                        show_titles=True)
+    fig = corner.corner(samples[:,22:26], 
+                        labels=["jitter 1", "jitter 2", "jitter 3", "jitter 4"],
+                        show_titles=True)

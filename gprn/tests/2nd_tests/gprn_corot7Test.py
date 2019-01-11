@@ -66,10 +66,10 @@ mean_c4 = stats.uniform(2, 8 -2)
 
 
 #jitter
-jitt1 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt2 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt3 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt4= stats.uniform(np.exp(-2), 2 -np.exp(-2))
+jitt1 = stats.uniform(np.exp(-2), 20 -np.exp(-2))
+jitt2 = stats.uniform(np.exp(-2), 20 -np.exp(-2))
+jitt3 = stats.uniform(np.exp(-2), 20 -np.exp(-2))
+jitt4= stats.uniform(np.exp(-2), 20 -np.exp(-2))
 
 def from_prior():
     return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
@@ -99,10 +99,10 @@ def logprob(p):
             p[10] < -10, p[10] > np.log(10),
             p[11] < np.log(2), p[11] > np.log(8),
 
-            p[12] < -20, p[12] > np.log(2),
-            p[13] < -20, p[13] > np.log(2),
-            p[14] < -20, p[14] > np.log(2),
-            p[15] < -20, p[15] > np.log(2)]):
+            p[12] < -20, p[12] > np.log(20),
+            p[13] < -20, p[13] > np.log(20),
+            p[14] < -20, p[14] > np.log(20),
+            p[15] < -20, p[15] > np.log(20)]):
         return -np.inf
     else:
         logprior = 0.0
@@ -241,7 +241,7 @@ for i in range(samples[:,0].size):
 datafinal = np.vstack([samples.T,np.array(likes).T]).T
 ##### checking the likelihood that matters to us #####
 samples = datafinal
-values = np.where(samples[:,-1] > -200)
+values = np.where(samples[:,-1] > 0)
 #values = np.where(samples[:,-1] < -300)
 
 samples = samples[values,:]
