@@ -52,10 +52,10 @@ mean_c3 = stats.uniform(np.exp(-10), 10 -np.exp(-10))
 mean_c4 = stats.uniform(2, 8 -2)
 
 #jitters
-jitt1 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt2 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt3 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
-jitt4= stats.uniform(np.exp(-20), 20 -np.exp(-20))
+jitt1 = stats.uniform(np.exp(-20), 10 -np.exp(-20))
+jitt2 = stats.uniform(np.exp(-20), 10 -np.exp(-20))
+jitt3 = stats.uniform(np.exp(-20), 10 -np.exp(-20))
+jitt4= stats.uniform(np.exp(-20), 10 -np.exp(-20))
 
 def from_prior():
     return np.array([eta2.rvs(), eta3.rvs(), eta4.rvs(), s.rvs(),
@@ -283,17 +283,14 @@ def post_analysis(samples):
 ##### Corner plots of the data #####
 import corner
 def corner_plots(samples):
-    plt.figure()
     corner.corner(samples[:,0:8], 
                         labels=["eta2", "eta3", "eta4", "s", 
                                 "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
-                        show_titles=True)
-    plt.figure()
+                        show_titles=True, fill_contours=True)
     corner.corner(samples[:,18:22], 
                         labels=["RV offset", "FWHM offset", "BIS offset", "Rhk offset"],
-                        show_titles=True)
-    plt.figure()
+                        show_titles=True, fill_contours=True)
     corner.corner(samples[:,22:26], 
                         labels=["RV jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.show()

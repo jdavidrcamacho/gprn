@@ -359,21 +359,21 @@ def corner_plots(samples):
     corner.corner(samples[:,0:8], 
                         labels=["eta 2", "eta 3", "eta 4", "s", 
                                 "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.figure()
     corner.corner(samples[:,8:13], 
                         labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.figure()
     corner.corner(samples[:,13:18], 
                         labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.figure()
     corner.corner(samples[:,18:22], 
                         labels=["RVs offset", "FWHM offset", "BIS offset", "Rhk offset"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.figure()
     corner.corner(samples[:,22:26], 
                         labels=["RVs jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
-                        show_titles=True)
+                        show_titles=True, fill_contours=True)
     plt.show()
