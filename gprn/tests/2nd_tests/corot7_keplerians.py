@@ -274,6 +274,7 @@ ax4.fill_between(np.linspace(time.min(), time.max(), 500),
 ax4.plot(np.linspace(time.min(), time.max(), 500), mu44, "k--", alpha=1, lw=1.5)
 ax4.errorbar(time, rhk, rhkerr, fmt = "b.")
 ax4.set_ylabel("R'hk")
+f.savefig('corot7_keplerians_fit.png')
 plt.show()
 
 
@@ -307,7 +308,7 @@ def post_analysis(samples):
     #checking the likelihood that matters to us
     values = np.where(new_samples[:,-1] > 0)
     new_samples = samples[values,:]
-    new_samples = new_samples.reshape(-1, 26)
+    new_samples = new_samples.reshape(-1, 27)
 
     #median and quantiles
     l11,p11,l12,wn11, w11,w12,w13,w14, \
@@ -355,25 +356,27 @@ def post_analysis(samples):
 ##### Corner plots of the data #####
 import corner
 def corner_plots(samples):
-    plt.figure()
     corner.corner(samples[:,0:8], 
                         labels=["eta 2", "eta 3", "eta 4", "s", 
                                 "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
                         show_titles=True, fill_contours=True)
-    plt.figure()
+    plt.savefig('corot7_keplerians_corner1.png')
     corner.corner(samples[:,8:13], 
                         labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
                         show_titles=True, fill_contours=True)
-    plt.figure()
+    plt.savefig('corot7_keplerians_corner2.png')
     corner.corner(samples[:,13:18], 
                         labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
                         show_titles=True, fill_contours=True)
-    plt.figure()
+    plt.savefig('corot7_keplerians_corner3.png')
     corner.corner(samples[:,18:22], 
                         labels=["RVs offset", "FWHM offset", "BIS offset", "Rhk offset"],
                         show_titles=True, fill_contours=True)
-    plt.figure()
+    plt.savefig('corot7_keplerians_corner4.png')
     corner.corner(samples[:,22:26], 
                         labels=["RVs jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
                         show_titles=True, fill_contours=True)
+    plt.savefig('corot7_keplerians_corner5.png')
     plt.show()
+
+post_analysis(samples)

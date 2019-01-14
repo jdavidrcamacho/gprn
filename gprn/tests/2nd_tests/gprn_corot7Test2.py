@@ -8,7 +8,8 @@ plt.close('all')
 from gprn.complexGP import complexGP
 from gprn import weightFunction, nodeFunction, meanFunction
 
-plots = False
+
+post_analysis = False
 ###### Data .rdb file #####
 time,rv,rverr,fwhm,fwhmerr,bis,biserr,rhk,rhkerr = np.loadtxt("corot7_clean.rdb", 
                                                               skiprows=102, unpack=True, 
@@ -29,14 +30,15 @@ time,rv,rverr,fwhm,fwhmerr,bis,biserr,rhk,rhkerr = np.loadtxt("corot7_clean.rdb"
 
 
 ##### GP object #####
-nodes = [nodeFunction.QuasiPeriodic(1, 1, 1, 1)]
-weight = weightFunction.Constant(1)
-weight_values = [1, 1, 1, 1]
-means = [meanFunction.Keplerian(1,1,0.5,1,1) + meanFunction.Keplerian(1,1,0.5,1,1) \
-                                                     + meanFunction.Constant(1),
-         meanFunction.Constant(1), 
-         meanFunction.Constant(1), 
-         meanFunction.Constant(1)]
+nodes = [nodeFunction.QuasiPeriodic(3.28, 22.21, 0.93, 0)]
+weight = weightFunction.Constant(0)
+weight_values = [9.31, 2, 1, 1]
+means = [meanFunction.Keplerian(0.85, 3.97, 0.05, np.pi, 0) \
+         + meanFunction.Keplerian(3.70, 5.55, 0.3 , np.pi, 0) \
+         + meanFunction.Constant(0),
+         meanFunction.Constant(0), 
+         meanFunction.Constant(0), 
+         meanFunction.Constant(0)]
 jitters =[0, 0, 0, 0]
  
 GPobj = complexGP(nodes, weight, weight_values, means, jitters, time, 
@@ -53,21 +55,27 @@ def loguniform(low=0, high=1, size=None):
     return np.exp(stats.uniform(low, high -low).rvs())
 
 #node function
-#node_le = stats.uniform(np.exp(-10), 16 -np.exp(-10)) 
-node_le = loguniform(np.exp(-10), 16)
-node_p = stats.uniform(10, 40- 10) 
-node_lp = stats.uniform(np.exp(-10), 1 -np.exp(-10)) 
-node_wn = stats.uniform(np.exp(-20), np.exp(-10) -np.exp(-20))
+node_le = stats.uniform(np.exp(-20), 15 -np.exp(-10)) 
+#node_le = loguniform(0, 5)
+node_p = stats.uniform(20, 24- 20) 
+node_lp = stats.uniform(np.exp(-20), 1 -np.exp(-20)) 
+node_wn = stats.uniform(np.exp(-20), 1 -np.exp(-20))
 
 #weight function
-weight_1 = stats.uniform(np.exp(-10), 50 -np.exp(-10))
+weight_1 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
 
 #mean function
-mean_Kp = stats.uniform(np.exp(-10), 10 -np.exp(-10))
-mean_Kk = stats.uniform(1, 10 -1)
-mean_Ke = stats.uniform(np.exp(-20), 1 -np.exp(-20))
-mean_Kw = stats.uniform(np.exp(-20), 2*np.pi -1)
-mean_Kphi = stats.uniform(np.exp(-20), 2*np.pi -np.exp(-20))
+mean_Kp1 = stats.uniform(0.7, 0.9 -0.7)
+mean_Kk1 = stats.uniform(3, 4 -3)
+mean_Ke1 = stats.uniform(0.01, 0.06 -0.01)
+mean_Kw1 = stats.uniform(np.exp(-20), 2*np.pi -1)
+mean_Kphi1 = stats.uniform(np.exp(-20), 2*np.pi -np.exp(-20))
+
+mean_Kp2 = stats.uniform(3, 4-3)
+mean_Kk2 = stats.uniform(5, 6 -5)
+mean_Ke2 = stats.uniform(0.01, 0.04 -0.01)
+mean_Kw2 = stats.uniform(np.exp(-20), 2*np.pi -1)
+mean_Kphi2 = stats.uniform(np.exp(-20), 2*np.pi -np.exp(-20))
 
 mean_c1 = stats.uniform(10, 50 -10)
 mean_c2 = stats.uniform(1, 10 -1)
@@ -76,49 +84,49 @@ mean_c4 = stats.uniform(2, 8 -2)
 
 
 #jitter
-jitt1 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt2 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt3 = stats.uniform(np.exp(-2), 2 -np.exp(-2))
-jitt4= stats.uniform(np.exp(-2), 2 -np.exp(-2))
+jitt1 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
+jitt2 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
+jitt3 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
+jitt4= stats.uniform(np.exp(-20), 20 -np.exp(-20))
 
 def from_prior():
-    eta2 = loguniform(np.exp(-10), 20)
-    if eta2 > 20:
-        eta2 = loguniform(np.exp(-10), 20)
-    else:
-        eta2 = eta2
-    return np.array([eta2, node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
+#    eta2 = loguniform(np.exp(-10), 20)
+#    if eta2 > 20:
+#        eta2 = loguniform(np.exp(-10), 20)
+#    else:
+#        eta2 = eta2
+    return np.array([node_le.rvs(), node_p.rvs(), node_lp.rvs(), node_wn.rvs(),
                       weight_1.rvs(), weight_1.rvs(), weight_1.rvs(), weight_1.rvs(),
-                     mean_Kp.rvs(), mean_Kk.rvs(), mean_Ke.rvs(), mean_Kw.rvs(), mean_Kphi.rvs(),
-                     mean_Kp.rvs(), mean_Kk.rvs(), mean_Ke.rvs(), mean_Kw.rvs(), mean_Kphi.rvs(),
+                     mean_Kp1.rvs(), mean_Kk1.rvs(), mean_Ke1.rvs(), mean_Kw1.rvs(), mean_Kphi1.rvs(),
+                     mean_Kp2.rvs(), mean_Kk2.rvs(), mean_Ke2.rvs(), mean_Kw2.rvs(), mean_Kphi2.rvs(),
                      mean_c1.rvs(), mean_c2.rvs(), mean_c3.rvs(), mean_c4.rvs(),
                      jitt1.rvs(), jitt2.rvs(), jitt3.rvs(), jitt4.rvs()])
 
 ##### MCMC properties #####
 import emcee
-runs, burns = 50000, 50000 #Defining runs and burn-ins
+runs, burns = 20000, 20000 #Defining runs and burn-ins
 
 #Probabilistic model
 def logprob(p):
-    if any([ 
-            p[1] < np.log(10), p[1] > np.log(40.0), 
-            p[2] < -10, p[2] > np.log(1), 
-            p[3] < -20, p[3] > -10, 
+    if any([p[0] < -20, p[0] > np.log(15.0),  
+            p[1] < np.log(20.0), p[1] > np.log(24.0), 
+            p[2] < -20, p[2] > np.log(1), 
+            p[3] < -20, p[3] > np.log(1), 
             
-            p[4] < -10, p[4] > np.log(50),
-            p[5] < -10, p[5] > np.log(50),
-            p[6] < -10, p[6] > np.log(50),
-            p[7] < -10, p[7] > np.log(50),
+            p[4] < -20, p[4] > np.log(20),
+            p[5] < -20, p[5] > np.log(20),
+            p[6] < -20, p[6] > np.log(20),
+            p[7] < -20, p[7] > np.log(20),
             
-            p[8] < -10, p[8] > np.log(10),
-            p[9] < np.log(1), p[9] > np.log(10),
-            p[10] < -20, p[10] > np.log(1),
+            p[8] < np.log(0.7), p[8] > np.log(0.9),
+            p[9] < np.log(3), p[9] > np.log(4),
+            p[10] < np.log(0.01), p[10] > np.log(0.06),
             p[11] < -20, p[11] > np.log(2*np.pi),
             p[12] < -20, p[12] > np.log(2*np.pi),
 
-            p[13] < -10, p[13] > np.log(10),
-            p[14] < np.log(1), p[14] > np.log(10),
-            p[15] < -20, p[15] > np.log(1),
+            p[13] < np.log(3), p[13] > np.log(4),
+            p[14] < np.log(5), p[14] > np.log(6),
+            p[15] < np.log(0.01), p[15] > np.log(0.04),
             p[16] < -20, p[16] > np.log(2*np.pi),
             p[17] < -20, p[17] > np.log(2*np.pi),
 
@@ -127,10 +135,10 @@ def logprob(p):
             p[20] < -10, p[20] > np.log(10),
             p[21] < np.log(2), p[21] > np.log(8),
 
-            p[22] < -20, p[22] > np.log(2),
-            p[23] < -20, p[23] > np.log(2),
-            p[24] < -20, p[24] > np.log(2),
-            p[25] < -20, p[25] > np.log(2)]):
+            p[22] < -20, p[22] > np.log(20),
+            p[23] < -20, p[23] > np.log(20),
+            p[24] < -20, p[24] > np.log(20),
+            p[25] < -20, p[25] > np.log(20)]):
         return -np.inf
     else:
         logprior = 0.0
@@ -226,8 +234,7 @@ for i in range(sampler.lnprobability.shape[0]):
     plt.plot(sampler.lnprobability[i, :])
 
 
-
-##### final results #####
+##### first results #####
 nodes = [nodeFunction.QuasiPeriodic(l1[0], p1[0], l2[0], wn1[0])]
 
 weight = weightFunction.Constant(0)
@@ -293,22 +300,103 @@ ax4.set_ylabel("R'hk")
 plt.show()
 
 
-if plots:
-    #### corner plots
-    import corner
-    fig = corner.corner(samples[:,0:8], 
+##### post analysis #####
+def post_analysis(samples):
+    likes=[] #likelihoods calculation
+    for i in range(samples[:,0].size):
+        new_node = [nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
+                                               samples[i,2], samples[i,3])]
+
+        new_weight = [samples[i,4], samples[i,5], samples[i,6], samples[i,7]]
+        
+        new_means = [meanFunction.Keplerian(samples[i,8], samples[i,9],
+                                            samples[i,10], samples[i,11], samples[i,12]) \
+                + meanFunction.Keplerian(samples[i,13], samples[i,14],
+                                            samples[i,15], samples[i,16], samples[i,17]) \
+                + meanFunction.Constant(samples[i,18]), 
+                meanFunction.Constant(samples[i,19]),
+                meanFunction.Constant(samples[i,20]),
+                meanFunction.Constant(samples[i,21])]
+
+        new_jitt = [samples[i,22], samples[i,23], samples[i,24], samples[i,25]]
+        
+        likes.append(GPobj.new_log_like(new_node, weight, new_weight, new_means,
+                                        new_jitt))
+    plt.figure()
+    plt.hist(likes, bins = 20, label='likelihood')
+    plt.show()
+    
+    new_samples = np.vstack([samples.T,np.array(likes).T]).T
+    #checking the likelihood that matters to us
+    values = np.where(new_samples[:,-1] > 0)
+    new_samples = samples[values,:]
+    new_samples = new_samples.reshape(-1, 26)
+
+    #median and quantiles
+    l11,p11,l12,wn11, w11,w12,w13,w14, \
+    kp11,kk11,ke11,kw11,kphi11, kp12,kk12,ke12,kw12,kphi12, \
+    c11, c12, c13, c14, j11, j12, j13, j14, logl1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                                 zip(*np.percentile(new_samples, [16, 50, 84],axis=0)))
+    
+    #printing results
+    print('FINAL SOLUTION')
+    print()
+    print('Aperiodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l11))
+    print('Kernel period = {0[0]} +{0[1]} -{0[2]}'.format(p11))
+    print('Periodic length scale = {0[0]} +{0[1]} -{0[2]}'.format(l12))
+    print('Kernel wn = {0[0]} +{0[1]} -{0[2]}'.format(wn11))
+    print()
+    print('weight 1 = {0[0]} +{0[1]} -{0[2]}'.format(w11))
+    print('weight 2 = {0[0]} +{0[1]} -{0[2]}'.format(w12))
+    print('weight 3 = {0[0]} +{0[1]} -{0[2]}'.format(w13))
+    print('weight 4 = {0[0]} +{0[1]} -{0[2]}'.format(w14))
+    print()
+    print('keplerian 1 period= {0[0]} +{0[1]} -{0[2]}'.format(kp11))
+    print('keplerian 1 K = {0[0]} +{0[1]} -{0[2]}'.format(kk11))
+    print('keplerian 1 e = {0[0]} +{0[1]} -{0[2]}'.format(ke11))
+    print('keplerian 1 w = {0[0]} +{0[1]} -{0[2]}'.format(kw11))
+    print('keplerian 1 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi11))
+    print('+')
+    print('keplerian 2 period= {0[0]} +{0[1]} -{0[2]}'.format(kp12))
+    print('keplerian 2 K = {0[0]} +{0[1]} -{0[2]}'.format(kk12))
+    print('keplerian 2 e = {0[0]} +{0[1]} -{0[2]}'.format(ke12))
+    print('keplerian 2 w = {0[0]} +{0[1]} -{0[2]}'.format(kw12))
+    print('keplerian 2 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi12))
+    print('+')
+    print('keplerians offset = {0[0]} +{0[1]} -{0[2]}'.format(c11))
+    print()
+    print('offset 2 = {0[0]} +{0[1]} -{0[2]}'.format(c12))
+    print('offset 3 = {0[0]} +{0[1]} -{0[2]}'.format(c13))
+    print('offset 4 = {0[0]} +{0[1]} -{0[2]}'.format(c14))
+    print()
+    print('jitter 1 = {0[0]} +{0[1]} -{0[2]}'.format(j11))
+    print('jitter 2 = {0[0]} +{0[1]} -{0[2]}'.format(j12))
+    print('jitter 3 = {0[0]} +{0[1]} -{0[2]}'.format(j13))
+    print('jitter 4 = {0[0]} +{0[1]} -{0[2]}'.format(j14))
+    print()
+
+##### Corner plots of the data #####
+import corner
+def corner_plots(samples):
+    plt.figure()
+    corner.corner(samples[:,0:8], 
                         labels=["eta2", "eta3", "eta4", "s", 
                                 "w1", "w2", "w3", "w4"],
                         show_titles=True)
-    fig = corner.corner(samples[:,8:13], 
+    plt.figure()
+    corner.corner(samples[:,8:13], 
                         labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
                         show_titles=True)
-    fig = corner.corner(samples[:,13:18], 
+    plt.figure()
+    corner.corner(samples[:,13:18], 
                         labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
                         show_titles=True)
-    fig = corner.corner(samples[:,18:22], 
+    plt.figure()
+    corner.corner(samples[:,18:22], 
                         labels=["offset1", "offset2", "offset3", "offset4"],
                         show_titles=True)
-    fig = corner.corner(samples[:,22:26], 
+    plt.figure()
+    corner.corner(samples[:,22:26], 
                         labels=["jitter 1", "jitter 2", "jitter 3", "jitter 4"],
                         show_titles=True)
+    plt.show()

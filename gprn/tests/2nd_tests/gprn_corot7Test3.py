@@ -93,10 +93,8 @@ def prior_transform(utheta):
 
 ##### dynesty #####
 import dynesty
-dsampler = dynesty.DynamicNestedSampler(loglike, prior_transform, ndim=1,
-                                        bound='multi', sample='rwalk',
-                                        update_interval=3.)
-dsampler.run_nested(maxiter=2000)
+dsampler = dynesty.DynamicNestedSampler(loglike, prior_transform, ndim=1)
+dsampler.run_nested(maxiter=5000)
 dres = dsampler.results
 
 from dynesty import plotting as dyplot

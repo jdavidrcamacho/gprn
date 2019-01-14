@@ -220,6 +220,7 @@ ax4.fill_between(np.linspace(time.min(), time.max(), 500),
 ax4.plot(np.linspace(time.min(), time.max(), 500), mu44, "k--", alpha=1, lw=1.5)
 ax4.errorbar(time, rhk, rhkerr, fmt = "b.")
 ax4.set_ylabel("R'hk")
+f.savefig('corot7_withoutkeplerians_fit.png')
 plt.show()
 
 
@@ -249,7 +250,7 @@ def post_analysis(samples):
     #checking the likelihood that matters to us
     values = np.where(new_samples[:,-1] > 0)
     new_samples = samples[values,:]
-    new_samples = new_samples.reshape(-1, 16)
+    new_samples = new_samples.reshape(-1, 17)
 
     #median and quantiles
     l11,p11,l12,wn11, w11,w12,w13,w14, \
@@ -287,10 +288,22 @@ def corner_plots(samples):
                         labels=["eta2", "eta3", "eta4", "s", 
                                 "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
                         show_titles=True, fill_contours=True)
+    plt.savefig('corot7_withoutkeplerians_corner1.png')
     corner.corner(samples[:,18:22], 
                         labels=["RV offset", "FWHM offset", "BIS offset", "Rhk offset"],
                         show_titles=True, fill_contours=True)
+    plt.savefig('corot7_withoutkeplerians_corner2.png')
     corner.corner(samples[:,22:26], 
                         labels=["RV jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
                         show_titles=True, fill_contours=True)
+    plt.savefig('corot7_withoutkeplerians_corner3.png')
+
     plt.show()
+
+##### Saving data #####
+def save_data(samples):
+    return np.save('corot7_withoukeplerians.npy', samples)
+
+
+post_analysis(samples)
+save_data(samples)
