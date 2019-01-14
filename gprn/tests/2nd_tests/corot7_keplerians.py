@@ -60,10 +60,11 @@ mean_Ke2 = stats.uniform(0.01, 0.04 -0.01)
 mean_Kw2 = stats.uniform(np.exp(-20), 2*np.pi -1)
 mean_Kphi2 = stats.uniform(np.exp(-20), 2*np.pi -np.exp(-20))
 
-mean_c1 = stats.uniform(10, 50 -10)
-mean_c2 = stats.uniform(1, 10 -1)
-mean_c3 = stats.uniform(np.exp(-10), 10 -np.exp(-10))
-mean_c4 = stats.uniform(2, 8 -2)
+
+mean_c1 = stats.uniform(rv.min(), rv.max() -rv.min())
+mean_c2 = stats.uniform(fwhm.min(), fwhm.max() -fwhm.min())
+mean_c3 = stats.uniform(bis.min(), bis.max() -bis.min())
+mean_c4 = stats.uniform(rhk.min(), rhk.max() -rhk.min())
 
 #jitter
 jitt1 = stats.uniform(np.exp(-20), 20 -np.exp(-20))
@@ -76,7 +77,7 @@ def from_prior():
                       weight_1.rvs(), weight_1.rvs(), weight_1.rvs(), weight_1.rvs(),
                      mean_Kp1.rvs(), mean_Kk1.rvs(), mean_Ke1.rvs(), mean_Kw1.rvs(), mean_Kphi1.rvs(),
                      mean_Kp2.rvs(), mean_Kk2.rvs(), mean_Ke2.rvs(), mean_Kw2.rvs(), mean_Kphi2.rvs(),
-                     mean_c1.rvs(), mean_c2.rvs(), mean_c3.rvs(), mean_c4.rvs(),
+                     mean_c1.rvs(), mean_c2.rvs(), mean_c3.rvs(), -mean_c4.rvs(),
                      jitt1.rvs(), jitt2.rvs(), jitt3.rvs(), jitt4.rvs()])
 
 ##### MCMC properties #####
@@ -107,10 +108,10 @@ def logprob(p):
             p[16] < -20, p[16] > np.log(2*np.pi),
             p[17] < -20, p[17] > np.log(2*np.pi),
 
-            p[18] < np.log(10), p[18] > np.log(50),
-            p[19] < np.log(1), p[19] > np.log(10),
-            p[20] < -10, p[20] > np.log(10),
-            p[21] < np.log(2), p[21] > np.log(8),
+            p[18] < np.log(rv.min()), p[18] > np.log(rv.max()),
+            p[19] < np.log(fwhm.min()), p[19] > np.log(fwhm.max()),
+            p[20] < np.log(bis.min()), p[20] > np.log(bis.max()),
+            p[21] < np.log(-rhk.max()), p[21] > np.log(-rhk.min()),
 
             p[22] < -20, p[22] > np.log(20),
             p[23] < -20, p[23] > np.log(20),
@@ -162,7 +163,7 @@ sampler.run_mcmc(p0, runs);
 burnin = burns
 samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 samples = np.exp(samples)
-samples[:,0] = np.log(samples[:,0])
+samples[:, 21] = -samples[:,21]
 
 #median and quantiles
 l1,p1,l2,wn1, w1,w2,w3,w4, \
@@ -279,104 +280,161 @@ plt.show()
 
 
 ##### post analysis #####
-def post_analysis(samples):
-    likes=[] #likelihoods calculation
-    for i in range(samples[:,0].size):
-        new_node = [nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
-                                               samples[i,2], samples[i,3])]
+likes=[] #likelihoods calculation
+for i in range(samples[:,0].size):
+    new_node = [nodeFunction.QuasiPeriodic(samples[i,0], samples[i,1], 
+                                           samples[i,2], samples[i,3])]
 
-        new_weight = [samples[i,4], samples[i,5], samples[i,6], samples[i,7]]
-        
-        new_means = [meanFunction.Keplerian(samples[i,8], samples[i,9],
-                                            samples[i,10], samples[i,11], samples[i,12]) \
-                + meanFunction.Keplerian(samples[i,13], samples[i,14],
-                                            samples[i,15], samples[i,16], samples[i,17]) \
-                + meanFunction.Constant(samples[i,18]), 
-                meanFunction.Constant(samples[i,19]),
-                meanFunction.Constant(samples[i,20]),
-                meanFunction.Constant(samples[i,21])]
-
-        new_jitt = [samples[i,22], samples[i,23], samples[i,24], samples[i,25]]
-        
-        likes.append(GPobj.new_log_like(new_node, weight, new_weight, new_means,
-                                        new_jitt))
-    plt.figure()
-    plt.hist(likes, bins = 20, label='likelihood')
-    plt.show()
+    new_weight = [samples[i,4], samples[i,5], samples[i,6], samples[i,7]]
     
-    new_samples = np.vstack([samples.T,np.array(likes).T]).T
-    #checking the likelihood that matters to us
-    values = np.where(new_samples[:,-1] > 0)
-    new_samples = samples[values,:]
-    new_samples = new_samples.reshape(-1, 27)
+    new_means = [meanFunction.Keplerian(samples[i,8], samples[i,9],
+                                        samples[i,10], samples[i,11], samples[i,12]) \
+            + meanFunction.Keplerian(samples[i,13], samples[i,14],
+                                        samples[i,15], samples[i,16], samples[i,17]) \
+            + meanFunction.Constant(samples[i,18]), 
+            meanFunction.Constant(samples[i,19]),
+            meanFunction.Constant(samples[i,20]),
+            meanFunction.Constant(samples[i,21])]
 
-    #median and quantiles
-    l11,p11,l12,wn11, w11,w12,w13,w14, \
-    kp11,kk11,ke11,kw11,kphi11, kp12,kk12,ke12,kw12,kphi12, \
-    c11, c12, c13, c14, j11, j12, j13, j14, logl1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                 zip(*np.percentile(new_samples, [16, 50, 84],axis=0)))
+    new_jitt = [samples[i,22], samples[i,23], samples[i,24], samples[i,25]]
     
-    #printing results
-    print('FINAL SOLUTION')
-    print()
-    print('eta 2 = {0[0]} +{0[1]} -{0[2]}'.format(l1))
-    print('eta 3 = {0[0]} +{0[1]} -{0[2]}'.format(p1))
-    print('eta 4 = {0[0]} +{0[1]} -{0[2]}'.format(l2))
-    print('s = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
-    print()
-    print('RVs weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
-    print('FWHM weight = {0[0]} +{0[1]} -{0[2]}'.format(w2))
-    print('BIS weight = {0[0]} +{0[1]} -{0[2]}'.format(w3))
-    print('Rhk weight = {0[0]} +{0[1]} -{0[2]}'.format(w4))
-    print()
-    print('keplerian 1 period= {0[0]} +{0[1]} -{0[2]}'.format(kp1))
-    print('keplerian 1 K = {0[0]} +{0[1]} -{0[2]}'.format(kk1))
-    print('keplerian 1 e = {0[0]} +{0[1]} -{0[2]}'.format(ke1))
-    print('keplerian 1 w = {0[0]} +{0[1]} -{0[2]}'.format(kw1))
-    print('keplerian 1 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi1))
-    print('+')
-    print('keplerian 2 period= {0[0]} +{0[1]} -{0[2]}'.format(kp2))
-    print('keplerian 2 K = {0[0]} +{0[1]} -{0[2]}'.format(kk2))
-    print('keplerian 2 e = {0[0]} +{0[1]} -{0[2]}'.format(ke2))
-    print('keplerian 2 w = {0[0]} +{0[1]} -{0[2]}'.format(kw2))
-    print('keplerian 2 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi2))
-    print('+')
-    print('keplerians offset = {0[0]} +{0[1]} -{0[2]}'.format(c1))
-    print()
-    print('FWHM offset = {0[0]} +{0[1]} -{0[2]}'.format(c2))
-    print('BIS offset = {0[0]} +{0[1]} -{0[2]}'.format(c3))
-    print('Rhk offset = {0[0]} +{0[1]} -{0[2]}'.format(c4))
-    print()
-    print('RVs jitter = {0[0]} +{0[1]} -{0[2]}'.format(j1))
-    print('FWHM jitter = {0[0]} +{0[1]} -{0[2]}'.format(j2))
-    print('BIS jitter = {0[0]} +{0[1]} -{0[2]}'.format(j3))
-    print('Rhk jitter = {0[0]} +{0[1]} -{0[2]}'.format(j4))
-    print()
+    likes.append(GPobj.new_log_like(new_node, weight, new_weight, new_means,
+                                    new_jitt))
+plt.figure()
+plt.hist(likes, bins = 20, label='likelihood')
+plt.show()
+
+new_samples = np.vstack([samples.T,np.array(likes).T]).T
+#checking the likelihood that matters to us
+values = np.where(new_samples[:,-1] > 0)
+new_samples = new_samples[values,:]
+new_samples = new_samples.reshape(-1, 27)
+
+#median and quantiles
+l11,p11,l12,wn11, w11,w12,w13,w14, \
+kp11,kk11,ke11,kw11,kphi11, kp12,kk12,ke12,kw12,kphi12, \
+c11, c12, c13, c14, j11, j12, j13, j14, logl1 = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                             zip(*np.percentile(new_samples, [16, 50, 84],axis=0)))
+
+#printing results
+print('FINAL SOLUTION')
+print()
+print('eta 2 = {0[0]} +{0[1]} -{0[2]}'.format(l1))
+print('eta 3 = {0[0]} +{0[1]} -{0[2]}'.format(p1))
+print('eta 4 = {0[0]} +{0[1]} -{0[2]}'.format(l2))
+print('s = {0[0]} +{0[1]} -{0[2]}'.format(wn1))
+print()
+print('RVs weight = {0[0]} +{0[1]} -{0[2]}'.format(w1))
+print('FWHM weight = {0[0]} +{0[1]} -{0[2]}'.format(w2))
+print('BIS weight = {0[0]} +{0[1]} -{0[2]}'.format(w3))
+print('Rhk weight = {0[0]} +{0[1]} -{0[2]}'.format(w4))
+print()
+print('keplerian 1 period= {0[0]} +{0[1]} -{0[2]}'.format(kp1))
+print('keplerian 1 K = {0[0]} +{0[1]} -{0[2]}'.format(kk1))
+print('keplerian 1 e = {0[0]} +{0[1]} -{0[2]}'.format(ke1))
+print('keplerian 1 w = {0[0]} +{0[1]} -{0[2]}'.format(kw1))
+print('keplerian 1 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi1))
+print('+')
+print('keplerian 2 period= {0[0]} +{0[1]} -{0[2]}'.format(kp2))
+print('keplerian 2 K = {0[0]} +{0[1]} -{0[2]}'.format(kk2))
+print('keplerian 2 e = {0[0]} +{0[1]} -{0[2]}'.format(ke2))
+print('keplerian 2 w = {0[0]} +{0[1]} -{0[2]}'.format(kw2))
+print('keplerian 2 phi  = {0[0]} +{0[1]} -{0[2]}'.format(kphi2))
+print('+')
+print('keplerians offset = {0[0]} +{0[1]} -{0[2]}'.format(c1))
+print()
+print('FWHM offset = {0[0]} +{0[1]} -{0[2]}'.format(c2))
+print('BIS offset = {0[0]} +{0[1]} -{0[2]}'.format(c3))
+print('Rhk offset = {0[0]} +{0[1]} -{0[2]}'.format(c4))
+print()
+print('RVs jitter = {0[0]} +{0[1]} -{0[2]}'.format(j1))
+print('FWHM jitter = {0[0]} +{0[1]} -{0[2]}'.format(j2))
+print('BIS jitter = {0[0]} +{0[1]} -{0[2]}'.format(j3))
+print('Rhk jitter = {0[0]} +{0[1]} -{0[2]}'.format(j4))
+print()
 
 ##### Corner plots of the data #####
 import corner
-def corner_plots(samples):
-    corner.corner(samples[:,0:8], 
-                        labels=["eta 2", "eta 3", "eta 4", "s", 
-                                "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
-                        show_titles=True, fill_contours=True)
-    plt.savefig('corot7_keplerians_corner1.png')
-    corner.corner(samples[:,8:13], 
-                        labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
-                        show_titles=True, fill_contours=True)
-    plt.savefig('corot7_keplerians_corner2.png')
-    corner.corner(samples[:,13:18], 
-                        labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
-                        show_titles=True, fill_contours=True)
-    plt.savefig('corot7_keplerians_corner3.png')
-    corner.corner(samples[:,18:22], 
-                        labels=["RVs offset", "FWHM offset", "BIS offset", "Rhk offset"],
-                        show_titles=True, fill_contours=True)
-    plt.savefig('corot7_keplerians_corner4.png')
-    corner.corner(samples[:,22:26], 
-                        labels=["RVs jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
-                        show_titles=True, fill_contours=True)
-    plt.savefig('corot7_keplerians_corner5.png')
-    plt.show()
 
-post_analysis(samples)
+corner.corner(samples[:,0:8], 
+                    labels=["eta 2", "eta 3", "eta 4", "s", 
+                            "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"],
+                    show_titles=True, fill_contours=True)
+plt.savefig('corot7_keplerians_corner1.png')
+corner.corner(samples[:,8:13], 
+                    labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"],
+                    show_titles=True, fill_contours=True)
+plt.savefig('corot7_keplerians_corner2.png')
+corner.corner(samples[:,13:18], 
+                    labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"],
+                    show_titles=True, fill_contours=True)
+plt.savefig('corot7_keplerians_corner3.png')
+corner.corner(samples[:,18:22], 
+                    labels=["RVs offset", "FWHM offset", "BIS offset", "Rhk offset"],
+                    show_titles=True, fill_contours=True)
+plt.savefig('corot7_keplerians_corner4.png')
+corner.corner(samples[:,22:26], 
+                    labels=["RVs jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"],
+                    show_titles=True, fill_contours=True)
+plt.savefig('corot7_keplerians_corner5.png')
+plt.show()
+
+
+fig, axes = plt.subplots(8, sharex=True)
+labels=["eta 2", "eta 3", "eta 4", "s", 
+                            "RVs weight", "FWHM weight", "BIS weight", "Rhk weight"]
+for i in range(8):
+    ax = axes[i]
+    ax.plot(np.exp(sampler.chain[:, :, i]).T, "k", alpha=0.3)
+    ax.set_xlim(runs, runs+burns)
+    ax.set_ylabel(labels[i])
+    ax.yaxis.set_label_coords(-0.1, 0.5)
+axes[-1].set_xlabel("step number");
+plt.savefig('corot7_keplerians_chains1.png')
+
+fig, axes = plt.subplots(5, sharex=True)
+labels=["kep1 P", "kep1 K", "kep1 e", "kep1 w", "kep1 phi"]
+for i in range(8,13):
+    ax = axes[i-8]
+    ax.plot(np.exp(sampler.chain[:, :, i]).T, "k", alpha=0.3)
+    ax.set_xlim(runs, runs+burns)
+    ax.set_ylabel(labels[i-8])
+    ax.yaxis.set_label_coords(-0.1, 0.5)
+axes[-1].set_xlabel("step number");
+plt.savefig('corot7_keplerians_chains2.png')
+
+fig, axes = plt.subplots(5, sharex=True)
+labels=["kep2 P", "kep2 K", "kep2 e", "kep2 w", "kep2 phi"]
+for i in range(13,18):
+    ax = axes[i-13]
+    ax.plot(np.exp(sampler.chain[:, :, i]).T, "k", alpha=0.3)
+    ax.set_xlim(runs, runs+burns)
+    ax.set_ylabel(labels[i-13])
+    ax.yaxis.set_label_coords(-0.1, 0.5)
+axes[-1].set_xlabel("step number");
+plt.savefig('corot7_keplerians_chains3.png')
+
+fig, axes = plt.subplots(4, sharex=True)
+labels=["RVs offset", "FWHM offset", "BIS offset", "Rhk offset"]
+for i in range(18,22):
+    ax = axes[i-18]
+    ax.plot(np.exp(sampler.chain[:, :, i]).T, "k", alpha=0.3)
+    ax.set_xlim(runs, runs+burns)
+    ax.set_ylabel(labels[i-18])
+    ax.yaxis.set_label_coords(-0.1, 0.5)
+axes[-1].set_xlabel("step number");
+plt.savefig('corot7_keplerians_chains4.png')
+
+fig, axes = plt.subplots(4, sharex=True)
+labels=["RVs jitter", "FWHM jitter", "BIS jitter", "Rhk jitter"]
+for i in range(22,26):
+    ax = axes[i-22]
+    ax.plot(np.exp(sampler.chain[:, :, i]).T, "k", alpha=0.3)
+    ax.set_xlim(runs, runs+burns)
+    ax.set_ylabel(labels[i-22])
+    ax.yaxis.set_label_coords(-0.1, 0.5)
+axes[-1].set_xlabel("step number");
+plt.savefig('corot7_keplerians_chains5.png')
+
+##### Saving data #####
+np.save('corot7_keplerians.npy', samples)
