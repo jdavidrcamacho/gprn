@@ -198,7 +198,7 @@ class complexGP(object):
 
         return k_ii
 
-    def compute_matrix(self, nodes, weight, weight_values, time, 
+    def compute_matrix(self, nodes, weight, weight_values, jitters, time, 
                        nugget = False, shift = False):
         """
             Creates the big covariance matrix K that will be used in the 
@@ -223,7 +223,7 @@ class complexGP(object):
                          position_p = i, add_errors = False)
             K_start[(i-1)*self.time.size : (i)*self.time.size, 
                         (i-1)*self.time.size : (i)*self.time.size] = k
-        #addition of the measurement errors
+        #addition of the measurement errors and jitters
         diag = np.concatenate(self.yerr) * np.identity(self.time.size * self.p)
         K = K_start + diag
         #more "weight" to the diagonal to avoid a ill-conditioned matrix
@@ -236,7 +236,7 @@ class complexGP(object):
             K = K + shift*np.identity(self.time.size * self.p)
         return K
 
-    def old_log_like(self, nodes, weight, weight_values, means):
+    def old_log_like(self, nodes, weight, weight_values, means, jitters):
         """ 
             Calculates the marginal log likelihood. This version creates a big
         covariance matrix K made of block matrices of each dataset and then
@@ -247,6 +247,7 @@ class complexGP(object):
                 weight = the weight funtion w(x)
                 weight_values = array with the weights of w11, w12, etc... 
                 means = mean function being used
+                jitters = jitter value of each dataset
             Returns:
                 log_like  = Marginal log likelihood
         """
@@ -315,7 +316,7 @@ class complexGP(object):
                 k_ii = k_ii + (w_xa * f_hat * w_xw)
             #k_ii = k_ii + diag(error) + diag(jitter)
             k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
-                    + (self.jitters[i - 1]**2) * np.identity(self.time.size)
+                    + (jitters[i - 1]**2) * np.identity(self.time.size)
             #log marginal likelihood calculation
             try:
                 L1 = cho_factor(k_ii, overwrite_a=True, lower=False)
