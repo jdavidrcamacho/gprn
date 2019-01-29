@@ -551,6 +551,50 @@ class dCosine_dP(Cosine):
         return self.weight**2 * r * pi * sine(2*pi*np.abs(r) / self.P) / self.P
 
 
+##### Laplacian ##############################################################
+class Laplacian(weightFunction):
+    """
+        Definition of the Laplacian kernel.
+        Parameters:
+            weight = weight/amplitude of the kernel
+            ell = characteristic lenght scale
+    """
+    def __init__(self, weight, ell):
+        super(Laplacian, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+        self.type = 'stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
+
+    def __call__(self, r): 
+        return self.weight**2 * exp(- np.abs(r)/self.ell)
+
+class dLaplacian_dweight(Laplacian):
+    """
+        Log-derivative in order to the weight
+    """
+    def __init__(self, weight, ell):
+        super(dLaplacian_dweight, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
+        return 2 * self.weight**2 * exp(- np.abs(r)/self.ell)
+
+class dLaplacian_dell(Laplacian):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, weight, ell):
+        super(dLaplacian_dell, self).__init__(weight, ell)
+        self.weight = weight
+        self.ell = ell
+
+    def __call__(self, r):
+        return -0.5 * self.weight**2 * r * exp(- np.abs(r)/self.ell) / self.ell
+
+
 ##### Exponential ##############################################################
 class Exponential(weightFunction):
     """
@@ -581,7 +625,7 @@ class dExponential_dweight(Exponential):
         self.ell = ell
 
     def __call__(self, r):
-        return 2 * self.weight**2 * exp(- np.abs(r)/self.ell)
+        raise NotImplementedError
 
 class dExpoential_dell(Exponential):
     """
@@ -593,7 +637,7 @@ class dExpoential_dell(Exponential):
         self.ell = ell
 
     def __call__(self, r):
-        return -0.5 * self.weight**2 * r * exp(- np.abs(r)/self.ell) / self.ell
+        raise NotImplementedError
 
 
 ##### Matern 3/2 ###############################################################

@@ -42,7 +42,7 @@ class Constant(nodeFunction):
     def __init__(self, c, wn):
         super(Constant, self).__init__(c, wn)
         self.c = c
-        self.c = wn
+        self.wn = wn
         self.type = 'non-stationary and anisotropic'
         self.derivatives = 2    #number of derivatives in this kernel
         self.params_size = 2    #number of hyperparameters
@@ -580,11 +580,60 @@ class dCosine_dwn(Cosine):
             return np.zeros_like(r)
 
 
+##### Laplacian ##############################################################
+class Laplacian(nodeFunction):
+    """
+        Definition of the Laplacian kernel.
+        Parameters:
+            ell = characteristic lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, ell, wn):
+        super(Laplacian, self).__init__(ell, wn)
+        self.ell = ell
+        self.wn
+        self.type = 'stationary and isotropic'
+        self.derivatives = 2    #number of derivatives in this kernel
+        self.params_size = 2    #number of hyperparameters
+
+    def __call__(self, r): 
+        try:
+            return exp(- np.abs(r)/self.ell) \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return exp(- np.abs(r)/self.ell) 
+
+class dLaplacian_dell(Laplacian):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, ell, wn):
+        super(dLaplacian_dell, self).__init__(ell, wn)
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return -0.5 * r * exp(- np.abs(r)/self.ell) / self.ell
+
+class dLaplacian_dwn(Laplacian):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, ell, wn):
+        super(dLaplacian_dell, self).__init__(ell, wn)
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+
 ##### Exponential ##############################################################
 class Exponential(nodeFunction):
     """
-        Definition of the exponential kernel. This kernel arises when 
-    setting v=1/2 in the matern family of kernels
+        Definition of the exponential kernel.
         Parameters:
             ell = characteristic lenght scale
             wn = white noise amplitude
@@ -599,7 +648,7 @@ class Exponential(nodeFunction):
 
     def __call__(self, r): 
         try:
-            return exp(- np.abs(r)/self.ell) \
+            return exp(- np.abs(r)/(2 * self.ell**2)) \
                     + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return exp(- np.abs(r)/self.ell) 
@@ -614,7 +663,7 @@ class dExpoential_dell(Exponential):
         self.wn = wn
 
     def __call__(self, r):
-        return -0.5 * r * exp(- np.abs(r)/self.ell) / self.ell
+        raise NotImplementedError
 
 class dExpoential_dwn(Exponential):
     """
@@ -626,10 +675,8 @@ class dExpoential_dwn(Exponential):
         self.wn = wn
 
     def __call__(self, r):
-        try:
-            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return np.zeros_like(r)
+        raise NotImplementedError
+
 
 ##### Matern 3/2 ###############################################################
 class Matern32(nodeFunction):
@@ -745,6 +792,7 @@ class dMatern52_dwn(Matern52):
             return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return np.zeros_like(r)
+
 
 #### Linear ####################################################################
 class Linear(nodeFunction):

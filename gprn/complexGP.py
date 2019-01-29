@@ -191,14 +191,14 @@ class complexGP(object):
                 f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
                 w_xw = type(self.weight)(*weightPars)(time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii += w_xa * f_hat * w_xw
+            k_ii += w_xa * f_hat * w_xw 
         #adding measurement errors to our covariance matrix
         if add_errors:
             k_ii +=  (new_yyerr[position_p - 1]**2) * np.identity(time.size)
 
         return k_ii
 
-    def compute_matrix(self, nodes, weight, weight_values, jitters, time, 
+    def compute_matrix(self, nodes, weight, weight_values,time, 
                        nugget = False, shift = False):
         """
             Creates the big covariance matrix K that will be used in the 
@@ -206,7 +206,7 @@ class complexGP(object):
             Parameters:
                 nodes = the latent noide functions f(x) (f hat)
                 weight = the latent weight function w(x)
-                weight_values = array with the weights of w11, w12, etc... 
+                weight_values = array with the weights of w11, w12, etc...
                 time = time  
                 nugget = True if K is not positive definite, False otherwise
                 shift = True if K is not positive definite, False otherwise
@@ -219,21 +219,21 @@ class complexGP(object):
         K_start = np.zeros((K_size, K_size))
         #now we calculate the block matrices to be added to K
         for i in range(1, self.p+1):
-            k = self._covariance_matrix(nodes, weight, weight_values, self.time, 
-                         position_p = i, add_errors = False)
+            k = self._covariance_matrix(nodes, weight, weight_values, self.time,
+                                        position_p = i, add_errors = False)
             K_start[(i-1)*self.time.size : (i)*self.time.size, 
                         (i-1)*self.time.size : (i)*self.time.size] = k
-        #addition of the measurement errors and jitters
+        #addition of the measurement errors
         diag = np.concatenate(self.yerr) * np.identity(self.time.size * self.p)
         K = K_start + diag
         #more "weight" to the diagonal to avoid a ill-conditioned matrix
-        if nugget:
-            nugget_value = 0.01
-            K = (1 - nugget_value)*K + nugget_value*np.diag(np.diag(K))
-        #shifting all the eigenvalues up by the positive scalar to avoid a ill-conditioned matrix
-        if shift:
-            shift = 0.01
-            K = K + shift*np.identity(self.time.size * self.p)
+#        if nugget:
+#            nugget_value = 0.01
+#            K = (1 - nugget_value)*K + nugget_value*np.diag(np.diag(K))
+#        #shifting all the eigenvalues up by the positive scalar to avoid a ill-conditioned matrix
+#        if shift:
+#            shift = 0.01
+#            K = K + shift*np.identity(self.time.size * self.p)
         return K
 
     def old_log_like(self, nodes, weight, weight_values, means, jitters):
@@ -252,8 +252,13 @@ class complexGP(object):
                 log_like  = Marginal log likelihood
         """
         #calculation of the covariance matrix
-        K = self.compute_matrix(nodes, weight, weight_values, self.time)
-        
+        K = self.compute_matrix(nodes, weight, weight_values, jitters, self.time)
+        jitt = [] #jitters
+        for i in  range(1, self.p+1):
+            jitt.append((jitters[i - 1])**2 * np.ones_like(self.time))
+        jitt = np.array(jitt)
+        jitt = np.concatenate(jitt)
+        K += jitt * np.diag(np.diag(K))
         #calculation of the means
         yy = np.concatenate(self.y)
         means = self.means
@@ -400,6 +405,7 @@ class complexGP(object):
         Kstar = k_ii
         Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
                                             dataset, add_errors = False)
+        Kstarstar += (jitters[dataset - 1]**2) * np.identity(time.size)
 
         new_mean = np.array_split(self._mean(means, time), self.p)
         y_mean = np.dot(Kstar, sol) + new_mean[dataset-1]#mean
