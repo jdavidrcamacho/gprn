@@ -14,7 +14,7 @@ class weightFunction(object):
         """
             Puts all kernel arguments in an array pars
         """
-        self.pars = np.array(args)
+        self.pars = np.array(args, dtype=float)
 
     def __call__(self, r, t1 = None, t2=None):
         """
