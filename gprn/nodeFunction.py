@@ -13,7 +13,7 @@ class nodeFunction(object):
         """
             Puts all kernel arguments in an array pars
         """
-        self.pars = np.array(args)
+        self.pars = np.array(args, dtype=float)
 
     def __call__(self, r, t1 = None, t2=None):
         """
@@ -261,7 +261,7 @@ class QuasiPeriodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+            return exp(- 2*sine(pi*r/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
