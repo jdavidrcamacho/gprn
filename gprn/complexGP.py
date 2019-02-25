@@ -9,6 +9,7 @@ from gprn.nodeFunction import Polynomial as nodeP
 from gprn.weightFunction import Linear as weightL
 from gprn.weightFunction import Polynomial as weightP
 
+
 class complexGP(object):
     """ 
         Class to create our Gaussian process regression network. See Wilson et
