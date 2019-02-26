@@ -15,3 +15,6 @@ from gprn import meanFunction
 from gprn import simpleGP
 #gp regression with two datasets
 from gprn import complexGP
+
+#util functions
+from gprn import utils

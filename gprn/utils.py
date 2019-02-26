@@ -110,7 +110,7 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
     """
         run_mcmc() allow the user to run emcee or dynesty automatically
         Parameters:
-            prior_func = function that return an array with the priors in use
+            prior_func = function that return an array with the priors
             loglike_func = function that calculates the log-likelihood 
             iterations = number of iterations; in emcee half of it will be used
                         as burn-in
@@ -120,7 +120,7 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
     """
     if sampler == 'emcee':
         ndim = prior_func().size
-        burns, runs = iterations/2, iterations/2
+        burns, runs = int(iterations/2), int(iterations/2)
         #defining emcee properties
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
@@ -142,9 +142,6 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
                                         queue_size=4, pool=Pool(4))
         dsampler.run_nested(nlive_init = 1000, maxiter = iterations)
         results = dsampler.results
-    else:
-        print('Please select either "emcee" or "dynesty" as sampler')
-        results = 0
     return results
 
 
