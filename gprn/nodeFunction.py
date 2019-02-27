@@ -52,7 +52,7 @@ class Constant(nodeFunction):
             return self.c * np.ones_like(r) \
                         + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return self.c * np.ones_like(r)
+            return self.c**2 * np.ones_like(r)
 
 class dConstant_dc(Constant):
     """
@@ -64,7 +64,7 @@ class dConstant_dc(Constant):
         self.wn = wn
 
     def __call__(self, r):
-        return self.c * np.ones_like(r)
+        return 2 * self.c**2 * np.ones_like(r)
 
 class dConstant_dwn(Constant):
     """

@@ -76,7 +76,7 @@ class Constant(weightFunction):
         self.params_size = 1    #number of hyperparameters
 
     def __call__(self, r):
-        return self.c * np.ones_like(r)
+        return self.c**2 * np.ones_like(r)
 
 class dConstant_dc(Constant):
     """
@@ -87,7 +87,7 @@ class dConstant_dc(Constant):
         self.c = c
 
     def __call__(self, r):
-        return self.c * np.ones_like(r)
+        return 2 * self.c**2 * np.ones_like(r)
 
 ##### White Noise ##############################################################
 class WhiteNoise(weightFunction):

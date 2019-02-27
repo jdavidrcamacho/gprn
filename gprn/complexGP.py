@@ -395,15 +395,17 @@ class complexGP(object):
             weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
             if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
-                w_xa = type(self.weight)(*weightPars)(None, time[:,None], 0)
+                #w_xa = type(self.weight)(*weightPars)(None, time[:,None], 0)
+                w_xa = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
                 f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
-                w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
+                #w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
             else:
-                w_xa = type(self.weight)(*weightPars)(time[:,None])
+                #w_xa = type(self.weight)(*weightPars)(time[:,None])
+                w_xa = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
                 f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
-                w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+                #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii + (w_xa * f_hat * w_xw)
+            k_ii = k_ii + (w_xa * f_hat)# * w_xw)
 
 
         Kstar = k_ii
