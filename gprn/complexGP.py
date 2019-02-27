@@ -9,6 +9,41 @@ from gprn.nodeFunction import Polynomial as nodeP
 from gprn.weightFunction import Linear as weightL
 from gprn.weightFunction import Polynomial as weightP
 
+from gprn import nodeFunction, weightFunction
+#class kernelfix(nodeFunction, weightFunction):
+#    """
+#        Definition the kernels that will be used. To simplify my life all the
+#    kernels defined are the sum of kernel + white noise
+#    """
+#    def __init__(self, *args):
+#        """
+#            Puts all kernel arguments in an array pars.
+#        """
+#        self.pars = np.array(args, dtype=float)
+#
+#    def __call__(self, r):
+#        """
+#            r = t - t' 
+#        """
+#        raise NotImplementedError
+#
+#    def __repr__(self):
+#        """
+#            Representation of each kernel instance
+#        """
+#        return "{0}({1})".format(self.__class__.__name__,
+#                                 ", ".join(map(str, self.pars)))
+#
+#    def __add__(self, b):
+#        return Sum(self, b)
+#    def __radd__(self, b):
+#        return self.__add__(b)
+#
+#    def __mul__(self, b):
+#        return Multiplication(self, b)
+#    def __rmul__(self, b):
+#        return self.__mul__(b)
+
 
 class complexGP(object):
     """ 
@@ -404,8 +439,13 @@ class complexGP(object):
                 w_xa = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
                 f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
                 #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
+                w = type(self.weight)(*weightPars)
+                f = type(self.nodes[i - 1])(*nodePars)
+                wf = w*f
+                wf_calc = self._predict_kernel_matrix(wf, time)
+                print(type(w), type(f), type(wf.k2))
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii + (w_xa * f_hat)# * w_xw)
+            k_ii = k_ii + wf_calc#(w_xa * f_hat)# * w_xw)
 
 
         Kstar = k_ii

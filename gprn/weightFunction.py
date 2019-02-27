@@ -31,34 +31,52 @@ class weightFunction(object):
         return "{0}({1})".format(self.__class__.__name__,
                                  ", ".join(map(str, self.pars)))
 
-#Not working yet!
-#    def __minus__(self, b):
-#        return Minus(self, b)
-#    def __rminus__(self, b):
-#        return self.__minus__(b)
-#
-#
-#class _operator(weightFunction):
-#    """ 
-#        To allow operations between two kernels 
-#    """
-#    def __init__(self, k1):
-#        self.k1 = k1
-#
-#    @property
-#    def pars(self):
-#        return np.append(self.k1.pars)
-#
-#
-#class Minus(_operator):
-#    """ 
-#        To allow a "minus" linear kernel
-#    """
-#    def __repr__(self):
-#        return "-{0}".format(self.k1)
-#
-#    def __call__(self, r):
-#        return -self.k1(r)
+    def __add__(self, b):
+        return Sum(self, b)
+    def __radd__(self, b):
+        return self.__add__(b)
+
+    def __mul__(self, b):
+        return Multiplication(self, b)
+    def __rmul__(self, b):
+        return self.__mul__(b)
+
+
+class _operator(weightFunction):
+    """ 
+        To allow operations between two kernels 
+    """
+    def __init__(self, k1, k2):
+        self.k1 = k1
+        self.k2 = k2
+        self.kerneltype = 'complex'
+
+    @property
+    def pars(self):
+        return np.append(self.k1.pars, self.k2.pars)
+
+
+class Sum(_operator):
+    """ 
+        To allow the sum of kernels
+    """
+    def __repr__(self):
+        return "{0} + {1}".format(self.k1, self.k2)
+
+    def __call__(self, r):
+        return self.k1(r) + self.k2(r)
+
+
+class Multiplication(_operator):
+    """ 
+        To allow the multiplication of kernels 
+    """
+    def __repr__(self):
+        return "{0} * {1}".format(self.k1, self.k2)
+
+    def __call__(self, r):
+        return self.k1(r) * self.k2(r)
+
 
 
 ##### Constant #################################################################
