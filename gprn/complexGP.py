@@ -127,7 +127,7 @@ class complexGP(object):
         else:
             r = time[:, None] - self.time[None, :]
             K = kernel(r)
-        print(kernel)
+        #print(kernel)
         return K
 
     def _kernel_pars(self, kernel):
@@ -360,8 +360,8 @@ class complexGP(object):
                 #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
                 k_ii = k_ii + (w * f_hat)# * w_xw)
             #k_ii = k_ii + diag(error) + diag(jitter)
-            k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size)# \
-                    #+ (jitters[i - 1]**2) * np.identity(self.time.size)
+            k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
+                    + (jitters[i - 1]**2) * np.identity(self.time.size)
             #log marginal likelihood calculation
             try:
                 L1 = cho_factor(k_ii, overwrite_a=True, lower=False)
