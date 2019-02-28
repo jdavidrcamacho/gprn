@@ -219,11 +219,13 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
-            w = type(self.weight)(*weightPars)
-            f = type(self.nodes[i - 1])(*nodePars)
-            wf = self._kernel_matrix(w*f, time)
+            #w = type(self.weight)(*weightPars)
+            #f = type(self.nodes[i - 1])(*nodePars)
+            #wf = self._kernel_matrix(w*f, time)
+            w = self._kernel_matrix(type(self.weight)(*weightPars), time)
+            f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii += wf
+            k_ii += (w * f_hat)
         #adding measurement errors to our covariance matrix
         if add_errors:
             k_ii +=  (new_yyerr[position_p - 1]**2) * np.identity(time.size)
@@ -348,15 +350,15 @@ class complexGP(object):
 #                    #w_xw = type(self.weight)(*weightPars)(None, np.zeros(self.time.size), self.time[None,:])
 #                else:
 #                    #w_xa = type(self.weight)(*weightPars)(self.time[:,None])
-##                    w_xa = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
-##                    f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
+                w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
+                f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
 #                    #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
 #                    #w_xw =  1
-                w = type(self.weight)(*weightPars)
-                f = type(self.nodes[i - 1])(*nodePars)
-                wf = self._kernel_matrix(w*f, self.time)
+#                w = type(self.weight)(*weightPars)
+#                f = type(self.nodes[i - 1])(*nodePars)
+#                wf = self._kernel_matrix(w*f, self.time)
                 #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-                k_ii = k_ii + wf#(w_xa * f_hat)# * w_xw)
+                k_ii = k_ii + (w * f_hat)# * w_xw)
             #k_ii = k_ii + diag(error) + diag(jitter)
             k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size)# \
                     #+ (jitters[i - 1]**2) * np.identity(self.time.size)
@@ -435,14 +437,14 @@ class complexGP(object):
 #                #w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
 #            else:
 #                #w_xa = type(self.weight)(*weightPars)(time[:,None])
-##                w_xa = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
-##                f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+            w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
+            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
 #                #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
-            w = type(self.weight)(*weightPars)
-            f = type(self.nodes[i - 1])(*nodePars)
-            wf = self._predict_kernel_matrix(w*f, time)
+#            w = type(self.weight)(*weightPars)
+#            f = type(self.nodes[i - 1])(*nodePars)
+#            wf = self._predict_kernel_matrix(w*f, time)
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii + wf#(w_xa * f_hat)# * w_xw)
+            k_ii = k_ii + (w * f_hat)# * w_xw)
 
 
         Kstar = k_ii
