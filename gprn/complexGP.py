@@ -340,25 +340,24 @@ class complexGP(object):
                 nodePars = self._kernel_pars(nodes[j - 1])
                 #all weight function will have the same parameters
                 weightPars = weight.pars
-                #except for the amplitude
-                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
-                #node and weight functions kernel
-#                if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
-#                    #w_xa = type(self.weight)(*weightPars)(None, self.time[:,None], np.zeros(self.time.size))
-#                    w_xa = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
-#                    f_hat = self._kernel_matrix(type(self.nodes[i - 1])(*nodePars), self.time)
-#                    #w_xw = type(self.weight)(*weightPars)(None, np.zeros(self.time.size), self.time[None,:])
-#                else:
-#                    #w_xa = type(self.weight)(*weightPars)(self.time[:,None])
-                w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
-                f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
-#                    #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
-#                    #w_xw =  1
-#                w = type(self.weight)(*weightPars)
-#                f = type(self.nodes[i - 1])(*nodePars)
-#                wf = self._kernel_matrix(w*f, self.time)
+#                #except for the amplitude
+#                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
+#                #node and weight functions kernel
+#                w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
+#                f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
+                ### cov[E_ii(x),E_ii(x')]
+                kw = self._kernel_matrix(type(self.weight)(*weightPars) * type(self.weight)(*weightPars), self.time)
+                #kw2 = np.linalg.matrix_power(kw,2)
+                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars) * type(self.nodes[j - 1])(*nodePars), self.time)
+                #kf2 = np.linalg.matrix_power(kf,2)
+                kw2,kf2 = kw,kf
+                cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
+                cov_ii = cov_ii * np.identity(cov_ii.shape[0])
+                cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
+                np.fill_diagonal(cov_ij, 0)
+                cov = cov_ii + cov_ij
                 #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-                k_ii = k_ii + (w * f_hat)# * w_xw)
+                k_ii = k_ii + cov #+ (w * f_hat)
             #k_ii = k_ii + diag(error) + diag(jitter)
             k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
                     + (jitters[i - 1]**2) * np.identity(self.time.size)
@@ -430,21 +429,21 @@ class complexGP(object):
             #except for the amplitude
             weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
-#            if isinstance(weight, (nodeL, nodeP, weightL, weightP)):
-#                #w_xa = type(self.weight)(*weightPars)(None, time[:,None], 0)
-#                w_xa = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
-#                f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars),time)
-#                #w_xw = type(self.weight)(*weightPars)(None, 0, self.time[None,:])
-#            else:
-#                #w_xa = type(self.weight)(*weightPars)(time[:,None])
-            w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
-            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
-#                #w_xw = type(self.weight)(*weightPars)(self.time[None,:])
-#            w = type(self.weight)(*weightPars)
-#            f = type(self.nodes[i - 1])(*nodePars)
-#            wf = self._predict_kernel_matrix(w*f, time)
+#            w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
+#            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+            kw = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
+            kw2 = np.linalg.matrix_power(kw,2)
+            kf = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+            kf2 = np.linalg.matrix_power(kf,2)
+
+#            cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
+#            cov_ii = cov_ii * np.identity(cov_ii.shape[0])
+            cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
+#            np.fill_diagonal(cov_ij, 0)
+#            cov_final = cov_ij
+
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii + (w * f_hat)# * w_xw)
+            k_ii = k_ii +cov_ij#+ (w * f_hat)# * w_xw)
 
 
         Kstar = k_ii
