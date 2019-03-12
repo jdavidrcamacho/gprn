@@ -95,7 +95,7 @@ class Constant(nodeFunction):
 
     def __call__(self, r):
         try:
-            return self.c * np.ones_like(r) \
+            return self.c**2 * np.ones_like(r) \
                         + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return self.c**2 * np.ones_like(r)
@@ -215,13 +215,14 @@ class Periodic(nodeFunction):
     """
         Definition of the periodic kernel.
         Parameters:
-            theta = amplitude
+            amp = amplitude
             ell = lenght scale
             P = period
             wn = white noise
     """
-    def __init__(self, ell, P, wn):
-        super(Periodic, self).__init__(ell, P, wn)
+    def __init__(self, amp, ell, P, wn):
+        super(Periodic, self).__init__(amp, ell, P, wn)
+        self.amp = amp
         self.ell = ell
         self.P = P
         self.wn = wn
@@ -231,10 +232,10 @@ class Periodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2) \
+            return self.amp**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2) \
                     + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
+            return self.amp**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
 
 class dPeriodic_dell(Periodic):
     """
@@ -290,13 +291,15 @@ class QuasiPeriodic(nodeFunction):
     and the squared exponential kernel, commonly known as the quasi-periodic 
     kernel.
         Parameters:
+            amp = amplitude
             ell_e = evolutionary time scale
             P = kernel periodicity
             ell_p = length scale of the periodic component
             wn = white noise
     """
-    def __init__(self, ell_e, P, ell_p, wn):
-        super(QuasiPeriodic, self).__init__(ell_e, P, ell_p, wn)
+    def __init__(self, amp, ell_e, P, ell_p, wn):
+        super(QuasiPeriodic, self).__init__(amp, ell_e, P, ell_p, wn)
+        self.amp = amp
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
@@ -307,11 +310,11 @@ class QuasiPeriodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return exp(- 2*sine(pi*r/self.P)**2 \
+            return self.amp**2 * exp(- 2*sine(pi*r/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+            return self.amp**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
 class dQuasiPeriodic_delle(QuasiPeriodic):

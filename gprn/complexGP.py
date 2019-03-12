@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve, LinAlgError
+from scipy.stats import multivariate_normal
 from copy import copy
 
 from gprn.nodeFunction import Linear as nodeL
@@ -217,7 +218,7 @@ class complexGP(object):
             #all weight function will have the same parameters
             weightPars = weight.pars
             #except for the amplitude
-            weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
+#            weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
             #w = type(self.weight)(*weightPars)
             #f = type(self.nodes[i - 1])(*nodePars)
@@ -340,24 +341,25 @@ class complexGP(object):
                 nodePars = self._kernel_pars(nodes[j - 1])
                 #all weight function will have the same parameters
                 weightPars = weight.pars
-#                #except for the amplitude
+                #except for the amplitude
 #                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
-#                #node and weight functions kernel
-#                w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
-#                f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
-                ### cov[E_ii(x),E_ii(x')]
-                kw = self._kernel_matrix(type(self.weight)(*weightPars) * type(self.weight)(*weightPars), self.time)
-                #kw2 = np.linalg.matrix_power(kw,2)
-                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars) * type(self.nodes[j - 1])(*nodePars), self.time)
-                #kf2 = np.linalg.matrix_power(kf,2)
-                kw2,kf2 = kw,kf
-                cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
-                cov_ii = cov_ii * np.identity(cov_ii.shape[0])
-                cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
-                np.fill_diagonal(cov_ij, 0)
-                cov = cov_ii + cov_ij
-                #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-                k_ii = k_ii + cov #+ (w * f_hat)
+                #node and weight functions kernel
+                w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
+                f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
+#                ### cov[E_ii(x),E_ii(x')]
+#                kw = self._kernel_matrix(type(self.weight)(*weightPars) * type(self.weight)(*weightPars), self.time)
+#                #kw2 = np.linalg.matrix_power(kw,2)
+#                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars) * type(self.nodes[j - 1])(*nodePars), self.time)
+#                #kf2 = np.linalg.matrix_power(kf,2)
+#                kw2,kf2 = kw,kf
+#                cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
+#                cov_ii = cov_ii * np.identity(cov_ii.shape[0])
+#                cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
+#                np.fill_diagonal(cov_ij, 0)
+#                cov = cov_ii + cov_ij
+#                #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
+#                k_ii = k_ii + cov
+                k_ii = k_ii + (w * f_hat)
             #k_ii = k_ii + diag(error) + diag(jitter)
             k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
                     + (jitters[i - 1]**2) * np.identity(self.time.size)
@@ -370,6 +372,93 @@ class complexGP(object):
             except LinAlgError:
                 return -np.inf
         return log_like
+
+
+    def other_log(self, nodes, weight, means, jitters):
+        """ 
+            Calculates the marginal log likelihood for a GPRN. The main 
+        difference is that it sums the log likelihoods of each dataset instead 
+        of making a big covariance matrix K to calculate it.
+            See Rasmussen & Williams (2006), page 113.
+            Parameters:
+                nodes = the node functions f(x) (f hat)
+                weight = the weight funtion w(x)
+                means = mean function being used
+                jitters = jitter value of each dataset
+            Returns:
+                log_like  = Marginal log likelihood
+        """
+        #means
+        yy = np.concatenate(self.y)
+        yy = yy - self._mean(means) if means else yy
+        new_y = np.array_split(yy, self.p)
+        yy_err = np.concatenate(self.yerr)
+        new_yyerr = np.array_split(yy_err, self.p)
+
+        log_like = 0 #"initial" likelihood starts at zero to then add things
+        pi_norm = 1
+        #calculation of each log-likelihood
+        for i in range(1, self.p+1):
+            errors = new_yyerr[i - 1]**2 * np.identity(self.time.size)
+            for j in range(1,self.q + 1):
+                #hyperparameteres of the kernel of a given position
+                nodePars = self._kernel_pars(nodes[j - 1])
+                #all weight function will have the same parameters
+                weightPars = weight.pars
+                #except for the amplitude
+#                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
+                #node and weight functions kernel
+                w = type(self.weight)(*weightPars)(self.time)
+                f_hat = type(self.nodes[j - 1])(*nodePars)(self.time)
+                norm = multivariate_normal(w*f_hat, errors, allow_singular=True)
+                print(norm.rvs())
+            log_like += np.log(np.prod(norm.rvs()))
+        #log_like += np.log(pi_norm)
+        return log_like
+    
+#    def log_likelihood(self, nodes, weight, means, jitters):
+#        """ 
+#            Calculates the marginal log likelihood for a GPRN. The main 
+#        difference is that it sums the log likelihoods of each dataset instead 
+#        of making a big covariance matrix K to calculate it.
+#            See Rasmussen & Williams (2006), page 113.
+#            Parameters:
+#                nodes = the node functions f(x) (f hat)
+#                weight = the weight funtion w(x)
+#                means = mean function being used
+#                jitters = jitter value of each dataset
+#            Returns:
+#                log_like  = Marginal log likelihood
+#        """
+#        #means
+#        yy = np.concatenate(self.y)
+#        yy = yy - self._mean(means) if means else yy
+#        new_y = np.array_split(yy, self.p)
+#        yy_err = np.concatenate(self.yerr)
+#        new_yyerr = np.array_split(yy_err, self.p)
+#
+#        log_like = 0 #"initial" likelihood starts at zero to then add things
+#        #calculation of each log-likelihood
+#        for i in range(1, self.p+1):
+#            kf = np.zeros((self.time.size, self.time.size))
+#            for j in range(1,self.q + 1):
+#                #hyperparameteres of the kernel of a given position
+#                nodePars = self._kernel_pars(nodes[j - 1])
+#                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
+#                kf += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
+#                        + (jitters[i - 1]**2) * np.identity(self.time.size)
+#            #log marginal likelihood calculation
+#            try:
+#                L1 = cho_factor(kf, overwrite_a=True, lower=False)
+#                log_like += - 0.5*np.dot(new_y[i - 1].T, cho_solve(L1, new_y[i - 1])) \
+#                           - np.sum(np.log(np.diag(L1[0]))) \
+#                           - 0.5*new_y[i - 1].size*np.log(2*np.pi)
+#            except LinAlgError:
+#                return -np.inf
+#        weightPars = weight.pars
+#        kw = self._kernel_matrix(type(self.weight)(*weightPars) , self.time)
+#
+#        return log_like
 
 
 ##### GP prediction funtions
@@ -427,24 +516,24 @@ class complexGP(object):
             #all weight function will have the same parameters
             weightPars = self._kernel_pars(weight)
             #except for the amplitude
-            weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
+#            weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
-#            w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
-#            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
-            kw = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
-            kw2 = np.linalg.matrix_power(kw,2)
-            kf = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
-            kf2 = np.linalg.matrix_power(kf,2)
+            w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
+            f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+#            kw = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
+#            kw2 = np.linalg.matrix_power(kw,2)
+#            kf = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
+#            kf2 = np.linalg.matrix_power(kf,2)
 
-#            cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
-#            cov_ii = cov_ii * np.identity(cov_ii.shape[0])
-            cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
-#            np.fill_diagonal(cov_ij, 0)
-#            cov_final = cov_ij
+##            cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
+##            cov_ii = cov_ii * np.identity(cov_ii.shape[0])
+#            cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
+##            np.fill_diagonal(cov_ij, 0)
+##            cov_final = cov_ij
 
             #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-            k_ii = k_ii +cov_ij#+ (w * f_hat)# * w_xw)
-
+#            k_ii = k_ii +cov_ij
+            k_ii = k_ii + (w * f_hat)
 
         Kstar = k_ii
         Kstarstar = self._covariance_matrix(nodes, weight, weight_values, time, 
