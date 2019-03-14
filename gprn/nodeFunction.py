@@ -220,9 +220,8 @@ class Periodic(nodeFunction):
             P = period
             wn = white noise
     """
-    def __init__(self, amp, ell, P, wn):
-        super(Periodic, self).__init__(amp, ell, P, wn)
-        self.amp = amp
+    def __init__(self, ell, P, wn):
+        super(Periodic, self).__init__(ell, P, wn)
         self.ell = ell
         self.P = P
         self.wn = wn
@@ -232,10 +231,10 @@ class Periodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return self.amp**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2) \
+            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2) \
                     + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return self.amp**2 * exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
+            return exp( -2 * sine(pi*np.abs(r)/self.P)**2 / self.ell**2)
 
 class dPeriodic_dell(Periodic):
     """
@@ -297,9 +296,8 @@ class QuasiPeriodic(nodeFunction):
             ell_p = length scale of the periodic component
             wn = white noise
     """
-    def __init__(self, amp, ell_e, P, ell_p, wn):
-        super(QuasiPeriodic, self).__init__(amp, ell_e, P, ell_p, wn)
-        self.amp = amp
+    def __init__(self, ell_e, P, ell_p, wn):
+        super(QuasiPeriodic, self).__init__(ell_e, P, ell_p, wn)
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
@@ -310,11 +308,11 @@ class QuasiPeriodic(nodeFunction):
 
     def __call__(self, r):
         try:
-            return self.amp**2 * exp(- 2*sine(pi*r/self.P)**2 \
+            return exp(- 2*sine(pi*r/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
-            return self.amp**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+            return exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
 class dQuasiPeriodic_delle(QuasiPeriodic):

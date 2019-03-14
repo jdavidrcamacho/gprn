@@ -218,7 +218,7 @@ class complexGP(object):
             #all weight function will have the same parameters
             weightPars = weight.pars
             #except for the amplitude
-#            weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
+            weightPars[0] =  weight_values[i-1 + self.q*(position_p-1)]
             #node and weight functions kernel
             #w = type(self.weight)(*weightPars)
             #f = type(self.nodes[i - 1])(*nodePars)
@@ -462,7 +462,7 @@ class complexGP(object):
 
 
 ##### GP prediction funtions
-    def predict_gp(self, nodes = None, weight = None, weight_values = None,
+    def prediction(self, nodes = None, weight = None, weight_values = None,
                    means = None, jitters= None, time = None, dataset = 1):
         """ 
             NOTE: NOT WORKING PROPERLY
@@ -516,7 +516,7 @@ class complexGP(object):
             #all weight function will have the same parameters
             weightPars = self._kernel_pars(weight)
             #except for the amplitude
-#            weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
+            weightPars[0] =  weight_values[i-1 + self.q*(dataset - 1)]
             #node and weight functions kernel
             w = self._predict_kernel_matrix(type(self.weight)(*weightPars), time)
             f_hat = self._predict_kernel_matrix(type(self.nodes[i - 1])(*nodePars), time)
@@ -550,4 +550,6 @@ class complexGP(object):
         y_var = np.diag(y_cov) #variance
         y_std = np.sqrt(y_var) #standard deviation
         return y_mean, y_std, y_cov
-
+        
+        
+##### END
