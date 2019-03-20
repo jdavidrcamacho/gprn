@@ -134,10 +134,10 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         print("Running production chain")
         sampler.run_mcmc(p0, runs)
         #preparing samples to return
-        results = sampler.chain[:, burns:, :].reshape((-1, ndim))
-        if KeyboardInterrupt:
-            results = sampler.chain[:, :, :].reshape((-1, ndim))
-            return results
+        samples = sampler.chain[:, burns:, :].reshape((-1, ndim))
+        lnprob = sampler.lnprobability[:, burns:].reshape((-1, ndim))
+        results = np.vstack([samples.T,np.array(lnprob).T]).T
+        #results = samples
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(loglike_func, prior_func, ndim=ndim, 
@@ -145,9 +145,6 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
                                         queue_size=4, pool=Pool(4))
         dsampler.run_nested(nlive_init = 1000, maxiter = iterations)
         results = dsampler.results
-        if KeyboardInterrupt:
-            results = dsampler.results
-            return results
     return results
 
 
