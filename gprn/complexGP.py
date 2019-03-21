@@ -376,10 +376,7 @@ class complexGP(object):
 
     def other_log(self, nodes, weight, means, jitters):
         """ 
-            Calculates the marginal log likelihood for a GPRN. The main 
-        difference is that it sums the log likelihoods of each dataset instead 
-        of making a big covariance matrix K to calculate it.
-            See Rasmussen & Williams (2006), page 113.
+            Calculates the marginal log likelihood for a GPRN.
             Parameters:
                 nodes = the node functions f(x) (f hat)
                 weight = the weight funtion w(x)
@@ -395,11 +392,12 @@ class complexGP(object):
         yy_err = np.concatenate(self.yerr)
         new_yyerr = np.array_split(yy_err, self.p)
 
-        log_like = 0 #"initial" likelihood starts at zero to then add things
-        pi_norm = 1
+        like = 1 #"initial" likelihood starts at zero to then add things
+        #pi_norm = 1
         #calculation of each log-likelihood
         for i in range(1, self.p+1):
             errors = new_yyerr[i - 1]**2 * np.identity(self.time.size)
+            pi_norm = 1
             for j in range(1,self.q + 1):
                 #hyperparameteres of the kernel of a given position
                 nodePars = self._kernel_pars(nodes[j - 1])
@@ -411,10 +409,10 @@ class complexGP(object):
                 w = type(self.weight)(*weightPars)(self.time)
                 f_hat = type(self.nodes[j - 1])(*nodePars)(self.time)
                 norm = multivariate_normal(w*f_hat, errors, allow_singular=True)
-                print(norm.rvs())
-            log_like += np.log(np.prod(norm.rvs()))
-        #log_like += np.log(pi_norm)
-        return log_like
+                #print(norm.rvs())
+                pi_norm *= np.prod(norm.rvs())
+            like *= pi_norm
+        return np.log(like)
     
 #    def log_likelihood(self, nodes, weight, means, jitters):
 #        """ 
