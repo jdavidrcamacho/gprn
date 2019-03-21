@@ -135,8 +135,12 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         sampler.run_mcmc(p0, runs)
         #preparing samples to return
         samples = sampler.chain[:, burns:, :].reshape((-1, ndim))
-        lnprob = sampler.lnprobability[:, burns:].reshape((-1, ndim))
-        results = np.vstack([samples.T,np.array(lnprob).T]).T
+        #print('samples old=',sampler.chain[:, burns:, :].shape,
+        #        'samples new=', samples.shape)
+        lnprob = sampler.lnprobability[:, burns:].reshape(1,nwalkers*burns)
+        #print('lnprob old=',sampler.lnprobability[:, burns:].shape,
+        #                        'lnprob new=', lnprob.shape)
+        results = np.vstack([samples.T,np.array(lnprob)]).T
         #results = samples
     if sampler == 'dynesty':
         ndim = prior_func(0).size
