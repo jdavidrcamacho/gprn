@@ -374,37 +374,37 @@ class dRationalQuadratic_dweight(RationalQuadratic):
 
     def __call__(self, r):
         return 2 * self.weight**2 \
-                / (1+ r**2/ (2*self.alpha*self.ell**2))**self.alpha
+                / (1+ r**2/ (2*self.alpha*self.ell**2))**(-self.alpha)
 
-class dRationalQuadratic_dalpha(RationalQuadratic):
-    """
-        Log-derivative in order to alpha
-    """
-    def __init__(self, weight, alpha, ell):
-        super(dRationalQuadratic_dalpha, self).__init__(weight, alpha, ell)
-        self.weight = weight
-        self.alpha = alpha
-        self.ell = ell
+#class dRationalQuadratic_dalpha(RationalQuadratic):
+#    """
+#        Log-derivative in order to alpha
+#    """
+#    def __init__(self, weight, alpha, ell):
+#        super(dRationalQuadratic_dalpha, self).__init__(weight, alpha, ell)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.ell = ell
 
-    def __call(self, r):
-        return ((r**2/(2*self.alpha*self.ell**2*(r**2/(2*self.alpha*self.ell**2)+1))\
-                 - np.log(r**2/(2*self.alpha*self.ell**2)+1)) \
-                    * self.weight**2 * self.alpha) \
-                    / (1+r**2/(2*self.alpha*self.ell**2))**self.alpha
+#    def __call(self, r):
+#        return ((r**2/(2*self.alpha*self.ell**2*(r**2/(2*self.alpha*self.ell**2)+1))\
+#                 - np.log(r**2/(2*self.alpha*self.ell**2)+1)) \
+#                    * self.weight**2 * self.alpha) \
+#                    / (1+r**2/(2*self.alpha*self.ell**2))**self.alpha
 
-class dRationalQuadratic_dell(RationalQuadratic):
-    """
-        Log-derivative in order to ell
-    """
-    def __init__(self, weight, alpha, ell):
-        super(dRationalQuadratic_dell, self).__init__(weight, alpha, ell)
-        self.weight = weight
-        self.alpha = alpha
-        self.ell = ell
+#class dRationalQuadratic_dell(RationalQuadratic):
+#    """
+#        Log-derivative in order to ell
+#    """
+#    def __init__(self, weight, alpha, ell):
+#        super(dRationalQuadratic_dell, self).__init__(weight, alpha, ell)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.ell = ell
 
-    def __call(self, r):
-        return r**2 * (1+r**2/(2*self.alpha*self.ell**2))**(-1-self.alpha) \
-                * self.weight**2 / self.ell**2
+#    def __call(self, r):
+#        return r**2 * (1+r**2/(2*self.alpha*self.ell**2))**(-1-self.alpha) \
+#                * self.weight**2 / self.ell**2
 
 
 ##### RQP kernel ###############################################################
@@ -435,94 +435,94 @@ class RQP(weightFunction):
     def __call__(self, r):
         return self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
                                     / self.ell_p**2) \
-                    /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
+                    /(1+ r**2/ (2*self.alpha*self.ell_e**2))**(-self.alpha)
 
-class dRQP_dweight(RQP):
-    """
-        Log-derivative in order to the weight
-    """
-    def __init__(self, weight, alpha, ell_e, P, ell_p):
-        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
-        self.weight = weight
-        self.alpha = alpha
-        self.RQP_ell_e = ell_e
-        self.P = P
-        self.ell_p = ell_p
+#class dRQP_dweight(RQP):
+#    """
+#        Log-derivative in order to the weight
+#    """
+#    def __init__(self, weight, alpha, ell_e, P, ell_p):
+#        super(dRQP_dweight, self).__init__(weight, alpha, ell_e, P, ell_p)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.RQP_ell_e = ell_e
+#        self.P = P
+#        self.ell_p = ell_p
 
-    def __call(self, r):
-        return 2 * self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
-                                    / self.ell_p**2) \
-                    /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
+#    def __call(self, r):
+#        return 2 * self.weight**2 * exp(- 2*sine(pi*np.abs(r)/self.P)**2 \
+#                                    / self.ell_p**2) \
+#                    /(1+ r**2/ (2*self.alpha*self.ell_e**2))**self.alpha
 
-class dRQP_dalpha(RQP):
-    """
-        Log-derivative in order to alpha
-    """
-    def __init__(self, weight, alpha, ell_e, P, ell_p):
-        super(dRQP_dalpha, self).__init__(weight, alpha, ell_e, P, ell_p)
-        self.weight = weight
-        self.alpha = alpha
-        self.RQP_ell_e = ell_e
-        self.P = P
-        self.ell_p = ell_p
+#class dRQP_dalpha(RQP):
+#    """
+#        Log-derivative in order to alpha
+#    """
+#    def __init__(self, weight, alpha, ell_e, P, ell_p):
+#        super(dRQP_dalpha, self).__init__(weight, alpha, ell_e, P, ell_p)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.RQP_ell_e = ell_e
+#        self.P = P
+#        self.ell_p = ell_p
 
-    def __call__(self, r):
-        return self.alpha * ((r**2 / (2*self.alpha \
-                         *self.ell_e**2*(r**2/(2*self.alpha*self.ell_e**2)+1)) \
-            -np.log(r**2/(2*self.alpha*self.ell_e**2)+1)) \
-            *self.weight**2*exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-            /(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha
+#    def __call__(self, r):
+#        return self.alpha * ((r**2 / (2*self.alpha \
+#                         *self.ell_e**2*(r**2/(2*self.alpha*self.ell_e**2)+1)) \
+#            -np.log(r**2/(2*self.alpha*self.ell_e**2)+1)) \
+#            *self.weight**2*exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+#            /(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha
 
-class dRQP_delle(RQP):
-    """
-        Log-derivative in order to ell_e
-    """
-    def __init__(self, weight, alpha, ell_e, P, ell_p):
-        super(dRQP_delle, self).__init__(weight, alpha, ell_e, P, ell_p)
-        self.weight = weight
-        self.alpha = alpha
-        self.RQP_ell_e = ell_e
-        self.P = P
-        self.ell_p = ell_p
+#class dRQP_delle(RQP):
+#    """
+#        Log-derivative in order to ell_e
+#    """
+#    def __init__(self, weight, alpha, ell_e, P, ell_p):
+#        super(dRQP_delle, self).__init__(weight, alpha, ell_e, P, ell_p)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.RQP_ell_e = ell_e
+#        self.P = P
+#        self.ell_p = ell_p
 
-    def __call__(self, r):
-        return (r**2*(1+r**2/(2*self.alpha*self.ell_e**2))**(-1-self.alpha) \
-                *self.weight**2 \
-                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2))/self.ell_e**2
+#    def __call__(self, r):
+#        return (r**2*(1+r**2/(2*self.alpha*self.ell_e**2))**(-1-self.alpha) \
+#                *self.weight**2 \
+#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2))/self.ell_e**2
 
-class dRQP_dP(RQP):
-    """
-        Log-derivative in order to P
-    """
-    def __init__(self, weight, alpha, ell_e, P, ell_p):
-        super(dRQP_dP, self).__init__(weight, alpha, ell_e, P, ell_p)
-        self.weight = weight
-        self.alpha = alpha
-        self.RQP_ell_e = ell_e
-        self.P = P
-        self.ell_p = ell_p
+#class dRQP_dP(RQP):
+#    """
+#        Log-derivative in order to P
+#    """
+#    def __init__(self, weight, alpha, ell_e, P, ell_p):
+#        super(dRQP_dP, self).__init__(weight, alpha, ell_e, P, ell_p)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.RQP_ell_e = ell_e
+#        self.P = P
+#        self.ell_p = ell_p
 
-    def __call__(self, r):
-        return (4*pi*r*self.weight**2*cosine(pi*np.abs(r)/self.P)*sine(pi*np.abs(r)/self.P) \
-                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-            /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))^self.alpha*self.P)
+#    def __call__(self, r):
+#        return (4*pi*r*self.weight**2*cosine(pi*np.abs(r)/self.P)*sine(pi*np.abs(r)/self.P) \
+#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+#            /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))^self.alpha*self.P)
 
-class dRQP_dellp(RQP):
-    """
-        Log-derivative in order to ell_p
-    """
-    def __init__(self, weight, alpha, ell_e, P, ell_p):
-        super(dRQP_dellp, self).__init__(weight, alpha, ell_e, P, ell_p)
-        self.weight = weight
-        self.alpha = alpha
-        self.RQP_ell_e = ell_e
-        self.P = P
-        self.ell_p = ell_p
+#class dRQP_dellp(RQP):
+#    """
+#        Log-derivative in order to ell_p
+#    """
+#    def __init__(self, weight, alpha, ell_e, P, ell_p):
+#        super(dRQP_dellp, self).__init__(weight, alpha, ell_e, P, ell_p)
+#        self.weight = weight
+#        self.alpha = alpha
+#        self.RQP_ell_e = ell_e
+#        self.P = P
+#        self.ell_p = ell_p
 
-    def __call(self, r):
-        return (4*self.weight**2*sine(pi*np.abs(r)/self.P)**2 \
-                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-                /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
+#    def __call(self, r):
+#        return (4*self.weight**2*sine(pi*np.abs(r)/self.P)**2 \
+#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
+#                /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
 
 
 ##### Cosine ###################################################################
