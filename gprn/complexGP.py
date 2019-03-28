@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-from scipy.linalg import cho_factor, cho_solve, LinAlgError
+from scipy.linalg import inv, cho_factor, cho_solve, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -374,6 +374,73 @@ class complexGP(object):
         return log_like
 
 
+    def CB(self, nodes, weight, time):
+        """
+            Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be 
+        an N*q*(p+1) X N*q*(p+1) block diagonal matrix
+        """
+        p = int(self.p) #number of components
+        q = int(self.q) #number of nodes
+        w = int(p * q) #number of weights
+        N = int(time.size) #N
+
+        CB = np.zeros((N*q*(p+1), N*q*(p+1))) #initial empty matrix
+        position = 0 #we start filling CB at position (0,0)
+        for i in range(q):
+            node_matrix = self._kernel_matrix(nodes[i], time)
+            CB[position:position+N, position:position+N] = node_matrix
+            position += N
+        weight_matrix = self._kernel_matrix(weight, time)
+        for i in range(w):
+            CB[position:position+N, position:position+N] = weight_matrix
+            position += N
+        return CB
+
+
+    def inv_CB(self, nodes, weight, time):
+        """
+            Creates the inverse of the matrix CB, that will be another
+        N*q*(p+1) X N*q*(p+1) block diagonal matrix
+        """
+        p = int(self.p) #number of components
+        q = int(self.q) #number of nodes
+        w = int(p * q) #number of weights
+        N = int(time.size) #N
+        
+        inv_CB = np.zeros((N*q*(p+1), N*q*(p+1))) #initial empty matrix
+        position = 0 #we start filling inv_CB at position (0,0)
+        for i in range(q):
+            node_matrix = self._kernel_matrix(nodes[i], time)
+            inv_node_matrix = inv(node_matrix)
+            inv_CB[position:position+N, position:position+N] = inv_node_matrix
+            position += N
+        weight_matrix = self._kernel_matrix(weight, time)
+        inv_weight_matrix = inv(weight_matrix)
+        for i in range(w):
+            inv_CB[position:position+N, position:position+N] = inv_weight_matrix
+            position += N
+        return inv_CB
+
+
+    def sample_CB(self, nodes, weight, time):
+        """ 
+            Returns samples from the matrix CB
+            Parameters:
+                kernel = covariance funtion
+                time = time array
+            Returns:
+                Sample of CB
+        """
+        p = int(self.p) #number of components
+        q = int(self.q) #number of nodes
+        N = int(time.size) #N
+        
+        mean = np.zeros(N*q*(p+1))
+        cov = self.CB(nodes, weight, time)
+        norm = multivariate_normal(mean, cov, allow_singular=True)
+        return norm.rvs()
+
+
     def other_log(self, nodes, weight, means, jitters):
         """ 
             Calculates the marginal log likelihood for a GPRN.
@@ -385,6 +452,15 @@ class complexGP(object):
             Returns:
                 log_like  = Marginal log likelihood
         """
+        p = int(self.p) #number of components
+        q = int(self.q) #number of nodes
+        w = int(p * q) #number of weights
+        N = int(self.y.size / p) #N
+        
+        ys = self.y.T #our components as columns
+        x = self.time #our xi as a column
+        cov = np.diag(jitters)**2  #our jitter matrix
+
         #means
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means) if means else yy
@@ -392,71 +468,48 @@ class complexGP(object):
         yy_err = np.concatenate(self.yerr)
         new_yyerr = np.array_split(yy_err, self.p)
 
-        like = 1 #"initial" likelihood starts at zero to then add things
-        #pi_norm = 1
-        #calculation of each log-likelihood
-        for i in range(1, self.p+1):
-            errors = new_yyerr[i - 1]**2 * np.identity(self.time.size)
-            pi_norm = 1
-            for j in range(1,self.q + 1):
-                #hyperparameteres of the kernel of a given position
-                nodePars = self._kernel_pars(nodes[j - 1])
-                #all weight function will have the same parameters
-                weightPars = weight.pars
-                #except for the amplitude
-#                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
-                #node and weight functions kernel
-                w = type(self.weight)(*weightPars)(self.time)
-                f_hat = type(self.nodes[j - 1])(*nodePars)(self.time)
-                norm = multivariate_normal(w*f_hat, errors, allow_singular=True)
-                #print(norm.rvs())
-                pi_norm *= np.prod(norm.rvs())
-            like *= pi_norm
-        return np.log(like)
-    
-#    def log_likelihood(self, nodes, weight, means, jitters):
-#        """ 
-#            Calculates the marginal log likelihood for a GPRN. The main 
-#        difference is that it sums the log likelihoods of each dataset instead 
-#        of making a big covariance matrix K to calculate it.
-#            See Rasmussen & Williams (2006), page 113.
-#            Parameters:
-#                nodes = the node functions f(x) (f hat)
-#                weight = the weight funtion w(x)
-#                means = mean function being used
-#                jitters = jitter value of each dataset
-#            Returns:
-#                log_like  = Marginal log likelihood
-#        """
-#        #means
-#        yy = np.concatenate(self.y)
-#        yy = yy - self._mean(means) if means else yy
-#        new_y = np.array_split(yy, self.p)
-#        yy_err = np.concatenate(self.yerr)
-#        new_yyerr = np.array_split(yy_err, self.p)
+        kernel = []
+        for i in range(q):
+            kernel.append(weight*nodes[i])
+        kernel = np.array(kernel).sum()
+        
+        kernels = []
+        for i in range(p):
+            kernel_matrix = self._kernel_matrix(kernel, self.time)
+            kernel_matrix += (new_yyerr[i]**2) * np.identity(self.time.size)
+            kernels.append(kernel_matrix)
+        #K
+        #cov = self._kernel_matrix(kernel, self.time)
+
+        wf = []
+        for i in range(p):
+#            #L1 = cho_factor(kernel_matrix)
+#            L1 = cho_factor(kernels[i])
+#            sol = cho_solve(L1, new_y[i])
 #
-#        log_like = 0 #"initial" likelihood starts at zero to then add things
-#        #calculation of each log-likelihood
-#        for i in range(1, self.p+1):
-#            kf = np.zeros((self.time.size, self.time.size))
-#            for j in range(1,self.q + 1):
-#                #hyperparameteres of the kernel of a given position
-#                nodePars = self._kernel_pars(nodes[j - 1])
-#                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
-#                kf += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
-#                        + (jitters[i - 1]**2) * np.identity(self.time.size)
-#            #log marginal likelihood calculation
-#            try:
-#                L1 = cho_factor(kf, overwrite_a=True, lower=False)
-#                log_like += - 0.5*np.dot(new_y[i - 1].T, cho_solve(L1, new_y[i - 1])) \
-#                           - np.sum(np.log(np.diag(L1[0]))) \
-#                           - 0.5*new_y[i - 1].size*np.log(2*np.pi)
-#            except LinAlgError:
-#                return -np.inf
-#        weightPars = weight.pars
-#        kw = self._kernel_matrix(type(self.weight)(*weightPars) , self.time)
-#
-#        return log_like
+#            #Kstar
+#            Kstar = self._predict_kernel_matrix(kernel, self.time)
+#            #Kstar += (new_yyerr[i]**2) * np.identity(self.time.size)
+#            y_mean = np.dot(Kstar, sol) + means[i](self.time) #mean
+#            wf.append(y_mean)
+            wf.append(kernel(self.time))
+        wf = np.array(wf).T
+        #wf = np.zeros_like(wf)
+        
+        #wf = kernel(self.time)
+        #print(wf[0])
+        p = 0
+        for i in range(N):
+            #print(ys[i], wf[i])
+            p += multivariate_normal(wf[i], cov).logpdf(ys[i])
+
+#        L1 = cho_factor(kernel_matrix)
+#        sol = cho_solve(L1, self.y)
+#        Kstar = self._predict_kernel_matrix(kernel, self.time)
+#        ystar = np.dot(Kstar, sol)
+        
+        
+        return p
 
 
 ##### GP prediction funtions
