@@ -96,7 +96,7 @@ class complexGP(object):
             if i%2 == 0:
                 self.y.append(j)
             else:
-                self.yerr.append(j**2)
+                self.yerr.append(j)
         self.y = np.array(self.y) #"extended" measurements
         self.yerr = np.array(self.yerr) #"extended" errors
         #check if the input was correct
@@ -440,6 +440,28 @@ class complexGP(object):
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
 
+    
+    def get_y(self, nodes, weight, time):
+        p = int(self.p) #number of components
+        q = int(self.q) #number of nodes
+        w = int(p * q) #number of weights
+        N = int(self.y.size / p) #N
+        
+        #samples from matrix CB
+        cb = self.sample_CB(nodes, weight, self.time) 
+
+        wf = []
+        for i in range(p):
+            sample=[]
+            for j in range(q):
+                hadamard = cb[j*N : j*N + N] * cb[(j + (1+ i)*q)*N : (j + (1+ i)*q)*N + N]
+                sample.append(hadamard)
+            wf.append([np.prod(x) for x in np.array(sample).T])
+        wf = np.array(wf).T
+        
+        return wf
+
+
 
     def other_log(self, nodes, weight, means, jitters):
         """ 
@@ -458,32 +480,26 @@ class complexGP(object):
         N = int(self.y.size / p) #N
         
         ys = self.y.T #our components as columns
+        yerr = self.yerr.T
+        #print(self.yerr)
         x = self.time #our xi as a column
         cov = np.diag(jitters)**2  #our jitter matrix
 
-        #means
-        yy = np.concatenate(self.y)
-        yy = yy - self._mean(means) if means else yy
-        new_y = np.array_split(yy, self.p)
-        yy_err = np.concatenate(self.yerr)
-        new_yyerr = np.array_split(yy_err, self.p)
+#        #means
+#        yy = np.concatenate(self.y)
+#        yy = yy - self._mean(means) if means else yy
+#        new_y = np.array_split(yy, self.p)
+#        yy_err = np.concatenate(self.yerr)
+#        new_yyerr = np.array_split(yy_err, self.p)
         
         #samples from matrix CB
         cb = self.sample_CB(nodes, weight, self.time) 
 
-        wf = []
-        for i in range(p):
-            sample=[]
-            for j in range(q):
-                hadamard = cb[j*N : j*N + N] * cb[(j + (1+ i)*q)*N : (j + (1+ i)*q)*N + N]
-                sample.append(hadamard)
-            wf.append([np.prod(x) for x in np.array(sample).T])
-        wf = np.array(wf).T
-
+        wf =  self.get_y(nodes, weight, self.time)
         p = 0
         for i in range(N):
             #print(ys[i], wf[i])
-            p += multivariate_normal(wf[i], cov).logpdf(ys[i])
+            p += multivariate_normal(wf[i], cov + np.diag(yerr[i]**2)).logpdf(ys[i])
 
         return p
 
