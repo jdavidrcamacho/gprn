@@ -467,48 +467,24 @@ class complexGP(object):
         new_y = np.array_split(yy, self.p)
         yy_err = np.concatenate(self.yerr)
         new_yyerr = np.array_split(yy_err, self.p)
-
-        kernel = []
-        for i in range(q):
-            kernel.append(weight*nodes[i])
-        kernel = np.array(kernel).sum()
         
-        kernels = []
-        for i in range(p):
-            kernel_matrix = self._kernel_matrix(kernel, self.time)
-            kernel_matrix += (new_yyerr[i]**2) * np.identity(self.time.size)
-            kernels.append(kernel_matrix)
-        #K
-        #cov = self._kernel_matrix(kernel, self.time)
+        #samples from matrix CB
+        cb = self.sample_CB(nodes, weight, self.time) 
 
         wf = []
         for i in range(p):
-#            #L1 = cho_factor(kernel_matrix)
-#            L1 = cho_factor(kernels[i])
-#            sol = cho_solve(L1, new_y[i])
-#
-#            #Kstar
-#            Kstar = self._predict_kernel_matrix(kernel, self.time)
-#            #Kstar += (new_yyerr[i]**2) * np.identity(self.time.size)
-#            y_mean = np.dot(Kstar, sol) + means[i](self.time) #mean
-#            wf.append(y_mean)
-            wf.append(kernel(self.time))
+            sample=[]
+            for j in range(q):
+                hadamard = cb[j*N : j*N + N] * cb[(j + (1+ i)*q)*N : (j + (1+ i)*q)*N + N]
+                sample.append(hadamard)
+            wf.append([np.prod(x) for x in np.array(sample).T])
         wf = np.array(wf).T
-        #wf = np.zeros_like(wf)
-        
-        #wf = kernel(self.time)
-        #print(wf[0])
+
         p = 0
         for i in range(N):
             #print(ys[i], wf[i])
             p += multivariate_normal(wf[i], cov).logpdf(ys[i])
 
-#        L1 = cho_factor(kernel_matrix)
-#        sol = cho_solve(L1, self.y)
-#        Kstar = self._predict_kernel_matrix(kernel, self.time)
-#        ystar = np.dot(Kstar, sol)
-        
-        
         return p
 
 
