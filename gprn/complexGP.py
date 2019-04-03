@@ -342,23 +342,11 @@ class complexGP(object):
                 #all weight function will have the same parameters
                 weightPars = weight.pars
                 #except for the amplitude
-#                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
+                weightPars[0] =  weight_values[j-1 + self.q*(i-1)]
                 #node and weight functions kernel
                 w = self._kernel_matrix(type(self.weight)(*weightPars), self.time)
                 f_hat = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars), self.time)
-#                ### cov[E_ii(x),E_ii(x')]
-#                kw = self._kernel_matrix(type(self.weight)(*weightPars) * type(self.weight)(*weightPars), self.time)
-#                #kw2 = np.linalg.matrix_power(kw,2)
-#                kf = self._kernel_matrix(type(self.nodes[j - 1])(*nodePars) * type(self.nodes[j - 1])(*nodePars), self.time)
-#                #kf2 = np.linalg.matrix_power(kf,2)
-#                kw2,kf2 = kw,kf
-#                cov_ii = 2 * self.q**2 * kw2 * kf2 + 2 * self.q * (kw2 + kf2)
-#                cov_ii = cov_ii * np.identity(cov_ii.shape[0])
-#                cov_ij = 0.5 * (3*self.q + self.q**2) * kw2 * kf2 + self.q*kw2
-#                np.fill_diagonal(cov_ij, 0)
-#                cov = cov_ii + cov_ij
-#                #now we add all the necessary stuff; eq. 4 of Wilson et al. (2012)
-#                k_ii = k_ii + cov
+
                 k_ii = k_ii + (w * f_hat)
             #k_ii = k_ii + diag(error) + diag(jitter)
             k_ii += (new_yyerr[i - 1]**2) * np.identity(self.time.size) \
@@ -444,11 +432,9 @@ class complexGP(object):
     def get_y(self, nodes, weight, time):
         p = int(self.p) #number of components
         q = int(self.q) #number of nodes
-        w = int(p * q) #number of weights
         N = int(self.y.size / p) #N
-        
-        #samples from matrix CB
-        cb = self.sample_CB(nodes, weight, self.time) 
+
+        cb = self.sample_CB(nodes, weight, self.time) #samples from matrix CB
 
         wf = []
         for i in range(p):
@@ -458,7 +444,6 @@ class complexGP(object):
                 sample.append(hadamard)
             wf.append([np.prod(x) for x in np.array(sample).T])
         wf = np.array(wf).T
-        
         return wf
 
 
@@ -475,33 +460,20 @@ class complexGP(object):
                 log_like  = Marginal log likelihood
         """
         p = int(self.p) #number of components
-        q = int(self.q) #number of nodes
-        w = int(p * q) #number of weights
         N = int(self.y.size / p) #N
-        
-        ys = self.y.T #our components as columns
-        yerr = self.yerr.T
-        #print(self.yerr)
-        x = self.time #our xi as a column
+
+        ys = np.concatenate(self.y) - self._mean(means)
+        new_ys = np.array_split(ys, self.p)
+        ys = np.array(new_ys).T #our components as columns
+        yerr = self.yerr.T #measurements errors
         cov = np.diag(jitters)**2  #our jitter matrix
 
-#        #means
-#        yy = np.concatenate(self.y)
-#        yy = yy - self._mean(means) if means else yy
-#        new_y = np.array_split(yy, self.p)
-#        yy_err = np.concatenate(self.yerr)
-#        new_yyerr = np.array_split(yy_err, self.p)
-        
-        #samples from matrix CB
-        cb = self.sample_CB(nodes, weight, self.time) 
+        wf =  self.get_y(nodes, weight, self.time) #multiplying w and f to get y
 
-        wf =  self.get_y(nodes, weight, self.time)
-        p = 0
+        logpdf = 0
         for i in range(N):
-            #print(ys[i], wf[i])
-            p += multivariate_normal(wf[i], cov + np.diag(yerr[i]**2)).logpdf(ys[i])
-
-        return p
+            logpdf += multivariate_normal(wf[i], cov + np.diag(yerr[i]**2)).logpdf(ys[i])
+        return logpdf
 
 
 ##### GP prediction funtions
