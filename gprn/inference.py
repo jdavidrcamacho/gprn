@@ -308,7 +308,7 @@ class MFI(object):
     def entropy(self, sigma_f, sigma_w):
         Q = self.q #number of nodes
         p = self.p #number of outputs
-
+        
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(Q):
             try:
@@ -374,7 +374,7 @@ class MFI(object):
         invKw = inv(Kw)
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
-
+        
         #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         first_term = 0
         for j in range(self.q):
