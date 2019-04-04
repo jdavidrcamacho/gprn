@@ -229,7 +229,8 @@ class MFI(object):
             raise LinAlgError("Still not positive definite, even with nugget.")
         return L
 
-    def _update_SIGMAandMU(self, nodes, weight, time):
+    def _update_SIGMAandMU(self, nodes, weight, jitters, time,
+                           muF, muW , varF, varW):
         """
             Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
@@ -243,11 +244,7 @@ class MFI(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-        #this might need to be change somewhere else in the future  #
-        muF, muW = self._u_to_fhatw(nodes, weight, time)             #
-        varF, varW = self._u_to_fhatw(nodes, weight, time)           #
-        #############################################################
-        
+
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
         for i in range(self.q):
@@ -255,7 +252,6 @@ class MFI(object):
         invKf = np.array(invKf)
         Kw = self._kernel_matrix(weight, time) #this means equal weights for all nodes
         invKw = inv(Kw)
-        jitters = self.jitters
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         
@@ -279,7 +275,7 @@ class MFI(object):
                         sum_muWmuF += np.array(muW[i][k]) * muF[k].reshape(self.N)
                 sum_YminusSum += self.y[i] - sum_muWmuF
                 sum_YminusSum = sum_YminusSum * muW[i][j]
-            mu_f.append(sigma_f[j] @ sum_YminusSum / jitters[j]**2)
+            mu_f.append(np.dot(sigma_f[j], sum_YminusSum) / jitters[j]**2)
         mu_f = np.array(mu_f)
         #creation of Sigma_wij
         sigma_w = []
@@ -300,7 +296,7 @@ class MFI(object):
                         sum_muFmuW += muF[k].reshape(self.N) * np.array(muW[i][k])
                 sum_YminusSum += self.y[i] - sum_muFmuW
                 sum_YminusSum = sum_YminusSum * muF[j]
-                mu_w.append(sigma_f[j] @ sum_YminusSum.T / jitters[j]**2)
+                mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T) / jitters[j]**2)
         mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
         return sigma_f, mu_f, sigma_w, mu_w
 
@@ -326,41 +322,6 @@ class MFI(object):
                     #adding a nugget to the diagonal of sigma
                     L2 = cho_factor(sigma_w[j] + nugget, overwrite_a=True, lower=False)
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
-#        ent_sum = 0 #starts at zero then we sum everything
-#        for i in range(Q):
-#            try:
-#                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
-#            except LinAlgError:
-#                print('nugget added to sigma_f')
-#                maximum = 10
-#                nugget = np.diag(sigma_f[i]).mean() *  1e-5 #nugget to add
-#                n = 1 #number of tries
-#                while n <= maximum:
-#                    try:
-#                        L1 =  cho_factor(sigma_f[i] + nugget, 
-#                                        overwrite_a=True, lower=False)
-#                    except LinAlgError:
-#                        nugget *= 10
-#                    finally:
-#                        n += 1
-#
-#            ent_sum += np.sum(np.log(np.diag(L1[0])))
-#            for j in range(p):
-#                try:
-#                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
-#                except LinAlgError:
-#                    print('nugget added to sigma_w')
-#                    maximum = 100
-#                    nugget = np.diag(sigma_w[j]).mean() *  1e-5 #nugget to add
-#                    n = 1 #number of tries
-#                    while n <= maximum:
-#                        try:
-#                            L2 =  cho_factor(sigma_w[j] + nugget, 
-#                                            overwrite_a=True, lower=False)
-#                        except LinAlgError:
-#                            nugget *= 10
-#                        finally:
-#                            n += 1
         return ent_sum
 
 ##### Expected log prior
@@ -380,7 +341,7 @@ class MFI(object):
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
             logKf = 2 * np.sum(np.log(np.diag(L1[0])))
-            muKmu = mu_f[j].T @ invKf[j] @ mu_f[j]
+            muKmu = np.dot(np.dot(mu_f[j].T, invKf[j]), mu_f[j])
             trace = np.trace(invKf[j] * sigma_f[j])
             first_term += logKf + muKmu + trace
         first_term = -0.5 * first_term
@@ -390,25 +351,63 @@ class MFI(object):
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
         logKf = 2 * np.sum(np.log(np.diag(L2[0])))
         for j in range(self.q * self.q):
-            muKmu = mu_w[j].T @ invKw @ mu_w[j]
+            muKmu = np.dot(np.dot(mu_w[j].T, invKw), mu_w[j])
             trace = np.trace(invKw * sigma_w[j])
             second_term += logKf + muKmu + trace
         second_term = -0.5 * second_term 
         return first_term + second_term
 
 ##### Expected log-likelihood
-    def expectedLogLike(self, *params):
+    def expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood, eq.14 in Nguyen & Bonilla (2013)
         """
-        N = self.time.size #datasets size (y(x)s size)
-        P = self.p #number of y(x)
+        j = np.array(jitters).mean() #not sure about this
         
         #-0.5 * N * P * log(2*pi / jitter**2)
-        jitters = self.jitters
-        first_term = []
-        for i,j in enumerate(jitters):
-            first_term.append(-0.5 * N * P * np.log(2*np.pi * j**2))
-        Y = np.array_split(self.y, self.p) #P-dimensional vector 
+        first_term = -0.5 * self.N * self.p * np.log(2*np.pi * j**2)
+            
+        Y = self.y #P-dimensional vector
+        muw = mu_w.reshape(4,2,20) #PxQ dimensional vector
+        second_term = 0
+        for i in range(self.N):
+            YOmegaMu = np.array(Y[:,i] - np.dot(muw[:,:,i], mu_f[:,i]))
+            second_term += np.dot(YOmegaMu.T, YOmegaMu)
         
-        return 0
+        third_term = 0
+        for j in range(self.q):
+            diag_sigmaf = np.diag(sigma_f[j][:])
+            mu_f_j = mu_f[j]
+            for i in range(self.p):
+                mu_w_ij = mu_w[i][:]
+                diag_sigmaw = np.diag(sigma_w[i][:])
+                third_term += np.dot(diag_sigmaf, mu_w_ij*mu_w_ij) \
+                                + np.dot(diag_sigmaw, mu_f_j*mu_f_j)
+        return first_term -0.5*second_term/j - 0.5*third_term/j
+    
+##### Evidence Lower Bound
+    def EvidenceLowerBound(self, nodes, weight, jitters, time):
+        """
+            Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
+        """
+        #This might need to be change again! ################
+        muF, muW = self._u_to_fhatw(nodes, weight, time)    #
+        varF, varW = self._u_to_fhatw(nodes, weight, time)  #
+        #####################################################
+        
+        #Variational parameters
+        sigmaf, muf, sigmaw, muw = self._update_SIGMAandMU(nodes, weight, 
+                                                           jitters, time,
+                                                           muF, muW , varF, varW)
+        
+        #Entropy
+        Entropy = self.entropy(sigmaf, sigmaw)
+        #Expected log prior
+        ExpLogPrior = self.expectedLogPrior(nodes, weight, 
+                                            sigmaf, muf,  sigmaw, muw)
+        #Expected log-likelihood
+        ExpLogLike = self.expectedLogLike(nodes, weight, jitters, 
+                                          sigmaf, muf, sigmaw, muw)
+        sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+        return sum_ELB
+        
