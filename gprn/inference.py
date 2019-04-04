@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-from scipy.linalg import inv, cho_factor, cho_solve, LinAlgError
+from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError, lapack
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -126,7 +126,8 @@ class MFI(object):
         at inputs time.
         """
         #if time is None we use the initial time of the class MFI
-        r = time[:, None] - time[None, :] if time else self.time[:, None] - self.time[None, :]
+        #r = time[:, None] - time[None, :] if time!=None else self.time[:, None] - self.time[None, :]
+        r = self.time[:, None] - self.time[None, :]
         
         #to deal with the non-stationary kernels problem
         if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
@@ -163,19 +164,19 @@ class MFI(object):
                 CB = matrix CB
         """
         CB_size = self.N * self.q * (self.p + 1)
-        CB = np.zeros((N*q*(p+1), N*q*(p+1))) #initial empty matrix
+        CB = np.zeros((CB_size, CB_size)) #initial empty matrix
         
         position = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
             node_CovMatrix = self._kernel_matrix(nodes[i], time)
-            CB[position:position+N, position:position+N] = node_CovMatrix
-            position += N
+            CB[position:position+self.N, position:position+self.N] = node_CovMatrix
+            position += self.N
         weight_CovMatrix = self._kernel_matrix(weight, time)
         #then we enter the weights
         for i in range(self.qp):
-            CB[position:position+N, position:position+N] = weight_CovMatrix
-            position += N
+            CB[position:position+self.N, position:position+self.N] = weight_CovMatrix
+            position += self.N
         return CB
 
     def _sample_CB(self, nodes, weight, time):
@@ -188,30 +189,178 @@ class MFI(object):
             Returns:
                 Samples of CB
         """
-
         mean = np.zeros(self.N*self.q*(self.p+1))
-        cov = self.CB(nodes, weight, time)
+        cov = self._CB_matrix(nodes, weight, time)
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
 
-    def _update_nodes(self, *params):
+    def _u_to_fhatw(self, nodes, weight, time):
+        """
+            Returns the samples of CB that corresponds to the nodes f and
+        weights W.
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                time = array containing the time
+            Returns:
+                f = array with the samples of the nodes
+                W = array with the samples of the weights
+        """
+        u = self._sample_CB(nodes, weight, time)
         
+        f = u[:self.q * self.N].reshape((self.q, 1, self.N))
+        W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
+        return f, W
+
+    def _cholPLUSnugget(self, matrix, maximum=1e10):
+        try:
+            L =  cho_factor(matrix, overwrite_a=True, lower=False)
+        except LinAlgError:
+            nugget = np.diag(matrix).mean() * 1e-5 #nugget to add to the diagonal
+            n = 1 #number of tries
+            while n <= maximum:
+                print ('n= ',n, 'nugget= ', nugget)
+                try:
+                    L =  cho_factor(matrix + nugget, overwrite_a=True, lower=False)
+                except LinAlgError:
+                    nugget *= 10
+                finally:
+                    n += 1
+            raise LinAlgError("Still not positive definite, even with nugget.")
+        return L
+
+    def _update_SIGMAandMU(self, nodes, weight, time):
+        """
+            Efficient closed-form updates fot variational parameters. This
+        corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                time = array containing the time
+            Returns:
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+        """
+        #this might need to be change somewhere else in the future  #
+        muF, muW = self._u_to_fhatw(nodes, weight, time)             #
+        varF, varW = self._u_to_fhatw(nodes, weight, time)           #
+        #############################################################
+        
+        Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
+        invKf = []
+        for i in range(self.q):
+            invKf.append(inv(Kf[i]))
+        invKf = np.array(invKf)
+
+        Kw = self._kernel_matrix(weight, time) #this means equal weights for all nodes
+        invKw = inv(Kw)
+        jitters = self.jitters
+        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
+        
+        #creation of Sigma_fj
+        sigma_f = []
+        for j in range(self.q):
+            sum_muWmuWVarW = np.zeros((self.N, self.N))
+            for i in range(self.p):
+                sum_muWmuWVarW += np.diag( muW[i][j] * muW[i][j] + varW[i][j])
+            sum_muWmuWVarW = sum_muWmuWVarW / jitters[j]**2
+            sigma_f.append(inv(invKf[j] + sum_muWmuWVarW))
+        sigma_f = np.array(sigma_f)
+        #creation of mu_fj
+        mu_f = []
+        for j in range(self.q):
+            sum_YminusSum = np.zeros(self.N)
+            for i in range(self.p):
+                sum_muWmuF = np.zeros(self.N)
+                for k in range(self.q):
+                    if k != i:
+                        sum_muWmuF += np.array(muW[i][k]) * muF[k].reshape(self.N)
+                sum_YminusSum += self.y[i] - sum_muWmuF
+                sum_YminusSum = sum_YminusSum * muW[i][j]
+            mu_f.append(sigma_f[j] @ sum_YminusSum / jitters[j]**2)
+        mu_f = np.array(mu_f)
+        #creation of Sigma_wij
+        sigma_w = []
+        for j in range(self.q):
+            sum_muFmuFVarF = np.diag( muF[j] * muF[j] + varF[j])
+            sum_muFmuFVarF = sum_muFmuFVarF / jitters[j]**2
+            for i in range(self.p):
+                sigma_w.append(inv(invKw + sum_muWmuWVarW))
+        sigma_w = np.array(sigma_w)
+        #creation of mu_wij
+        mu_w = []
+        for j in range(self.q):
+            sum_YminusSum = np.zeros(self.N)
+            for i in range(self.p):
+                sum_muFmuW = np.zeros(self.N)
+                for k in range(self.q):
+                    if k != i:
+                        sum_muFmuW += muF[k].reshape(self.N) * np.array(muW[i][k])
+                sum_YminusSum += self.y[i] - sum_muFmuW
+                sum_YminusSum = sum_YminusSum * muF[j]
+                mu_w.append(sigma_f[j] @ sum_YminusSum.T / jitters[j]**2)
+        mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
+        return sigma_f, mu_f, sigma_w, mu_w
 
 ##### Entropy
-    def entropy(self, nodes, weight):
+    def entropy(self, sigma_f, sigma_w):
         Q = self.q #number of nodes
         p = self.p # number of outputs
-        weights_matrix = self._weights_matrix(weight) #matrix of weights
-        
+
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(Q):
-            L1 = cho_factor(self._kernel_matrix(nodes[i]), 
-                            overwrite_a=True, lower=False)
+            try:
+                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
+            except LinAlgError:
+                nugget  = np.diag(1e-5 + np.zeros(self.N)) 
+                #adding a nugget to the diagonal of sigma
+                L1 = cho_factor(sigma_f[i] + nugget, overwrite_a=True, lower=False)
             ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
-                L2 = cho_factor(self._kernel_matrix(weights_matrix[j, i]), 
-                            overwrite_a=True, lower=False)
+                try:
+                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
+                except LinAlgError:
+                    nugget  = np.diag(1e-5 + np.zeros(self.N))
+                    #adding a nugget to the diagonal of sigma
+                    L2 = cho_factor(sigma_w[j] + nugget, overwrite_a=True, lower=False)
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
+#        ent_sum = 0 #starts at zero then we sum everything
+#        for i in range(Q):
+#            try:
+#                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
+#            except LinAlgError:
+#                print('nugget added to sigma_f')
+#                maximum = 10
+#                nugget = np.diag(sigma_f[i]).mean() *  1e-5 #nugget to add
+#                n = 1 #number of tries
+#                while n <= maximum:
+#                    try:
+#                        L1 =  cho_factor(sigma_f[i] + nugget, 
+#                                        overwrite_a=True, lower=False)
+#                    except LinAlgError:
+#                        nugget *= 10
+#                    finally:
+#                        n += 1
+#
+#            ent_sum += np.sum(np.log(np.diag(L1[0])))
+#            for j in range(p):
+#                try:
+#                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
+#                except LinAlgError:
+#                    print('nugget added to sigma_w')
+#                    maximum = 100
+#                    nugget = np.diag(sigma_w[j]).mean() *  1e-5 #nugget to add
+#                    n = 1 #number of tries
+#                    while n <= maximum:
+#                        try:
+#                            L2 =  cho_factor(sigma_w[j] + nugget, 
+#                                            overwrite_a=True, lower=False)
+#                        except LinAlgError:
+#                            nugget *= 10
+#                        finally:
+#                            n += 1
         return ent_sum
 
 ##### Expected log prior
