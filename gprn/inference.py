@@ -253,10 +253,10 @@ class MFI(object):
         for i in range(self.q):
             invKf.append(inv(Kf[i]))
         invKf = np.array(invKf)
-
         Kw = self._kernel_matrix(weight, time) #this means equal weights for all nodes
         invKw = inv(Kw)
         jitters = self.jitters
+        
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         
         #creation of Sigma_fj
@@ -307,7 +307,7 @@ class MFI(object):
 ##### Entropy
     def entropy(self, sigma_f, sigma_w):
         Q = self.q #number of nodes
-        p = self.p # number of outputs
+        p = self.p #number of outputs
 
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(Q):
@@ -364,17 +364,37 @@ class MFI(object):
         return ent_sum
 
 ##### Expected log prior
-    def expectedLogPrior(self, nodes, weight, mu_f, sigma_f, mu_w, sigma_w):
-        Q = self.q #number of nodes
-        p = self.p # number of outputs
-        N = self.time.size
-
-        #calculation of the first term of eq.10 of Nguyen & Bonilla (2013)
-        first_term = 0
-        for i in range(Q):
-            first_term += 1
+    def expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
+        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
+        invKf = []
+        for i in range(self.q):
+            invKf.append(inv(Kf[i]))
+        invKf = np.array(invKf) 
+        Kw = self._kernel_matrix(weight, self.time) #this means equal weights for all nodes
+        invKw = inv(Kw)
         
-        return first_term
+        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
+
+        #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
+        first_term = 0
+        for j in range(self.q):
+            L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
+            logKf = 2 * np.sum(np.log(np.diag(L1[0])))
+            muKmu = mu_f[j].T @ invKf[j] @ mu_f[j]
+            trace = np.trace(invKf[j] * sigma_f[j])
+            first_term += logKf + muKmu + trace
+        first_term = -0.5 * first_term
+        
+        #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
+        second_term = 0
+        L2 = cho_factor(Kw, overwrite_a=True, lower=False)
+        logKf = 2 * np.sum(np.log(np.diag(L2[0])))
+        for j in range(self.q * self.q):
+            muKmu = mu_w[j].T @ invKw @ mu_w[j]
+            trace = np.trace(invKw * sigma_w[j])
+            second_term += logKf + muKmu + trace
+        second_term = -0.5 * second_term 
+        return first_term + second_term
 
 ##### Expected log-likelihood
     def expectedLogLike(self, *params):
@@ -390,3 +410,5 @@ class MFI(object):
         for i,j in enumerate(jitters):
             first_term.append(-0.5 * N * P * np.log(2*np.pi * j**2))
         Y = np.array_split(self.y, self.p) #P-dimensional vector 
+        
+        return 0
