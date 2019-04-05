@@ -268,7 +268,8 @@ class GPRN_inference(object):
         for j in range(self.q):
             sum_muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
-                sum_muWmuWVarW += np.diag( muW[i][j] * muW[i][j] + varW[i][j])
+                print(muW.shape, varW.shape)
+                sum_muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
             sum_muWmuWVarW = sum_muWmuWVarW / jitters[j]**2
             sigma_f.append(inv(invKf[j] + sum_muWmuWVarW))
         sigma_f = np.array(sigma_f)
@@ -309,7 +310,7 @@ class GPRN_inference(object):
         return sigma_f, mu_f, sigma_w, mu_w
 
 ##### Entropy
-    def mfi_entropy(self, sigma_f, sigma_w):
+    def _mfi_entropy(self, sigma_f, sigma_w):
         """
             Calculates the entropy in mean-field inference, corresponds to 
         eq.14 in Nguyen & Bonilla (2013)
@@ -342,7 +343,7 @@ class GPRN_inference(object):
         return ent_sum
 
 ##### Expected log prior
-    def mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expection of the log prior wrt q(f,w) in mean-field 
         inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
@@ -371,7 +372,8 @@ class GPRN_inference(object):
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
             logKf = 2 * np.sum(np.log(np.diag(L1[0])))
-            muKmu = np.dot(np.dot(mu_f[j].T, invKf[j]), mu_f[j])
+            muKmu = np.dot(np.dot(mu_f[j].reshape(self.N).T, invKf[j]), 
+                           mu_f[j].reshape(self.N))
             trace = np.trace(invKf[j] * sigma_f[j])
             first_term += logKf + muKmu + trace
         first_term = -0.5 * first_term
@@ -380,15 +382,16 @@ class GPRN_inference(object):
         second_term = 0
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
         logKf = 2 * np.sum(np.log(np.diag(L2[0])))
-        for j in range(self.q * self.q):
-            muKmu = np.dot(np.dot(mu_w[j].T, invKw), mu_w[j])
-            trace = np.trace(invKw * sigma_w[j])
-            second_term += logKf + muKmu + trace
-        second_term = -0.5 * second_term 
+        for j in range(self.q):
+            for i in range(self.p):
+                muKmu = np.dot(np.dot(mu_w[i,j,:], invKw), mu_w[i,j,:].T)
+                trace = np.trace(invKw * sigma_w[j])
+                second_term += logKf + muKmu + trace
+        second_term = -0.5 * second_term
         return first_term + second_term
 
 ##### Expected log-likelihood
-    def mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
         corresponds to eq.14 in Nguyen & Bonilla (2013)
@@ -403,16 +406,18 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        j = np.array(jitters).mean() #not sure about this
+        #not sure about this j but I'll keep it for now
+        j = np.array(jitters).mean() 
         
         #-0.5 * N * P * log(2*pi / jitter**2)
         first_term = -0.5 * self.N * self.p * np.log(2*np.pi * j**2)
             
-        Y = self.y #P-dimensional vector
-        muw = mu_w.reshape(4,2,20) #PxQ dimensional vector
+        Y = self.y #P dimensional vector
+        muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
+        muf = mu_f.reshape(self.q, self.N) #Q dimensional vector
         second_term = 0
         for i in range(self.N):
-            YOmegaMu = np.array(Y[:,i] - np.dot(muw[:,:,i], mu_f[:,i]))
+            YOmegaMu = np.array(Y[:,i] - np.dot(muw[:,:,i], muf[:,i]))
             second_term += np.dot(YOmegaMu.T, YOmegaMu)
         
         third_term = 0
@@ -422,12 +427,14 @@ class GPRN_inference(object):
             for i in range(self.p):
                 mu_w_ij = mu_w[i][:]
                 diag_sigmaw = np.diag(sigma_w[i][:])
-                third_term += np.dot(diag_sigmaf, mu_w_ij*mu_w_ij) \
-                                + np.dot(diag_sigmaw, mu_f_j*mu_f_j)
+                third_term += np.dot(diag_sigmaf, mu_w_ij[j]*mu_w_ij[j]) \
+                                + np.dot(diag_sigmaw, 
+                                         mu_f_j.reshape(self.N)*mu_f_j.reshape(self.N))
         return first_term -0.5*second_term/j - 0.5*third_term/j
     
 ##### Evidence Lower Bound
-    def EvidenceLowerBound(self, nodes, weight, jitters, time, method = 1):
+    def MFI_EvidenceLowerBound(self, nodes, weight, jitters, time,
+                               muF, varF, muW, varW):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -435,35 +442,41 @@ class GPRN_inference(object):
                 weight = weight function
                 jitters = jitters array
                 time = time array
-                method = 1 for mean-field inference, 2 for nonparametric 
-                                                        variational inference
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+                varW = array with the initial variance for each weight
             Returns:
                 Evidence lower bound
         """ 
-        #This might need to be change again! ################
-        muF, muW = self._u_to_fhatw(nodes, weight, time)    #
-        varF, varW = self._u_to_fhatw(nodes, weight, time)  #
-        #####################################################
+        #Variational parameters
+        sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
+                                                           jitters, time,
+                                                           muF, varF, muW, varW)
         
-        #method = 1 uses mean-field inference for GPRN
-        if method == 1:
-            #Variational parameters
-            sigmaf, muf, sigmaw, muw = self._update_SIGMAandMU(nodes, weight, 
-                                                               jitters, time,
-                                                               muF, varF, muW, varW)
-            
-            #Entropy
-            Entropy = self.mfi_entropy(sigmaf, sigmaw)
-            #Expected log prior
-            ExpLogPrior = self.mfi_expectedLogPrior(nodes, weight, 
-                                                sigmaf, muf,  sigmaw, muw)
-            #Expected log-likelihood
-            ExpLogLike = self.mfi_expectedLogLike(nodes, weight, jitters, 
-                                              sigmaf, muf, sigmaw, muw)
-            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+        muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
+        varF =  []
+        for i in range(self.q):
+            varF.append(np.diag(sigmaF[1]))
+        varF = np.array(varF).reshape(self.q, 1, self.N) #new variance for the nodes
+        muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
+        varW =  []
+        for i in range(self.q * self.p):
+            varW.append(np.diag(sigmaW[1]))
+        varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
         
-        #method = 2 uses nonparametric variational inference for GPRN
-        if method == 2:
-            sum_ELB = 0
-        return sum_ELB
+        #Entropy
+        Entropy = self._mfi_entropy(sigmaF, sigmaW)
+        #Expected log prior
+        ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
+                                            sigmaF, muF,  sigmaW, muW)
+        #Expected log-likelihood
+        ExpLogLike = self._mfi_expectedLogLike(nodes, weight, jitters, 
+                                          sigmaF, muF, sigmaW, muW)
+        sum_ELB = ExpLogLike + ExpLogPrior + Entropy
         
+        return sum_ELB, muF, varF, muW, varF
+
+###### Optimization
+#    def Optimization(*params):
+#        
