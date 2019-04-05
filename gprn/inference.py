@@ -13,9 +13,9 @@ from gprn.weightFunction import Polynomial as weightP
 from gprn import nodeFunction, weightFunction
 
 
-class MFI(object):
+class GPRN_inference(object):
     """ 
-        Class to perform Mean-Field Inference for GPRNs. 
+        Class to perform variational inference for GPRNs. 
         See Nguyen & Bonilla (2013) for more information.
         Parameters:
             nodes = latent noide functions f(x), called f hat in the article
@@ -213,6 +213,9 @@ class MFI(object):
         return f, W
 
     def _cholPLUSnugget(self, matrix, maximum=1e10):
+        """
+            NOT USED SO FAR
+        """
         try:
             L =  cho_factor(matrix, overwrite_a=True, lower=False)
         except LinAlgError:
@@ -230,14 +233,19 @@ class MFI(object):
         return L
 
     def _update_SIGMAandMU(self, nodes, weight, jitters, time,
-                           muF, muW , varF, varW):
+                           muF, varF, muW , varW):
         """
             Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
+                jitters = jitters array
                 time = array containing the time
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+                varW = array with the initial variance for each weight
             Returns:
                 sigma_f = array with the covariance for each node
                 mu_f = array with the means for each node
@@ -301,7 +309,16 @@ class MFI(object):
         return sigma_f, mu_f, sigma_w, mu_w
 
 ##### Entropy
-    def entropy(self, sigma_f, sigma_w):
+    def mfi_entropy(self, sigma_f, sigma_w):
+        """
+            Calculates the entropy in mean-field inference, corresponds to 
+        eq.14 in Nguyen & Bonilla (2013)
+            Parameters:
+                sigma_f = array with the covariance for each node
+                sigma_w = array with the covariance for each weight
+            Returns:
+                ent_sum = final entropy
+        """
         Q = self.q #number of nodes
         p = self.p #number of outputs
         
@@ -325,7 +342,20 @@ class MFI(object):
         return ent_sum
 
 ##### Expected log prior
-    def expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
+    def mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
+        """
+            Calculates the expection of the log prior wrt q(f,w) in mean-field 
+        inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log prior
+        """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
         invKf = []
         for i in range(self.q):
@@ -358,9 +388,20 @@ class MFI(object):
         return first_term + second_term
 
 ##### Expected log-likelihood
-    def expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
+    def mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
         """
-            Calculates the expected log-likelihood, eq.14 in Nguyen & Bonilla (2013)
+            Calculates the expected log-likelihood in mean-field inference, 
+        corresponds to eq.14 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                jitters = jitters array
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log-likelihood
         """
         j = np.array(jitters).mean() #not sure about this
         
@@ -386,28 +427,43 @@ class MFI(object):
         return first_term -0.5*second_term/j - 0.5*third_term/j
     
 ##### Evidence Lower Bound
-    def EvidenceLowerBound(self, nodes, weight, jitters, time):
+    def EvidenceLowerBound(self, nodes, weight, jitters, time, method = 1):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
-        """
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                jitters = jitters array
+                time = time array
+                method = 1 for mean-field inference, 2 for nonparametric 
+                                                        variational inference
+            Returns:
+                Evidence lower bound
+        """ 
         #This might need to be change again! ################
         muF, muW = self._u_to_fhatw(nodes, weight, time)    #
         varF, varW = self._u_to_fhatw(nodes, weight, time)  #
         #####################################################
         
-        #Variational parameters
-        sigmaf, muf, sigmaw, muw = self._update_SIGMAandMU(nodes, weight, 
-                                                           jitters, time,
-                                                           muF, muW , varF, varW)
+        #method = 1 uses mean-field inference for GPRN
+        if method == 1:
+            #Variational parameters
+            sigmaf, muf, sigmaw, muw = self._update_SIGMAandMU(nodes, weight, 
+                                                               jitters, time,
+                                                               muF, varF, muW, varW)
+            
+            #Entropy
+            Entropy = self.mfi_entropy(sigmaf, sigmaw)
+            #Expected log prior
+            ExpLogPrior = self.mfi_expectedLogPrior(nodes, weight, 
+                                                sigmaf, muf,  sigmaw, muw)
+            #Expected log-likelihood
+            ExpLogLike = self.mfi_expectedLogLike(nodes, weight, jitters, 
+                                              sigmaf, muf, sigmaw, muw)
+            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
         
-        #Entropy
-        Entropy = self.entropy(sigmaf, sigmaw)
-        #Expected log prior
-        ExpLogPrior = self.expectedLogPrior(nodes, weight, 
-                                            sigmaf, muf,  sigmaw, muw)
-        #Expected log-likelihood
-        ExpLogLike = self.expectedLogLike(nodes, weight, jitters, 
-                                          sigmaf, muf, sigmaw, muw)
-        sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+        #method = 2 uses nonparametric variational inference for GPRN
+        if method == 2:
+            sum_ELB = 0
         return sum_ELB
         
