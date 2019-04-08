@@ -408,50 +408,51 @@ class RationalQuadratic(nodeFunction):
         except ValueError:
             return 1 / (1+ r**2/ (2*self.alpha*self.ell**2))**(-self.alpha)
 
-#class dRationalQuadratic_dalpha(RationalQuadratic):
-#    """
-#        Log-derivative in order to alpha
-#    """
-#    def __init__(self, alpha, ell, wn):
-#        super(dRationalQuadratic_dalpha, self).__init__(alpha, ell, wn)
-#        self.alpha = alpha
-#        self.ell = ell
-#        self.wn = wn
+class dRationalQuadratic_dalpha(RationalQuadratic):
+    """
+        Log-derivative in order to alpha
+    """
+    def __init__(self, alpha, ell, wn):
+        super(dRationalQuadratic_dalpha, self).__init__(alpha, ell, wn)
+        self.alpha = alpha
+        self.ell = ell
+        self.wn = wn
 
-#    def __call(self, r):
-#        return ((r**2/(2*self.alpha*self.ell**2*(r**2/(2*self.alpha*self.ell**2)+1))\
-#                 - np.log(r**2/(2*self.alpha*self.ell**2)+1)) * self.alpha) \
-#                    / (1+r**2/(2*self.alpha*self.ell**2))**self.alpha
+    def __call(self, r):
+        return self.alpha * (r**2 / (2*self.alpha*self.ell**2 * 
+                                     (r**2/(2*self.alpha*self.ell**2)+1)) \
+                    -np.log(r**2/(2*self.alpha*self.ell**2)+1)) \
+                    /(1 + r**2 / (2*self.alpha*self.ell**2))**self.alpha
 
-#class dRationalQuadratic_dell(RationalQuadratic):
-#    """
-#        Log-derivative in order to ell
-#    """
-#    def __init__(self, alpha, ell, wn):
-#        super(dRationalQuadratic_dell, self).__init__(alpha, ell, wn)
-#        self.alpha = alpha
-#        self.ell = ell
-#        self.wn = wn
+class dRationalQuadratic_dell(RationalQuadratic):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, alpha, ell, wn):
+        super(dRationalQuadratic_dell, self).__init__(alpha, ell, wn)
+        self.alpha = alpha
+        self.ell = ell
+        self.wn = wn
 
-#    def __call(self, r):
-#        return r**2 * (1+r**2/(2*self.alpha*self.ell**2))**(-1-self.alpha) \
-#                * 1 / self.ell**2
+    def __call(self, r):
+        return r**2*(1+r**2/(2*self.alpha*self.ell**2))**(-1-self.alpha) \
+                /self.ell**2
 
-#class dRationalQuadratic_dwn(RationalQuadratic):
-#    """
-#        Log-derivative in order to the white noise
-#    """
-#    def __init__(self, alpha, ell, wn):
-#        super(dRationalQuadratic_dwn, self).__init__(alpha, ell, wn)
-#        self.alpha = alpha
-#        self.ell = ell
-#        self.wn = wn
-#        
-#    def __call__(self, r):
-#        try:
-#            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-#        except ValueError:
-#            return np.zeros_like(r)
+class dRationalQuadratic_dwn(RationalQuadratic):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, alpha, ell, wn):
+        super(dRationalQuadratic_dwn, self).__init__(alpha, ell, wn)
+        self.alpha = alpha
+        self.ell = ell
+        self.wn = wn
+        
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
 
 
 ##### RQP kernel ###############################################################
@@ -488,92 +489,93 @@ class RQP(nodeFunction):
             return exp(- 2*sine(pi*np.abs(r)/self.P)**2 / self.ell_p**2) \
                         /(1+ r**2/ (2*self.alpha*self.ell_e**2))**(-self.alpha)
 
-#class dRQP_dalpha(RQP):
-#    """
-#        Log-derivative in order to alpha
-#    """
-#    def __init__(self, alpha, ell_e, P, ell_p, wn):
-#        super(dRQP_dalpha, self).__init__(alpha, ell_e, P, ell_p, wn)
-#        self.alpha = alpha
-#        self.RQP_ell_e = ell_e
-#        self.P = P
-#        self.ell_p = ell_p
-#        self.wn = wn
+class dRQP_dalpha(RQP):
+    """
+        Log-derivative in order to alpha
+    """
+    def __init__(self, alpha, ell_e, P, ell_p, wn):
+        super(dRQP_dalpha, self).__init__(alpha, ell_e, P, ell_p, wn)
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
 
-#    def __call__(self, r):
-#        return self.alpha * ((r**2 / (2*self.alpha \
-#                         *self.ell_e**2*(r**2/(2*self.alpha*self.ell_e**2)+1)) \
-#            -np.log(r**2/(2*self.alpha*self.ell_e**2)+1)) \
-#            *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-#            /(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha
+    def __call__(self, r):
+        return self.alpha * (r**2/(2*self.alpha*self.ell_e**2 \
+                                   * (r**2/(2*self.alpha*self.ell_e**2)+1)) \
+                 - np.log(r**2/(2*self.alpha*self.ell_e**2) +1) \
+                 * exp(-(2*sine(pi*r/self.P)**2)/self.ell_p**2)) \
+                 /(1 + r**2/(2*self.alpha*self.ell_e**2))**self.alpha
 
-#class dRQP_delle(RQP):
-#    """
-#        Log-derivative in order to ell_e
-#    """
-#    def __init__(self, alpha, ell_e, P, ell_p, wn):
-#        super(dRQP_delle, self).__init__(alpha, ell_e, P, ell_p, wn)
-#        self.alpha = alpha
-#        self.RQP_ell_e = ell_e
-#        self.P = P
-#        self.ell_p = ell_p
-#        self.wn = wn
+class dRQP_delle(RQP):
+    """
+        Log-derivative in order to ell_e
+    """
+    def __init__(self, alpha, ell_e, P, ell_p, wn):
+        super(dRQP_delle, self).__init__(alpha, ell_e, P, ell_p, wn)
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
 
-#    def __call__(self, r):
-#        return (r**2*(1+r**2/(2*self.alpha*self.ell_e**2))**(-1-self.alpha) \
-#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2))/self.ell_e**2
+    def __call__(self, r):
+        return r**2 * (1 + r**2/(2*self.alpha*self.ell_e**2))**(-1-self.alpha) \
+                * exp(-(2*sine(pi*r/self.P)**2)/self.ell_p**2)/self.ell_e**2
 
-#class dRQP_dP(RQP):
-#    """
-#        Log-derivative in order to P
-#    """
-#    def __init__(self, alpha, ell_e, P, ell_p, wn):
-#        super(dRQP_dP, self).__init__(alpha, ell_e, P, ell_p, wn)
-#        self.alpha = alpha
-#        self.RQP_ell_e = ell_e
-#        self.P = P
-#        self.ell_p = ell_p
-#        self.wn = wn
+class dRQP_dP(RQP):
+    """
+        Log-derivative in order to P
+    """
+    def __init__(self, alpha, ell_e, P, ell_p, wn):
+        super(dRQP_dP, self).__init__(alpha, ell_e, P, ell_p, wn)
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
 
-#    def __call__(self, r):
-#        return (4*pi*r*cosine(pi*np.abs(r)/self.P)*sine(pi*np.abs(r)/self.P) \
-#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-#            /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))^self.alpha*self.P)
+    def __call__(self, r):
+        return (4 * pi * r * cosine(pi*r/self.P) * sine(pi*r/self.P) \
+                * exp(-(2*sine(pi*r/self.P)**2)/self.ell_p**2)) \
+                / (self.ell_p**2 \
+                   * (1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha * self.P)
 
-#class dRQP_dellp(RQP):
-#    """
-#        Log-derivative in order to ell_p
-#    """
-#    def __init__(self, alpha, ell_e, P, ell_p, wn):
-#        super(dRQP_dellp, self).__init__(alpha, ell_e, P, ell_p, wn)
-#        self.alpha = alpha
-#        self.RQP_ell_e = ell_e
-#        self.P = P
-#        self.ell_p = ell_p
-#        self.wn = wn
+class dRQP_dellp(RQP):
+    """
+        Log-derivative in order to ell_p
+    """
+    def __init__(self, alpha, ell_e, P, ell_p, wn):
+        super(dRQP_dellp, self).__init__(alpha, ell_e, P, ell_p, wn)
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
 
-#    def __call(self, r):
-#        return (4*sine(pi*np.abs(r)/self.P)**2 \
-#                *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2)) \
-#                /(self.ell_p**2*(1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
+    def __call(self, r):
+        return (4 * sine(pi*r/self.P)**2 \
+                * exp(-(2*sine(pi*r/self.P)**2) / self.ell_p**2)) \
+                / (self.ell_p**2 * (1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
 
-#class dRQP_dwn(RQP):
-#    """
-#        Log-derivative in order to the white noise
-#    """
-#    def __init__(self, alpha, ell_e, P, ell_p, wn):
-#        super(dRQP_dwn, self).__init__(alpha, ell_e, P, ell_p, wn)
-#        self.alpha = alpha
-#        self.RQP_ell_e = ell_e
-#        self.P = P
-#        self.ell_p = ell_p
-#        self.wn = wn
+class dRQP_dwn(RQP):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, alpha, ell_e, P, ell_p, wn):
+        super(dRQP_dwn, self).__init__(alpha, ell_e, P, ell_p, wn)
+        self.alpha = alpha
+        self.RQP_ell_e = ell_e
+        self.P = P
+        self.ell_p = ell_p
+        self.wn = wn
 
-#    def __call(self, r):
-#        try:
-#            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-#        except ValueError:
-#            return np.zeros_like(r)
+    def __call(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
 
 
 ##### Cosine ###################################################################
@@ -710,7 +712,7 @@ class dExpoential_dell(Exponential):
         self.wn = wn
 
     def __call__(self, r):
-        raise NotImplementedError
+        raise -0.5 * r * exp(- np.abs(r)/self.ell) / self.ell
 
 class dExpoential_dwn(Exponential):
     """
@@ -722,7 +724,10 @@ class dExpoential_dwn(Exponential):
         self.wn = wn
 
     def __call__(self, r):
-        raise NotImplementedError
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
 
 
 ##### Matern 3/2 ###############################################################

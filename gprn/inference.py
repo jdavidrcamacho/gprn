@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError, lapack
+from scipy.linalg import inv, cho_factor, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -9,8 +9,6 @@ from gprn.nodeFunction import Linear as nodeL
 from gprn.nodeFunction import Polynomial as nodeP
 from gprn.weightFunction import Linear as weightL
 from gprn.weightFunction import Polynomial as weightP
-
-from gprn import nodeFunction, weightFunction
 
 
 class GPRN_inference(object):
@@ -214,7 +212,7 @@ class GPRN_inference(object):
 
     def _cholPLUSnugget(self, matrix, maximum=1e10):
         """
-            NOT USED SO FAR
+            NOT USED
         """
         try:
             L =  cho_factor(matrix, overwrite_a=True, lower=False)
@@ -405,19 +403,25 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        #not sure about this j but I'll keep it for now
-        j = np.array(jitters).mean() 
+        #not sure about the jitter but I'll keep it for now
         
         #-0.5 * N * P * log(2*pi / jitter**2)
-        first_term = -0.5 * self.N * self.p * np.log(2*np.pi * j**2)
-            
+        first_term = 0
+        for i in range(self.p):
+            first_term += np.log(2*np.pi * jitters[i]**2)
+        first_term = -0.5 * self.N * self.p * first_term
+        
         Y = self.y #P dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Q dimensional vector
         second_term = 0
-        for i in range(self.N):
-            YOmegaMu = np.array(Y[:,i] - np.dot(muw[:,:,i], muf[:,i]))
+        for n in range(self.N):
+            YOmegaMu = np.array(Y[:,n] - np.dot(muw[:,:,n], muf[:,n]))
             second_term += np.dot(YOmegaMu.T, YOmegaMu)
+        second_jitt = 0
+        for i in range(self.p):
+            second_jitt += 1/(jitters[i]**2)
+        second_term = -0.5 * second_jitt * second_term
         
         third_term = 0
         for j in range(self.q):
@@ -426,10 +430,13 @@ class GPRN_inference(object):
             for i in range(self.p):
                 mu_w_ij = mu_w[i][:]
                 diag_sigmaw = np.diag(sigma_w[i][:])
-                third_term += np.dot(diag_sigmaf, mu_w_ij[j]*mu_w_ij[j]) \
-                                + np.dot(diag_sigmaw, 
-                                         mu_f_j.reshape(self.N)*mu_f_j.reshape(self.N))
-        return first_term -0.5*second_term/j - 0.5*third_term/j
+                third_term += (np.dot(diag_sigmaf, mu_w_ij[j]*mu_w_ij[j]) \
+                    + np.dot(diag_sigmaw, mu_f_j.reshape(self.N)*mu_f_j.reshape(self.N)))
+        third_jitt = 0
+        for i in range(self.p):
+            third_jitt += 1/(jitters[i]**2)
+        third_term = -0.5 *third_jitt * third_term 
+        return first_term + second_term + third_term
 
 ##### Evidence Lower Bound
     def MFI_EvidenceLowerBound(self, nodes, weight, jitters, time,
@@ -460,7 +467,7 @@ class GPRN_inference(object):
         muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
         varF =  []
         for i in range(self.q):
-            varF.append(np.diag(sigmaF[1]))
+            varF.append(np.diag(sigmaF[i]))
         varF = np.array(varF).reshape(self.q, 1, self.N) #new variance for the nodes
         muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
         varW =  []
