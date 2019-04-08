@@ -66,6 +66,7 @@ class GPRN_inference(object):
         assert (i+1)/2 == self.p, \
         'Given data and number of components dont match'
 
+
 ##### mean functions definition (for now its better to make them as None)
     @property
     def mean_pars_size(self):
@@ -118,6 +119,8 @@ class GPRN_inference(object):
                     m[i*N : (i+1)*N] = meanfun(time)
         return m
 
+
+##### To create matrices and samples
     def _kernel_matrix(self, kernel, time = None):
         """
             Returns the covariance matrix created by evaluating a given kernel 
@@ -230,6 +233,8 @@ class GPRN_inference(object):
             raise LinAlgError("Still not positive definite, even with nugget.")
         return L
 
+
+##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weight, jitters, time,
                            muF, varF, muW , varW):
         """
@@ -306,7 +311,6 @@ class GPRN_inference(object):
         mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
         return sigma_f, mu_f, sigma_w, mu_w
 
-##### Entropy
     def _mfi_entropy(self, sigma_f, sigma_w):
         """
             Calculates the entropy in mean-field inference, corresponds to 
@@ -339,7 +343,6 @@ class GPRN_inference(object):
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
-##### Expected log prior
     def _mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expection of the log prior wrt q(f,w) in mean-field 
@@ -378,16 +381,17 @@ class GPRN_inference(object):
         #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
-        logKf = 2 * np.sum(np.log(np.diag(L2[0])))
+        logKw = 2 * np.sum(np.log(np.diag(L2[0])))
         for j in range(self.q):
+            #second_term += logKw
             for i in range(self.p):
                 muKmu = np.dot(np.dot(mu_w[i,j,:], invKw), mu_w[i,j,:].T)
                 trace = np.trace(invKw * sigma_w[j])
-                second_term += logKf + muKmu + trace
+                second_term += logKw + muKmu + trace
         second_term = -0.5 * second_term
+        
         return first_term + second_term
 
-##### Expected log-likelihood
     def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
@@ -438,8 +442,7 @@ class GPRN_inference(object):
         third_term = -0.5 *third_jitt * third_term 
         return first_term + second_term + third_term
 
-##### Evidence Lower Bound
-    def MFI_EvidenceLowerBound(self, nodes, weight, jitters, time,
+    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time,
                                muF, varF, muW, varW):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
@@ -454,9 +457,9 @@ class GPRN_inference(object):
                 varW = array with the initial variance for each weight
             Returns:
                 sum_ELB = Evidence lower bound
-                muF = array with the new mean for each node
+                muF = array with the new means for each node
                 varF = array with the new variance for each node
-                muW = array with the new mean for each weight
+                muW = array with the new means for each weight
                 varW = array with the new variance for each weight
         """ 
         #Variational parameters
@@ -485,8 +488,26 @@ class GPRN_inference(object):
                                           sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+        print(ExpLogLike, ExpLogPrior, Entropy)
         return sum_ELB, muF, varF, muW, varW
 
+    def _derivatives(self, nodes, weight, jitters, time, muF, varF, muW, varW):
+        """
+            _derivatives() identifies the derivatives to use in a given kernel to 
+        calculate the gradient.
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                jitters = jitters array
+                time = time array
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+                varW = array with the initial variance for each weight
+            Returns:
+                grad1, grad2, ... = gradients of the kernel derivatives
+        """
+        return 0
 ###### Optimization
 #    def Optimization(*params):
 #        
