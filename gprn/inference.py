@@ -268,7 +268,6 @@ class GPRN_inference(object):
         for j in range(self.q):
             sum_muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
-                print(muW.shape, varW.shape)
                 sum_muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
             sum_muWmuWVarW = sum_muWmuWVarW / jitters[j]**2
             sigma_f.append(inv(invKf[j] + sum_muWmuWVarW))
@@ -431,7 +430,7 @@ class GPRN_inference(object):
                                 + np.dot(diag_sigmaw, 
                                          mu_f_j.reshape(self.N)*mu_f_j.reshape(self.N))
         return first_term -0.5*second_term/j - 0.5*third_term/j
-    
+
 ##### Evidence Lower Bound
     def MFI_EvidenceLowerBound(self, nodes, weight, jitters, time,
                                muF, varF, muW, varW):
@@ -447,7 +446,11 @@ class GPRN_inference(object):
                 muW = array with the initial means for each weight
                 varW = array with the initial variance for each weight
             Returns:
-                Evidence lower bound
+                sum_ELB = Evidence lower bound
+                muF = array with the new mean for each node
+                varF = array with the new variance for each node
+                muW = array with the new mean for each weight
+                varW = array with the new variance for each weight
         """ 
         #Variational parameters
         sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
@@ -473,9 +476,9 @@ class GPRN_inference(object):
         #Expected log-likelihood
         ExpLogLike = self._mfi_expectedLogLike(nodes, weight, jitters, 
                                           sigmaF, muF, sigmaW, muW)
+        #Evidence Lower Bound
         sum_ELB = ExpLogLike + ExpLogPrior + Entropy
-        
-        return sum_ELB, muF, varF, muW, varF
+        return sum_ELB, muF, varF, muW, varW
 
 ###### Optimization
 #    def Optimization(*params):
