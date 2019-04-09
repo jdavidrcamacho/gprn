@@ -213,17 +213,23 @@ class GPRN_inference(object):
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, W
 
-    def _cholPLUSnugget(self, matrix, maximum=1e10):
+    def _cholNugget(self, matrix, maximum=10):
         """
-            NOT USED
+            Returns the cholesky decomposition to a given matrix, if this matrix
+        is not positive definite, a nugget is added to its diagonal.
+            Parameters:
+                matrix = matrix to decompose
+                maximum = number of times a nugget is added.
+            Returns:
+                L = Matrix containing the Cholesky factor
         """
         try:
             L =  cho_factor(matrix, overwrite_a=True, lower=False)
         except LinAlgError:
-            nugget = np.diag(matrix).mean() * 1e-5 #nugget to add to the diagonal
+            nugget = np.abs(np.diag(matrix).mean()) * 1e-5 #nugget to add to the diagonal
             n = 1 #number of tries
             while n <= maximum:
-                print ('n= ',n, 'nugget= ', nugget)
+                print ('n:',n, ', nugget:', nugget)
                 try:
                     L =  cho_factor(matrix + nugget, overwrite_a=True, lower=False)
                 except LinAlgError:
@@ -231,7 +237,7 @@ class GPRN_inference(object):
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
-        return L
+        return L[0]
 
 
 ##### Mean-Field Inference functions
@@ -255,6 +261,9 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
+        muF, muW = self._u_to_fhatw(nodes, weight, time)    #
+        varF, varW = self._u_to_fhatw(nodes, weight, time)  #
+
 
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
@@ -326,21 +335,25 @@ class GPRN_inference(object):
         
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(Q):
-            try:
-                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
-            except LinAlgError:
-                nugget  = np.diag(1e-5 + np.zeros(self.N)) 
-                #adding a nugget to the diagonal of sigma
-                L1 = cho_factor(sigma_f[i] + nugget, overwrite_a=True, lower=False)
-            ent_sum += np.sum(np.log(np.diag(L1[0])))
+            L1 = self._cholNugget(sigma_f[i])
+            ent_sum += np.sum(np.log(np.diag(L1)))
+#            try:
+#                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
+#            except LinAlgError:
+#                nugget  = np.diag(1e-5 + np.zeros(self.N)) 
+#                #adding a nugget to the diagonal of sigma
+#                L1 = cho_factor(sigma_f[i] + nugget, overwrite_a=True, lower=False)
+#            ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
-                try:
-                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
-                except LinAlgError:
-                    nugget  = np.diag(1e-5 + np.zeros(self.N))
-                    #adding a nugget to the diagonal of sigma
-                    L2 = cho_factor(sigma_w[j] + nugget, overwrite_a=True, lower=False)
-                ent_sum += np.sum(np.log(np.diag(L2[0])))
+                L2 = self._cholNugget(sigma_w[j])
+                ent_sum += np.sum(np.log(np.diag(L2)))
+#                try:
+#                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
+#                except LinAlgError:
+#                    nugget  = np.diag(1e-5 + np.zeros(self.N))
+#                    #adding a nugget to the diagonal of sigma
+#                    L2 = cho_factor(sigma_w[j] + nugget, overwrite_a=True, lower=False)
+#                ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
@@ -374,7 +387,7 @@ class GPRN_inference(object):
             logKf = 2 * np.sum(np.log(np.diag(L1[0])))
             muKmu = np.dot(np.dot(mu_f[j].reshape(self.N).T, invKf[j]), 
                            mu_f[j].reshape(self.N))
-            trace = np.trace(invKf[j] * sigma_f[j])
+            trace = np.trace(np.dot(invKf[j], sigma_f[j]))
             first_term += logKf + muKmu + trace
         first_term = -0.5 * first_term
         
@@ -383,13 +396,14 @@ class GPRN_inference(object):
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
         logKw = 2 * np.sum(np.log(np.diag(L2[0])))
         for j in range(self.q):
-            #second_term += logKw
+            second_term += logKw
             for i in range(self.p):
-                muKmu = np.dot(np.dot(mu_w[i,j,:], invKw), mu_w[i,j,:].T)
-                trace = np.trace(invKw * sigma_w[j])
-                second_term += logKw + muKmu + trace
-        second_term = -0.5 * second_term
-        
+                muKmu = np.dot(np.dot(mu_w[i,j,:].T, invKw), 
+                               mu_w[i,j,:])
+                trace = np.trace(np.dot(invKw, sigma_w[i]))
+                second_term += muKmu + trace
+        second_term += -0.5 * second_term
+        print('LOGPRIOR TERMS', first_term, second_term)
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
@@ -409,10 +423,10 @@ class GPRN_inference(object):
         """
         #not sure about the jitter but I'll keep it for now
         
-        #-0.5 * N * P * log(2*pi / jitter**2)
+        #-0.5 * N * P * log(2*pi * jitter**2)
         first_term = 0
         for i in range(self.p):
-            first_term += np.log(2*np.pi * jitters[i]**2)
+            first_term += np.log(jitters[i]**2)
         first_term = -0.5 * self.N * self.p * first_term
         
         Y = self.y #P dimensional vector
@@ -424,22 +438,22 @@ class GPRN_inference(object):
             second_term += np.dot(YOmegaMu.T, YOmegaMu)
         second_jitt = 0
         for i in range(self.p):
-            second_jitt += 1/(jitters[i]**2)
-        second_term = -0.5 * second_jitt * second_term
+            second_jitt += jitters[i]**2
+        second_term = -0.5 * second_term/second_jitt
         
         third_term = 0
         for j in range(self.q):
-            diag_sigmaf = np.diag(sigma_f[j][:])
-            mu_f_j = mu_f[j]
+            diagSigmaf = np.diag(sigma_f[j][:])
+            muF = mu_f[j].reshape(self.N)
             for i in range(self.p):
-                mu_w_ij = mu_w[i][:]
-                diag_sigmaw = np.diag(sigma_w[i][:])
-                third_term += (np.dot(diag_sigmaf, mu_w_ij[j]*mu_w_ij[j]) \
-                    + np.dot(diag_sigmaw, mu_f_j.reshape(self.N)*mu_f_j.reshape(self.N)))
+                diagSigmaw = np.diag(sigma_w[i][:])
+                third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
+                    + np.dot(diagSigmaw, muF*muF)
         third_jitt = 0
         for i in range(self.p):
             third_jitt += 1/(jitters[i]**2)
         third_term = -0.5 *third_jitt * third_term 
+        print('LOGLIKE TERMS', first_term, second_term, third_term)
         return first_term + second_term + third_term
 
     def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time,
@@ -475,7 +489,7 @@ class GPRN_inference(object):
         muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
         varW =  []
         for i in range(self.q * self.p):
-            varW.append(np.diag(sigmaW[1]))
+            varW.append(np.diag(sigmaW[i]))
         varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
         
         #Entropy
@@ -488,7 +502,8 @@ class GPRN_inference(object):
                                           sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         sum_ELB = ExpLogLike + ExpLogPrior + Entropy
-        print(ExpLogLike, ExpLogPrior, Entropy)
+        print(' loglike: {0} \n logprior: {1} \n entropy {2}'.format(ExpLogLike, 
+              ExpLogPrior, Entropy))
         return sum_ELB, muF, varF, muW, varW
 
     def _derivatives(self, nodes, weight, jitters, time, muF, varF, muW, varW):
