@@ -281,7 +281,7 @@ class GPRN_inference(object):
             sum_muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 sum_muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-            sum_muWmuWVarW = sum_muWmuWVarW / jitters[j]**2
+                sum_muWmuWVarW /= jitters[i]**2
             sigma_f.append(inv(invKf[j] + sum_muWmuWVarW))
         sigma_f = np.array(sigma_f)
         #creation of mu_fj
@@ -294,16 +294,17 @@ class GPRN_inference(object):
                     if k != i:
                         sum_muWmuF += np.array(muW[i][k]) * muF[k].reshape(self.N)
                 sum_YminusSum += self.y[i] - sum_muWmuF
-                sum_YminusSum = sum_YminusSum * muW[i][j]
-            mu_f.append(np.dot(sigma_f[j], sum_YminusSum) / jitters[j]**2)
+                sum_YminusSum *= muW[i][j]
+                sum_YminusSum /= jitters[i]**2
+            mu_f.append(np.dot(sigma_f[j], sum_YminusSum))
         mu_f = np.array(mu_f)
         #creation of Sigma_wij
         sigma_w = []
         for j in range(self.q):
             sum_muFmuFVarF = np.diag( muF[j] * muF[j] + varF[j])
-            sum_muFmuFVarF = sum_muFmuFVarF / jitters[j]**2
+            sum_muFmuFVarF = sum_muFmuFVarF 
             for i in range(self.p):
-                sigma_w.append(inv(invKw + sum_muWmuWVarW))
+                sigma_w.append(inv(invKw + sum_muFmuFVarF/ jitters[i]**2))
         sigma_w = np.array(sigma_w)
         #creation of mu_wij
         mu_w = []
@@ -316,7 +317,7 @@ class GPRN_inference(object):
                         sum_muFmuW += muF[k].reshape(self.N) * np.array(muW[i][k])
                 sum_YminusSum += self.y[i] - sum_muFmuW
                 sum_YminusSum = sum_YminusSum * muF[j]
-                mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T) / jitters[j]**2)
+                mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T/jitters[i]**2))
         mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
         return sigma_f, mu_f, sigma_w, mu_w
 
@@ -398,8 +399,7 @@ class GPRN_inference(object):
         for j in range(self.q):
             second_term += logKw
             for i in range(self.p):
-                muKmu = np.dot(np.dot(mu_w[i,j,:].T, invKw), 
-                               mu_w[i,j,:])
+                muKmu = np.dot(np.dot(mu_w[i,j,:].T, invKw), mu_w[i,j,:])
                 trace = np.trace(np.dot(invKw, sigma_w[i]))
                 second_term += muKmu + trace
         second_term += -0.5 * second_term
