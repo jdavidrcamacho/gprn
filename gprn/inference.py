@@ -213,7 +213,7 @@ class GPRN_inference(object):
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, W
 
-    def _cholNugget(self, matrix, maximum=10):
+    def _cholNugget(self, matrix, maximum=5):
         """
             Returns the cholesky decomposition to a given matrix, if this matrix
         is not positive definite, a nugget is added to its diagonal.
@@ -319,6 +319,7 @@ class GPRN_inference(object):
                 sum_YminusSum = sum_YminusSum * muF[j]
                 mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T/jitters[i]**2))
         mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
+#        print(sigma_f.shape, mu_f.shape, sigma_w.shape, mu_w.shape)
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -426,7 +427,7 @@ class GPRN_inference(object):
         #-0.5 * N * P * log(2*pi * jitter**2)
         first_term = 0
         for i in range(self.p):
-            first_term += np.log(jitters[i]**2)
+            first_term += np.log(2*np.pi*jitters[i]**2)
         first_term = -0.5 * self.N * self.p * first_term
         
         Y = self.y #P dimensional vector
@@ -434,16 +435,21 @@ class GPRN_inference(object):
         muf = mu_f.reshape(self.q, self.N) #Q dimensional vector
         second_term = 0
         for n in range(self.N):
-            YOmegaMu = np.array(Y[:,n] - np.dot(muw[:,:,n], muf[:,n]))
+            YOmegaMu = np.array(Y[:,n].T - np.dot(muw[:,:,n], muf[:,n]))
             second_term += np.dot(YOmegaMu.T, YOmegaMu)
+#            second_term += YOmegaMu**2
+        print('sum', second_term)
         second_jitt = 0
         for i in range(self.p):
             second_jitt += jitters[i]**2
+#            print('jitter', second_jitt)
         second_term = -0.5 * second_term/second_jitt
         
         third_term = 0
         for j in range(self.q):
-            diagSigmaf = np.diag(sigma_f[j][:])
+#            print(sigma_f.shape)
+            diagSigmaf = np.diag(sigma_f[j][:][:])
+#            print(sigma_f[j][:][:])
             muF = mu_f[j].reshape(self.N)
             for i in range(self.p):
                 diagSigmaw = np.diag(sigma_w[i][:])
