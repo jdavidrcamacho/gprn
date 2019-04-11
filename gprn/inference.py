@@ -261,8 +261,8 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-        muF, muW = self._u_to_fhatw(nodes, weight, time)    #
-        varF, varW = self._u_to_fhatw(nodes, weight, time)  #
+#        muF, muW = self._u_to_fhatw(nodes, weight, time)    #
+#        varF, varW = self._u_to_fhatw(nodes, weight, time)  #
 
 
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -398,11 +398,12 @@ class GPRN_inference(object):
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
         logKw = 2 * np.sum(np.log(np.diag(L2[0])))
         for j in range(self.q):
-            second_term += logKw
+            #second_term += logKw
             for i in range(self.p):
                 muKmu = np.dot(np.dot(mu_w[i,j,:].T, invKw), mu_w[i,j,:])
                 trace = np.trace(np.dot(invKw, sigma_w[i]))
-                second_term += muKmu + trace
+                print('2nd term terms: ', muKmu, trace)
+                second_term += + logKw + muKmu + trace
         second_term += -0.5 * second_term
         print('LOGPRIOR TERMS', first_term, second_term)
         return first_term + second_term
@@ -427,39 +428,34 @@ class GPRN_inference(object):
         #-0.5 * N * P * log(2*pi * jitter**2)
         first_term = 0
         for i in range(self.p):
-            first_term += np.log(2*np.pi*jitters[i]**2)
-        first_term = -0.5 * self.N * self.p * first_term
+            for n in range(self.N):
+                first_term += np.log(2*np.pi*(self.yerr[i,n]**2 + jitters[i]**2))
+        first_term = -0.5 * first_term
         
         Y = self.y #P dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Q dimensional vector
         second_term = 0
         for n in range(self.N):
-            YOmegaMu = np.array(Y[:,n].T - np.dot(muw[:,:,n], muf[:,n]))
-            second_term += np.dot(YOmegaMu.T, YOmegaMu)
-#            second_term += YOmegaMu**2
-        print('sum', second_term)
-        second_jitt = 0
-        for i in range(self.p):
-            second_jitt += jitters[i]**2
-#            print('jitter', second_jitt)
-        second_term = -0.5 * second_term/second_jitt
-        
+                YOmegaMu = np.array(Y[:,n].T - np.dot(muw[:,:,n], muf[:,n]))
+                second_term += np.dot(YOmegaMu.T, YOmegaMu)
+        second_error_term =0
+        for n in range(self.N):
+            for i in range(self.p): 
+                second_error_term += self.yerr[i,n]**2 + jitters[i]**2
+        second_term = -0.5 * second_term/second_error_term
+
         third_term = 0
         for j in range(self.q):
-#            print(sigma_f.shape)
             diagSigmaf = np.diag(sigma_f[j][:][:])
-#            print(sigma_f[j][:][:])
             muF = mu_f[j].reshape(self.N)
             for i in range(self.p):
                 diagSigmaw = np.diag(sigma_w[i][:])
                 third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
                     + np.dot(diagSigmaw, muF*muF)
-        third_jitt = 0
-        for i in range(self.p):
-            third_jitt += 1/(jitters[i]**2)
-        third_term = -0.5 *third_jitt * third_term 
-        print('LOGLIKE TERMS', first_term, second_term, third_term)
+        third_error_term = second_error_term
+        third_term = -0.5 * third_term/third_error_term 
+#        print('LOGLIKE TERMS', first_term, second_term, third_term)
         return first_term + second_term + third_term
 
     def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time,
@@ -510,7 +506,7 @@ class GPRN_inference(object):
         sum_ELB = ExpLogLike + ExpLogPrior + Entropy
         print(' loglike: {0} \n logprior: {1} \n entropy {2}'.format(ExpLogLike, 
               ExpLogPrior, Entropy))
-        return sum_ELB, muF, varF, muW, varW
+        return sum_ELB, ExpLogLike, ExpLogPrior, Entropy, muF, varF, muW, varW
 
     def _derivatives(self, nodes, weight, jitters, time, muF, varF, muW, varW):
         """
