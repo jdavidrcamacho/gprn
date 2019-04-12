@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-from scipy.linalg import inv, cho_factor, LinAlgError
+from scipy.linalg import inv, cho_factor, cho_solve, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -195,7 +195,8 @@ class GPRN_inference(object):
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
 
-    def _u_to_fhatw(self, nodes, weight, time):
+    #def _u_to_fhatw(self, nodes, weight, time):
+    def _u_to_fhatw(self, u):
         """
             Returns the samples of CB that corresponds to the nodes f and
         weights W.
@@ -207,7 +208,7 @@ class GPRN_inference(object):
                 f = array with the samples of the nodes
                 W = array with the samples of the weights
         """
-        u = self._sample_CB(nodes, weight, time)
+        #u = self._sample_CB(nodes, weight, time)
         
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
@@ -273,6 +274,12 @@ class GPRN_inference(object):
         Kw = self._kernel_matrix(weight, time) #this means equal weights for all nodes
         invKw = inv(Kw)
         
+        #error term
+#        error_term =0
+#        for n in range(self.N):
+#            for i in range(self.p): 
+#                error_term += self.yerr[i,n]**2 + jitters[i]**2
+        
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         
         #creation of Sigma_fj
@@ -281,9 +288,14 @@ class GPRN_inference(object):
             sum_muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 sum_muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-                sum_muWmuWVarW /= jitters[i]**2
+                error_term =0
+                error_term += jitters[i]**2
+                for n in range(self.N):
+                    error_term += self.yerr[i,n]**2 
+                sum_muWmuWVarW /= error_term
             sigma_f.append(inv(invKf[j] + sum_muWmuWVarW))
         sigma_f = np.array(sigma_f)
+        
         #creation of mu_fj
         mu_f = []
         for j in range(self.q):
@@ -295,17 +307,27 @@ class GPRN_inference(object):
                         sum_muWmuF += np.array(muW[i][k]) * muF[k].reshape(self.N)
                 sum_YminusSum += self.y[i] - sum_muWmuF
                 sum_YminusSum *= muW[i][j]
-                sum_YminusSum /= jitters[i]**2
+                error_term =0
+                error_term += jitters[i]**2
+                for n in range(self.N):
+                    error_term += self.yerr[i,n]**2
+                sum_muWmuWVarW /= error_term
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum))
         mu_f = np.array(mu_f)
+        
         #creation of Sigma_wij
         sigma_w = []
         for j in range(self.q):
             sum_muFmuFVarF = np.diag( muF[j] * muF[j] + varF[j])
             sum_muFmuFVarF = sum_muFmuFVarF 
             for i in range(self.p):
-                sigma_w.append(inv(invKw + sum_muFmuFVarF/ jitters[i]**2))
+                error_term =0
+                error_term += jitters[i]**2
+                for n in range(self.N):
+                    error_term += self.yerr[i,n]**2
+                sigma_w.append(inv(invKw + sum_muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w)
+
         #creation of mu_wij
         mu_w = []
         for j in range(self.q):
@@ -317,9 +339,13 @@ class GPRN_inference(object):
                         sum_muFmuW += muF[k].reshape(self.N) * np.array(muW[i][k])
                 sum_YminusSum += self.y[i] - sum_muFmuW
                 sum_YminusSum = sum_YminusSum * muF[j]
-                mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T/jitters[i]**2))
+                error_term =0
+                error_term += jitters[i]**2
+                for n in range(self.N):
+                    error_term += self.yerr[i,n]**2
+                sum_YminusSum /= error_term
+                mu_w.append(np.dot(sigma_f[j], sum_YminusSum.T))
         mu_w = np.array(mu_w).reshape(self.q * self.p, self.N)
-#        print(sigma_f.shape, mu_f.shape, sigma_w.shape, mu_w.shape)
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -389,7 +415,9 @@ class GPRN_inference(object):
             logKf = 2 * np.sum(np.log(np.diag(L1[0])))
             muKmu = np.dot(np.dot(mu_f[j].reshape(self.N).T, invKf[j]), 
                            mu_f[j].reshape(self.N))
+            muKmu = np.dot(mu_f[j].reshape(self.N), cho_solve(L1, mu_f[j].reshape(self.N)))
             trace = np.trace(np.dot(invKf[j], sigma_f[j]))
+            print('1st term terms: ', muKmu, trace)
             first_term += logKf + muKmu + trace
         first_term = -0.5 * first_term
         
@@ -397,15 +425,17 @@ class GPRN_inference(object):
         second_term = 0
         L2 = cho_factor(Kw, overwrite_a=True, lower=False)
         logKw = 2 * np.sum(np.log(np.diag(L2[0])))
+        mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
             #second_term += logKw
             for i in range(self.p):
-                muKmu = np.dot(np.dot(mu_w[i,j,:].T, invKw), mu_w[i,j,:])
+#                muKmu = np.dot(np.dot(mu_w[j,i].T, invKw), mu_w[j,i])
+                muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
                 trace = np.trace(np.dot(invKw, sigma_w[i]))
                 print('2nd term terms: ', muKmu, trace)
                 second_term += + logKw + muKmu + trace
         second_term += -0.5 * second_term
-        print('LOGPRIOR TERMS', first_term, second_term)
+#        print('LOGPRIOR TERMS', first_term, second_term)
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
@@ -427,24 +457,33 @@ class GPRN_inference(object):
         
         #-0.5 * N * P * log(2*pi * jitter**2)
         first_term = 0
-        for i in range(self.p):
-            for n in range(self.N):
+        for n in range(self.N):
+            for i in range(self.p):
                 first_term += np.log(2*np.pi*(self.yerr[i,n]**2 + jitters[i]**2))
         first_term = -0.5 * first_term
         
-        Y = self.y #P dimensional vector
+#        mu_w = mu_w.reshape(self.q, self.p, self.N)
+#        second_term = 0
+#        for n in range(self.N):
+#            for i in range(self.p):
+#                YminusMUfMUw = self.y[:,n] - np.dot(mu_f[:,n], mu_w[:,i,n])
+#                second_term += np.dot(YminusMUfMUw.T, YminusMUfMUw) \
+#                                    / (self.yerr[i,n]**2 + jitters[i]**2)
+        
+        Y = self.y #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
-        muf = mu_f.reshape(self.q, self.N) #Q dimensional vector
+        muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
         second_term = 0
         for n in range(self.N):
                 YOmegaMu = np.array(Y[:,n].T - np.dot(muw[:,:,n], muf[:,n]))
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)
-        second_error_term =0
-        for n in range(self.N):
-            for i in range(self.p): 
-                second_error_term += self.yerr[i,n]**2 + jitters[i]**2
-        second_term = -0.5 * second_term/second_error_term
-
+                error_term =0
+                error_term += jitters[i]**2
+                for i in range(self.p): 
+                    error_term += self.yerr[i,n]**2
+                second_term /= error_term
+        second_term = -0.5 * second_term
+        
         third_term = 0
         for j in range(self.q):
             diagSigmaf = np.diag(sigma_f[j][:][:])
@@ -453,13 +492,17 @@ class GPRN_inference(object):
                 diagSigmaw = np.diag(sigma_w[i][:])
                 third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
                     + np.dot(diagSigmaw, muF*muF)
-        third_error_term = second_error_term
-        third_term = -0.5 * third_term/third_error_term 
+                error_term =0
+                error_term += jitters[i]**2
+                for n in range(self.N):
+                    error_term += self.yerr[i,n]**2
+                third_term /= error_term
+#        third_error_term = second_error_term
+#        third_term = -0.5 * third_term/third_error_term 
 #        print('LOGLIKE TERMS', first_term, second_term, third_term)
         return first_term + second_term + third_term
 
-    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time,
-                               muF, varF, muW, varW):
+    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -471,6 +514,7 @@ class GPRN_inference(object):
                 varF = array with the initial variance for each node
                 muW = array with the initial means for each weight
                 varW = array with the initial variance for each weight
+                iternum = number of iterations
             Returns:
                 sum_ELB = Evidence lower bound
                 muF = array with the new means for each node
@@ -479,6 +523,15 @@ class GPRN_inference(object):
                 varW = array with the new variance for each weight
         """ 
         #Variational parameters
+#        muF, muW = self._u_to_fhatw(nodes, weight, time)
+#        varF, varW = self._u_to_fhatw(nodes, weight, time)
+        
+        D = self.time.size * self.q *(self.p+1);
+        mu = np.random.randn(D,1);
+        var = np.random.rand(D,1);
+        muF, muW = self._u_to_fhatw(mu)
+        varF, varW = self._u_to_fhatw(var)
+        
         sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
                                                            jitters, time,
                                                            muF, varF, muW, varW)
@@ -504,10 +557,11 @@ class GPRN_inference(object):
                                           sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         sum_ELB = ExpLogLike + ExpLogPrior + Entropy
-        print(' loglike: {0} \n logprior: {1} \n entropy {2}'.format(ExpLogLike, 
-              ExpLogPrior, Entropy))
-        return sum_ELB, ExpLogLike, ExpLogPrior, Entropy, muF, varF, muW, varW
-
+        print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
+                                                                      ExpLogPrior, 
+                                                                      Entropy))
+        return sum_ELB, ExpLogLike, ExpLogPrior, Entropy
+    
     def _derivatives(self, nodes, weight, jitters, time, muF, varF, muW, varW):
         """
             _derivatives() identifies the derivatives to use in a given kernel to 
