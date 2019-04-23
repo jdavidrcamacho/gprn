@@ -195,8 +195,8 @@ class GPRN_inference(object):
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
 
-    def _u_to_fhatw(self, nodes, weight, time):
-    #def _u_to_fhatw(self, u):
+    #def _u_to_fhatw(self, nodes, weight, time):
+    def _u_to_fhatw(self, u):
         """
             Returns the samples of CB that corresponds to the nodes f and
         weights W.
@@ -208,13 +208,13 @@ class GPRN_inference(object):
                 f = array with the samples of the nodes
                 W = array with the samples of the weights
         """
-        u = self._sample_CB(nodes, weight, time)
+        #u = self._sample_CB(nodes, weight, time)
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         
         return f, W
 
-    def _cholNugget(self, matrix, maximum=5):
+    def _cholNugget(self, matrix, maximum=6):
         """
             Returns the cholesky decomposition to a given matrix, if this matrix
         is not positive definite, a nugget is added to its diagonal.
@@ -278,8 +278,8 @@ class GPRN_inference(object):
         for i in range(self.p): 
             error_term += jitters[i]**2
             for n in range(self.N):
-                error_term += self.yerr[i,n]**2 + jitters[i]**2
-        
+                error_term += self.yerr[i,n]**2 #+ jitters[i]**2
+#        error_term = 0.5**2
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         
         #creation of Sigma_fj
