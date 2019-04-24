@@ -242,7 +242,7 @@ class GPRN_inference(object):
 
 
 ##### Mean-Field Inference functions
-    def _update_SIGMAandMU(self, nodes, weight, jitters, time,
+    def _update_SIGMAandMU(self, nodes, weights, jitters, time,
                            muF, varF, muW , varW):
         """
             Efficient closed-form updates fot variational parameters. This
@@ -270,8 +270,11 @@ class GPRN_inference(object):
         for i in range(self.q):
             invKf.append(inv(Kf[i]))
         invKf = np.array(invKf)
-        Kw = self._kernel_matrix(weight, time) #this means equal weights for all nodes
-        invKw = inv(Kw)
+        
+        Kw = np.array([self._kernel_matrix(j, time) for j in weights]) #this means equal weights for all nodes
+        invKw = []
+        for i,j in enumerate(Kw):
+            invKw = inv(j)
         
         #error term
         error_term =0
@@ -382,7 +385,7 @@ class GPRN_inference(object):
 #                ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
-    def _mfi_expectedLogPrior(self, nodes, weight, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expection of the log prior wrt q(f,w) in mean-field 
         inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
@@ -397,7 +400,7 @@ class GPRN_inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        Kw = self._kernel_matrix(weight, self.time) #this means equal weights for all nodes
+        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) #this means equal weights for all nodes
 #        invKf = []
 #        for i in range(self.q):
 #            invKf.append(inv(Kf[i]))
@@ -420,7 +423,7 @@ class GPRN_inference(object):
         
         #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0
-        L2 = cho_factor(Kw, overwrite_a=True, lower=False)
+        L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
         logKw = 2 * np.sum(np.log(np.diag(L2[0])))
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
