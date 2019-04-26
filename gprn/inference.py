@@ -415,19 +415,17 @@ class GPRN_inference(object):
         first_term = 0
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
-            logKf = 2 * np.sum(np.log(np.diag(L1[0])))
-#            muKmu = np.dot(np.dot(mu_f[j].reshape(self.N).T, invKf[j]), 
-#                           mu_f[j].reshape(self.N))
+            logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
             muKmu = np.dot(mu_f[j].reshape(self.N), cho_solve(L1, mu_f[j].reshape(self.N)))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
-#            print('1st term terms: ', muKmu, trace)
-            first_term += logKf + muKmu + trace
-        first_term = -0.5 * first_term
-        
+            first_term += logKf -0.5*muKmu -0.5*trace
+        #first_term = -0.5 * first_term
+#        print(first_term)
+
         #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0
         L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
-        logKw = 2 * np.sum(np.log(np.diag(L2[0])))
+        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
             #second_term += logKw
@@ -436,8 +434,8 @@ class GPRN_inference(object):
                 muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
                 trace = np.trace(cho_solve(L2, sigma_w[i]))
 #                print('2nd term terms: ', muKmu, trace)
-                second_term += logKw + muKmu + trace
-        second_term += -0.5 * second_term
+                second_term += logKw -0.5*muKmu -0.5*trace
+#        second_term += -0.5 * second_term
 #        print('LOGPRIOR TERMS', first_term, second_term)
         return first_term + second_term
 
@@ -459,13 +457,13 @@ class GPRN_inference(object):
         #not sure about the jitter but I'll keep it for now
 
         #-0.5 * N * P * log(2*pi * jitter**2)
-        first_term = 0
-        for i in range(self.p):
-            for n in range(self.N):
-                first_term += np.log(2*np.pi*(self.yerr[i,n]**2 + jitters[i]**2))
-        first_term = -0.5 * first_term
+#        first_term = 0
+#        for i in range(self.p):
+#            for n in range(self.N):
+#                first_term += np.log(2*np.pi*(self.yerr[i,n]**2 + jitters[i]**2))
+#        first_term = -0.5 * first_term
         
-        first_term = -0.5* 5 * 1 * np.log(2*np.pi*0.5)
+        first_term = -0.5* self.N * self.p * np.log(0.5)
         
 #        mu_w = mu_w.reshape(self.q, self.p, self.N)
 #        second_term = 0
@@ -475,7 +473,7 @@ class GPRN_inference(object):
 #                second_term += np.dot(YminusMUfMUw.T, YminusMUfMUw) \
 #                                    / (self.yerr[i,n]**2 + jitters[i]**2)
         
-        Y = self.y #Px1 dimensional vector
+        #y = self.y #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
         second_term = 0
@@ -483,8 +481,8 @@ class GPRN_inference(object):
         for n in range(self.N):
             error_term = np.sum(self.yerr[:,n]**2)
             YOmegaMu = np.array(self.y[:,n].T - muw[:,:,n] * muf[:,n])
-            second_term += np.dot(YOmegaMu.T, YOmegaMu) # / error_term
-        second_term = -0.5 * float(second_term) /0.5
+            second_term += np.dot(YOmegaMu.T, YOmegaMu)/0.5 # / error_term
+        second_term = -0.5 * float(second_term) #/0.5
         
         third_term = 0
         for j in range(self.q):
