@@ -211,7 +211,7 @@ class GPRN_inference(object):
         #u = self._sample_CB(nodes, weight, time)
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
-        
+        #print(f,W)
         return f, W
 
     def _cholNugget(self, matrix, maximum=6):
@@ -270,6 +270,7 @@ class GPRN_inference(object):
         invKf = np.array(invKf)
         #but we will have equal weights
         Kw = np.array([self._kernel_matrix(j, time) for j in weights]) 
+        #print(Kw)
         invKw = []
         for i,j in enumerate(Kw):
             invKw = inv(j)
@@ -294,20 +295,6 @@ class GPRN_inference(object):
 ##                sum_muWmuWVarW /= error_term
             sigma_f.append(inv(invKf[j] + muWmuWVarW/0.5)) #/error_term))
         sigma_f = np.array(sigma_f)
-        
-        #creation of Sigma_wij
-        sigma_w = []
-        for j in range(self.q):
-            muFmuFVarF = np.zeros((self.N, self.N))
-            ##print(muF[j], '\n', muF[j][:])
-            muFmuFVarF += np.diag( muF[j][:] * muF[j][:] + varF[j][:])
-            ##muFmuFVarF = muFmuFVarF #/error_term))
-#            for i in range(self.p):
-#                error_term = jitters[i]**2
-#                for n in range(self.N):
-#                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
-            sigma_w.append(inv(invKw + muFmuFVarF/0.5))#/error_term))
-        sigma_w = np.array(sigma_w)
 
         #creation of mu_fj
         mu_f = []
@@ -327,6 +314,21 @@ class GPRN_inference(object):
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/0.5)#/error_term)
         mu_f = np.array(mu_f)
 
+        #creation of Sigma_wij
+        sigma_w = []
+        for j in range(self.q):
+            muFmuFVarF = np.zeros((self.N, self.N))
+#            print(mu_f)
+            muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))#varF[i][j][:])
+            ##muFmuFVarF = muFmuFVarF #/error_term))
+#            for i in range(self.p):
+#                error_term = jitters[i]**2
+#                for n in range(self.N):
+#                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
+            sigma_w.append(inv(invKw + muFmuFVarF/0.5))#/error_term))
+        sigma_w = np.array(sigma_w)
+
+
         #creation of mu_wij
         mu_w = []
         for j in range(self.q):
@@ -335,9 +337,9 @@ class GPRN_inference(object):
                 sum_muFmuW = np.zeros(self.N)
                 for k in range(self.q):
                     if k != i:
-                        sum_muFmuW += muF[k].reshape(self.N) * np.array(muW[i][k])
+                        sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k])
                 sum_YminusSum += self.y[i] - sum_muFmuW
-                sum_YminusSum *= muF[j].reshape(self.N)
+                sum_YminusSum *= mu_f[j].reshape(self.N)
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
