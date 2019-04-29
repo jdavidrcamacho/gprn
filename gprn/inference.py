@@ -348,8 +348,8 @@ class GPRN_inference(object):
         mu_w = np.array(mu_w)#.reshape(self.q * self.p, self.N)
         
         
-        print('muF = ', mu_f, '\n muW =', mu_w, '\n')
-        print('varF = ', np.diag(sigma_f.reshape(5,5)), '\n varW =', np.diag(sigma_w.reshape(5,5)), '\n')
+        #print('muF = ', mu_f, '\n muW =', mu_w, '\n')
+        #print('varF = ', np.diag(sigma_f.reshape(5,5)), '\n varW =', np.diag(sigma_w.reshape(5,5)), '\n')
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -561,78 +561,58 @@ class GPRN_inference(object):
                                                                       Entropy))
         return sum_ELB, ExpLogLike, ExpLogPrior, Entropy, muF, varF, muW, varW
     
+#    def Variational_Parameters_Update(self,  nodes, weight, jitters, time, 
+#                                      iterations = 200, evaluations = 100000):
+#        """
+#            Update of the variational parameters
+#        """
+#        D = self.time.size * self.q *(self.p+1);
+#        mu = np.random.randn(D, 1);
+#        var = np.random.rand(D, 1);
+#        muF, muW = self._u_to_fhatw(mu)
+#        varF, varW = self._u_to_fhatw(var)
+#        
+#        LowerBound = []
+#        loglike = []
+#        logprior = []
+#        entropy = []
+#        a1, a2, a3, a4, m1, v1, m2, v2 = self.EvidenceLowerBound_MFI(nodes, weight, 
+#                                                                    jitters, time, 
+#                                                                    muF, varF, muW, varW )
+#        print('Iteration 0')
+#        print('Evidence lower bound = {0} \n'.format(a1))
+#        LowerBound.append(a1)
+#        loglike.append(a2)
+#        logprior.append(a3)
+#        entropy.append(a4)
+#        
+#        i, j = 0, 0 
+#        while i<iterations:
+#            A1, A2, A3, A4, M1, V1, M2, V2 = self.EvidenceLowerBound_MFI(nodes, weight, 
+#                                                                    jitters, time, 
+#                                                                    m1, v1, m2, v2)
+#            if A1 >= a1:
+#                LowerBound.append(A1)
+#                loglike.append(A2)
+#                logprior.append(A3)
+#                entropy.append(A4)
+#                a1, a2, a3, a4 = A1, A2, A3, A4
+#                m1, v1, m2, v2 = M1, V1, M2, V2
+#                i += 1
+#                print('Iteration {0}'.format(i))
+#                print('Evidence lower bound = {0} \n'.format(A1))
+#            else:
+#                j += 1
+#                m1 += np.random.randn()/1e3
+#                v1 += np.random.randn()/1e3
+#                m2 += np.random.randn()/1e3
+#                v2 += np.random.randn()/1e3
+#                if j == evaluations:
+#                    print("{0} evaluations done and no increase in ELB".format(evaluations))
+#                    return LowerBound, loglike, logprior, entropy
+#        return LowerBound, loglike, logprior, entropy
     
-    def Variational_Parameters_Update(self,  nodes, weight, jitters, time, 
-                                      iterations = 200, evaluations = 100000):
-        """
-            Update of the variational parameters
-        """
-        D = self.time.size * self.q *(self.p+1);
-        mu = np.random.randn(D, 1);
-        var = np.random.rand(D, 1);
-        muF, muW = self._u_to_fhatw(mu)
-        varF, varW = self._u_to_fhatw(var)
-        
-        LowerBound = []
-        loglike = []
-        logprior = []
-        entropy = []
-        a1, a2, a3, a4, m1, v1, m2, v2 = self.EvidenceLowerBound_MFI(nodes, weight, 
-                                                                    jitters, time, 
-                                                                    muF, varF, muW, varW )
-        print('Iteration 0')
-        print('Evidence lower bound = {0} \n'.format(a1))
-        LowerBound.append(a1)
-        loglike.append(a2)
-        logprior.append(a3)
-        entropy.append(a4)
-        
-        i, j = 0, 0 
-        while i<iterations:
-            A1, A2, A3, A4, M1, V1, M2, V2 = self.EvidenceLowerBound_MFI(nodes, weight, 
-                                                                    jitters, time, 
-                                                                    m1, v1, m2, v2)
-            if A1 >= a1:
-                LowerBound.append(A1)
-                loglike.append(A2)
-                logprior.append(A3)
-                entropy.append(A4)
-                a1, a2, a3, a4 = A1, A2, A3, A4
-                m1, v1, m2, v2 = M1, V1, M2, V2
-                i += 1
-                print('Iteration {0}'.format(i))
-                print('Evidence lower bound = {0} \n'.format(A1))
-            else:
-                j += 1
-                m1 += np.random.randn()/1e3
-                v1 += np.random.randn()/1e3
-                m2 += np.random.randn()/1e3
-                v2 += np.random.randn()/1e3
-                if j == evaluations:
-                    print("{0} evaluations done and no increase in ELB".format(evaluations))
-                    return LowerBound, loglike, logprior, entropy
-        return LowerBound, loglike, logprior, entropy
-    
-    
-    def _derivatives(self, nodes, weight, jitters, time, muF, varF, muW, varW):
-        """
-            _derivatives() identifies the derivatives to use in a given kernel to 
-        calculate the gradient.
-            Parameters:
-                nodes = array of node functions 
-                weight = weight function
-                jitters = jitters array
-                time = time array
-                muF = array with the initial means for each node
-                varF = array with the initial variance for each node
-                muW = array with the initial means for each weight
-                varW = array with the initial variance for each weight
-            Returns:
-                grad1, grad2, ... = gradients of the kernel derivatives
-        """
-        return 0
-    
-    
+
 ###### Optimization
 #    def Optimization(*params):
 #        
