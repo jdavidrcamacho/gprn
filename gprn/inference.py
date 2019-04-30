@@ -214,7 +214,7 @@ class GPRN_inference(object):
         #print(f,W)
         return f, W
 
-    def _cholNugget(self, matrix, maximum=6):
+    def _cholNugget(self, matrix, maximum=10):
         """
             Returns the cholesky decomposition to a given matrix, if this matrix
         is not positive definite, a nugget is added to its diagonal.
@@ -275,11 +275,7 @@ class GPRN_inference(object):
         for i,j in enumerate(Kw):
             invKw = inv(j)
         #error term
-        error_term =0
-        for i in range(self.p): 
-            error_term += jitters[i]**2
-            for n in range(self.N):
-                error_term += self.yerr[i,n]**2 
+        error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         
@@ -292,8 +288,7 @@ class GPRN_inference(object):
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
-##                sum_muWmuWVarW /= error_term
-            sigma_f.append(inv(invKf[j] + muWmuWVarW/0.5)) #/error_term))
+            sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
         #creation of mu_fj
@@ -310,24 +305,21 @@ class GPRN_inference(object):
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
-##                sum_muWmuWVarW /= error_term
-            mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/0.5)#/error_term)
+            mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
         mu_f = np.array(mu_f)
 
         #creation of Sigma_wij
         sigma_w = []
-        for j in range(self.q):
-            muFmuFVarF = np.zeros((self.N, self.N))
-#            print(mu_f)
-            muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))#varF[i][j][:])
-            ##muFmuFVarF = muFmuFVarF #/error_term))
-#            for i in range(self.p):
-#                error_term = jitters[i]**2
-#                for n in range(self.N):
-#                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
-            sigma_w.append(inv(invKw + muFmuFVarF/0.5))#/error_term))
+        for i in range(self.p):
+            for j in range(self.q):
+                muFmuFVarF = np.zeros((self.N, self.N))
+                muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
+#                for i in range(self.p):
+#                    error_term = jitters[i]**2
+#                    for n in range(self.N):
+#                        error_term += self.yerr[i,n]**2 #+ jitters[i]**2
+                sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w)
-
 
         #creation of mu_wij
         mu_w = []
@@ -344,12 +336,8 @@ class GPRN_inference(object):
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
 #                sum_YminusSum /= error_term
-                mu_w.append(np.dot(sigma_w[j], sum_YminusSum)/0.5)#/error_term)
+                mu_w.append(np.dot(sigma_w[j], sum_YminusSum)/error_term)
         mu_w = np.array(mu_w)#.reshape(self.q * self.p, self.N)
-        
-        
-        #print('muF = ', mu_f, '\n muW =', mu_w, '\n')
-        #print('varF = ', np.diag(sigma_f.reshape(5,5)), '\n varW =', np.diag(sigma_w.reshape(5,5)), '\n')
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -369,23 +357,9 @@ class GPRN_inference(object):
         for i in range(Q):
             L1 = self._cholNugget(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1)))
-#            try:
-#                L1 = cho_factor(sigma_f[i], overwrite_a=True, lower=False)
-#            except LinAlgError:
-#                nugget  = np.diag(1e-5 + np.zeros(self.N)) 
-#                #adding a nugget to the diagonal of sigma
-#                L1 = cho_factor(sigma_f[i] + nugget, overwrite_a=True, lower=False)
-#            ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
                 L2 = self._cholNugget(sigma_w[j])
                 ent_sum += np.sum(np.log(np.diag(L2)))
-#                try:
-#                    L2 = cho_factor(sigma_w[j], overwrite_a=True, lower=False)
-#                except LinAlgError:
-#                    nugget  = np.diag(1e-5 + np.zeros(self.N))
-#                    #adding a nugget to the diagonal of sigma
-#                    L2 = cho_factor(sigma_w[j] + nugget, overwrite_a=True, lower=False)
-#                ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -403,12 +377,8 @@ class GPRN_inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) #this means equal weights for all nodes
-#        invKf = []
-#        for i in range(self.q):
-#            invKf.append(inv(Kf[i]))
-#        invKf = np.array(invKf) 
-#        invKw = inv(Kw)
+        #this means equal weights for all nodes
+        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
@@ -419,8 +389,6 @@ class GPRN_inference(object):
             muKmu = np.dot(mu_f[j].reshape(self.N), cho_solve(L1, mu_f[j].reshape(self.N)))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-        #first_term = -0.5 * first_term
-#        print(first_term)
 
         #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0
@@ -428,15 +396,10 @@ class GPRN_inference(object):
         logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
-            #second_term += logKw
             for i in range(self.p):
-#                muKmu = np.dot(np.dot(mu_w[j,i].T, invKw), mu_w[j,i])
                 muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
                 trace = np.trace(cho_solve(L2, sigma_w[i]))
-#                print('2nd term terms: ', muKmu, trace)
                 second_term += logKw -0.5*muKmu -0.5*trace
-#        second_term += -0.5 * second_term
-#        print('LOGPRIOR TERMS', first_term, second_term)
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
@@ -455,53 +418,35 @@ class GPRN_inference(object):
                 expected log-likelihood
         """
         #not sure about the jitter but I'll keep it for now
+        error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
+        first_term = -0.5* self.N * self.p * np.log(error_term)
 
-        #-0.5 * N * P * log(2*pi * jitter**2)
-#        first_term = 0
-#        for i in range(self.p):
-#            for n in range(self.N):
-#                first_term += np.log(2*np.pi*(self.yerr[i,n]**2 + jitters[i]**2))
-#        first_term = -0.5 * first_term
-        
-        first_term = -0.5* self.N * self.p * np.log(0.5)
-        
-#        mu_w = mu_w.reshape(self.q, self.p, self.N)
-#        second_term = 0
-#        for n in range(self.N):
-#            for i in range(self.p):
-#                YminusMUfMUw = self.y[:,n] - np.dot(mu_f[:,n], mu_w[:,i,n])
-#                second_term += np.dot(YminusMUfMUw.T, YminusMUfMUw) \
-#                                    / (self.yerr[i,n]**2 + jitters[i]**2)
         
         #y = self.y #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
+#        print('mus', muw.shape, muf.shape)
+#        print('sigmas', sigma_f.shape, sigma_w.shape)
         second_term = 0
-#        print(muf)
-        for n in range(self.N):
-            error_term = np.sum(self.yerr[:,n]**2)
-            YOmegaMu = np.array(self.y[:,n].T - muw[:,:,n] * muf[:,n])
-            second_term += np.dot(YOmegaMu.T, YOmegaMu)/0.5 # / error_term
-        second_term = -0.5 * float(second_term) #/0.5
+        for i in range(self.p):
+            for n in range(self.N):
+                YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
+                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error_term
+        second_term = -0.5 * second_term #/0.5
         
         third_term = 0
         for j in range(self.q):
             diagSigmaf = np.diag(sigma_f[j][:][:])
             muF = mu_f[j].reshape(self.N)
             for i in range(self.p):
-                diagSigmaw = np.diag(sigma_w[i][:])
+                diagSigmaw = np.diag(sigma_w[i][:][:])
                 third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
                                 + np.dot(diagSigmaw, muF*muF)
-                error_term += jitters[i]**2
-                #third_term /= error_term
-        third_term = -0.5 * third_term / 0.5
-#        third_error_term = second_error_term
-#        third_term = -0.5 * third_term/third_error_term 
-        print('LOGLIKE TERMS', first_term, second_term, third_term)
+        third_term = -0.5 * third_term / error_term
+#        print(first_term.shape, second_term.shape, third_term.shape)
         return first_term + second_term + third_term
 
-    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time, 
-                               muF, varF, muW, varW):
+    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time, iterations=100):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -521,98 +466,51 @@ class GPRN_inference(object):
                 muW = array with the new means for each weight
                 varW = array with the new variance for each weight
         """ 
-#        #Variational parameters
-#        muF, muW = self._u_to_fhatw(nodes, weight, time)
-#        varF, varW = self._u_to_fhatw(nodes, weight, time)
+        #Initial variational parameters
+        D = self.time.size * self.q *(self.p+1);
+        mu = np.random.randn(D,1);
+        var = np.random.rand(D,1);
+        muF, muW = self._u_to_fhatw(mu)
+        varF, varW = self._u_to_fhatw(var)
         
-#        D = self.time.size * self.q *(self.p+1);
-#        mu = np.random.randn(D,1);
-#        var = np.random.rand(D,1);
-#        muF, muW = self._u_to_fhatw(mu)
-#        varF, varW = self._u_to_fhatw(var)
-        
-        sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
-                                                           jitters, time,
-                                                           muF, varF, muW, varW)
-        
-        muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
-        varF =  []
-        for i in range(self.q):
-            varF.append(np.diag(sigmaF[i]))
-        varF = np.array(varF).reshape(self.q, 1, self.N) #new variance for the nodes
-        muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
-        varW =  []
-        for i in range(self.q * self.p):
-            varW.append(np.diag(sigmaW[i]))
-        varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
-        
-        #Entropy
-        Entropy = self._mfi_entropy(sigmaF, sigmaW)
-        #Expected log prior
-        ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
-                                            sigmaF, muF,  sigmaW, muW)
-        #Expected log-likelihood
-        ExpLogLike = self._mfi_expectedLogLike(nodes, weight, jitters, 
-                                          sigmaF, muF, sigmaW, muW)
-        #Evidence Lower Bound
-        sum_ELB = ExpLogLike + ExpLogPrior + Entropy
-        print(' loglike: {0} \n logprior: {1} \n entropy {2} '.format(ExpLogLike, 
-                                                                      ExpLogPrior, 
-                                                                      Entropy))
-        return sum_ELB, ExpLogLike, ExpLogPrior, Entropy, muF, varF, muW, varW
-    
-#    def Variational_Parameters_Update(self,  nodes, weight, jitters, time, 
-#                                      iterations = 200, evaluations = 100000):
-#        """
-#            Update of the variational parameters
-#        """
-#        D = self.time.size * self.q *(self.p+1);
-#        mu = np.random.randn(D, 1);
-#        var = np.random.rand(D, 1);
-#        muF, muW = self._u_to_fhatw(mu)
-#        varF, varW = self._u_to_fhatw(var)
-#        
-#        LowerBound = []
-#        loglike = []
-#        logprior = []
-#        entropy = []
-#        a1, a2, a3, a4, m1, v1, m2, v2 = self.EvidenceLowerBound_MFI(nodes, weight, 
-#                                                                    jitters, time, 
-#                                                                    muF, varF, muW, varW )
-#        print('Iteration 0')
-#        print('Evidence lower bound = {0} \n'.format(a1))
-#        LowerBound.append(a1)
-#        loglike.append(a2)
-#        logprior.append(a3)
-#        entropy.append(a4)
-#        
-#        i, j = 0, 0 
-#        while i<iterations:
-#            A1, A2, A3, A4, M1, V1, M2, V2 = self.EvidenceLowerBound_MFI(nodes, weight, 
-#                                                                    jitters, time, 
-#                                                                    m1, v1, m2, v2)
-#            if A1 >= a1:
-#                LowerBound.append(A1)
-#                loglike.append(A2)
-#                logprior.append(A3)
-#                entropy.append(A4)
-#                a1, a2, a3, a4 = A1, A2, A3, A4
-#                m1, v1, m2, v2 = M1, V1, M2, V2
-#                i += 1
-#                print('Iteration {0}'.format(i))
-#                print('Evidence lower bound = {0} \n'.format(A1))
-#            else:
-#                j += 1
-#                m1 += np.random.randn()/1e3
-#                v1 += np.random.randn()/1e3
-#                m2 += np.random.randn()/1e3
-#                v2 += np.random.randn()/1e3
-#                if j == evaluations:
-#                    print("{0} evaluations done and no increase in ELB".format(evaluations))
-#                    return LowerBound, loglike, logprior, entropy
-#        return LowerBound, loglike, logprior, entropy
-    
-
-###### Optimization
-#    def Optimization(*params):
-#        
+        iterNumber = 0
+        ELB = [0]
+        while iterNumber < iterations:
+            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
+                                                               jitters, time,
+                                                               muF, varF, muW, varW)
+            
+            muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
+            varF =  []
+            for i in range(self.q):
+                varF.append(np.diag(sigmaF[i]))
+            varF = np.array(varF).reshape(self.q, 1, self.N) #new variance for the nodes
+            muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
+            varW =  []
+            for i in range(self.q * self.p):
+                varW.append(np.diag(sigmaW[i]))
+            varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
+            
+            #Entropy
+            Entropy = self._mfi_entropy(sigmaF, sigmaW)
+#            ENT.append(Entropy)
+            #Expected log prior
+            ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
+                                                sigmaF, muF,  sigmaW, muW)
+#            ELP.append(ExpLogPrior)
+            #Expected log-likelihood
+            ExpLogLike = self._mfi_expectedLogLike(nodes, weight, jitters, 
+                                              sigmaF, muF, sigmaW, muW)
+#            ELL.append(ExpLogLike)
+            #Evidence Lower Bound
+            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+#            print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
+#                                                                          ExpLogPrior, 
+#                                                                          Entropy))
+#            print('ELB: {0}'.format(sum_ELB))
+            if np.abs(sum_ELB - ELB[-1]) < 1e-3:
+#                print('ELB converged to {0}; algorithm stopped at iteration {1}'.format(ELB[-1],iterNumber))
+                return sum_ELB
+            ELB.append(sum_ELB)
+            iterNumber += 1
+        return sum_ELB
