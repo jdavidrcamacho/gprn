@@ -240,6 +240,33 @@ class GPRN_inference(object):
             raise LinAlgError("Still not positive definite, even with nugget.")
         return L[0]
 
+    def _cholShift(self, matrix, maximum=10):
+        """
+            Returns the cholesky decomposition to a given matrix, if this matrix
+        is not positive definite, we shift all the eigenvalues up by the 
+        positive scalar to avoid a ill-conditioned matrix
+            Parameters:
+                matrix = matrix to decompose
+                maximum = number of times a shift is added.
+            Returns:
+                L = matrix containing the Cholesky factor
+        """
+        try:
+            L =  cho_factor(matrix, overwrite_a=True, lower=False)
+        except LinAlgError:
+            shift = 1e-3 #shift to add to the diagonal
+            n = 1 #number of tries
+            while n <= maximum:
+                print ('n:', n, ', shift:', shift)
+                try:
+                    L =  cho_factor(matrix + shift*np.identity(self.time.size), 
+                                    overwrite_a=True, lower=False)
+                except LinAlgError:
+                    shift *= 10
+                finally:
+                    n += 1
+            raise LinAlgError("Still not positive definite, even with a shift in eigenvalues.")
+        return L[0]
 
 ##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weights, jitters, time,
@@ -419,8 +446,7 @@ class GPRN_inference(object):
         """
         #not sure about the jitter but I'll keep it for now
         error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
-        first_term = -0.5* self.N * self.p * np.log(error_term)
-
+        first_term = -0.5 * np.log(error_term)
         
         #y = self.y #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
@@ -431,7 +457,8 @@ class GPRN_inference(object):
         for i in range(self.p):
             for n in range(self.N):
                 YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
-                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error_term
+                error = np.sum(jitters[i]**2 + self.yerr[i,n]**2)
+                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
         second_term = -0.5 * second_term #/0.5
         
         third_term = 0
@@ -443,6 +470,15 @@ class GPRN_inference(object):
                 third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
                                 + np.dot(diagSigmaw, muF*muF)
         third_term = -0.5 * third_term / error_term
+#        for i in range(self.p):
+#            for n in range(self.N):
+#                muw = mu_w.reshape(self.N)
+#                first = np.dot(muw, np.dot(sigma_f[i][:][:], muw))
+#                muF = mu_f[i].reshape(self.N)
+#                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
+#                third = np.trace(np.dot(sigma_f[i][:][:], sigma_w[i][:][:]))
+#                error = np.sum(jitters[i]**2 + self.yerr[i,n]**2)
+#                third_term += 0.5*(first + second + third) / error
 #        print(first_term.shape, second_term.shape, third_term.shape)
         return first_term + second_term + third_term
 
@@ -475,6 +511,8 @@ class GPRN_inference(object):
         
         iterNumber = 0
         ELB = [0]
+#        print('ELB: 0')
+#        ENT, ELP, ELL = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
                                                                jitters, time,
@@ -508,9 +546,61 @@ class GPRN_inference(object):
 #                                                                          ExpLogPrior, 
 #                                                                          Entropy))
 #            print('ELB: {0}'.format(sum_ELB))
-            if np.abs(sum_ELB - ELB[-1]) < 1e-3:
-#                print('ELB converged to {0}; algorithm stopped at iteration {1}'.format(ELB[-1],iterNumber))
+            if np.abs(sum_ELB - ELB[-1]) < 1e-2:
+#                print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
                 return sum_ELB
             ELB.append(sum_ELB)
             iterNumber += 1
         return sum_ELB
+
+
+#    def Variational_Parameters_Update(self,  nodes, weight, jitters, time, 
+#                                      iterations = 200, evaluations = 100000):
+#        """
+#            Update of the variational parameters
+#        """
+#        D = self.time.size * self.q *(self.p+1);
+#        mu = np.random.randn(D, 1);
+#        var = np.random.rand(D, 1);
+#        muF, muW = self._u_to_fhatw(mu)
+#        varF, varW = self._u_to_fhatw(var)
+#        
+#        LowerBound = []
+#        loglike = []
+#        logprior = []
+#        entropy = []
+#        a1, a2, a3, a4, m1, v1, m2, v2 = self.EvidenceLowerBound_MFI(nodes, weight, 
+#                                                                    jitters, time, 
+#                                                                    muF, varF, muW, varW )
+#        print('Iteration 0')
+#        print('Evidence lower bound = {0} \n'.format(a1))
+#        LowerBound.append(a1)
+#        loglike.append(a2)
+#        logprior.append(a3)
+#        entropy.append(a4)
+#        
+#        i, j = 0, 0 
+#        while i<iterations:
+#            A1, A2, A3, A4, M1, V1, M2, V2 = self.EvidenceLowerBound_MFI(nodes, weight, 
+#                                                                    jitters, time, 
+#                                                                    m1, v1, m2, v2)
+#            if A1 >= a1:
+#                LowerBound.append(A1)
+#                loglike.append(A2)
+#                logprior.append(A3)
+#                entropy.append(A4)
+#                a1, a2, a3, a4 = A1, A2, A3, A4
+#                m1, v1, m2, v2 = M1, V1, M2, V2
+#                i += 1
+#                print('Iteration {0}'.format(i))
+#                print('Evidence lower bound = {0} \n'.format(A1))
+#            else:
+#                j += 1
+#                m1 += np.random.randn()/1e3
+#                v1 += np.random.randn()/1e3
+#                m2 += np.random.randn()/1e3
+#                v2 += np.random.randn()/1e3
+#                if j == evaluations:
+#                    print("{0} evaluations done and no increase in ELB".format(evaluations))
+#                    return LowerBound, loglike, logprior, entropy
+#        return LowerBound, loglike, logprior, entropy
