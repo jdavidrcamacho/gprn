@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
+import matplotlib.pylab as plt
 from scipy.linalg import inv, cho_factor, cho_solve, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
@@ -306,6 +307,7 @@ class GPRN_inference(object):
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         
+#        print(muW.shape, varW.shape)
         #creation of Sigma_fj
         sigma_f = []
         for j in range(self.q):
@@ -326,9 +328,9 @@ class GPRN_inference(object):
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != i:
-                        sum_muWmuF += np.array(muW[i][k]) * muF[k].reshape(self.N)
+                        sum_muWmuF += np.array(muW[i][k][:]) * muF[k].reshape(self.N)
                 sum_YminusSum += self.y[i] - sum_muWmuF
-                sum_YminusSum *= muW[i][j]
+                sum_YminusSum *= muW[i][j][:]
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
@@ -356,15 +358,18 @@ class GPRN_inference(object):
                 sum_muFmuW = np.zeros(self.N)
                 for k in range(self.q):
                     if k != i:
-                        sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k])
-                sum_YminusSum += self.y[i] - sum_muFmuW
+                        sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k][:])
+#                print(self.y.shape)
+                sum_YminusSum += self.y[i,:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-#                error_term = jitters[i]**2
+                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+#                print(error)
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
 #                sum_YminusSum /= error_term
-                mu_w.append(np.dot(sigma_w[j], sum_YminusSum)/error_term)
+                mu_w.append(np.dot(sigma_w[j], sum_YminusSum)/error)
         mu_w = np.array(mu_w)#.reshape(self.q * self.p, self.N)
+#        print(sigma_f.shape, mu_f.shape, sigma_w.shape, mu_w.shape)
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -424,6 +429,8 @@ class GPRN_inference(object):
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
             for i in range(self.p):
+#                L2 = cho_factor(Kw[j*i], overwrite_a=True, lower=False)
+#                logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
                 muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
                 trace = np.trace(cho_solve(L2, sigma_w[i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
@@ -457,28 +464,32 @@ class GPRN_inference(object):
         for i in range(self.p):
             for n in range(self.N):
                 YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
-                error = np.sum(jitters[i]**2 + self.yerr[i,n]**2)
+                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
         second_term = -0.5 * second_term #/0.5
         
         third_term = 0
-        for j in range(self.q):
-            diagSigmaf = np.diag(sigma_f[j][:][:])
-            muF = mu_f[j].reshape(self.N)
-            for i in range(self.p):
-                diagSigmaw = np.diag(sigma_w[i][:][:])
-                third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
-                                + np.dot(diagSigmaw, muF*muF)
-        third_term = -0.5 * third_term / error_term
-#        for i in range(self.p):
-#            for n in range(self.N):
-#                muw = mu_w.reshape(self.N)
-#                first = np.dot(muw, np.dot(sigma_f[i][:][:], muw))
-#                muF = mu_f[i].reshape(self.N)
-#                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
-#                third = np.trace(np.dot(sigma_f[i][:][:], sigma_w[i][:][:]))
-#                error = np.sum(jitters[i]**2 + self.yerr[i,n]**2)
-#                third_term += 0.5*(first + second + third) / error
+#        for j in range(self.q):
+#            diagSigmaf = np.diag(sigma_f[j][:][:])
+#            muF = mu_f[j].reshape(self.N)
+#            for i in range(self.p):
+#                diagSigmaw = np.diag(sigma_w[i][:][:])
+#                third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
+#                                + np.dot(diagSigmaw, muF*muF)
+#        third_term = -0.5 * third_term / error_term
+        
+        for i in range(self.p):
+            for j in range(self.q):
+                muw = mu_w.reshape(self.p, self.N)
+#                print('MUW AND SIGMAF', muw.shape, sigma_f.shape)
+                first = np.dot(muw[i][:].T, np.dot(sigma_f[j][:][:], muw[i][:]))
+                muF = mu_f[j].reshape(self.N)
+#                print('MUF AND SIGMAW', muF.shape, sigma_w.shape)
+                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
+                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[i][:][:]))
+                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                third_term += (first + second + third) / error
+        third_term = -0.5 * third_term
 #        print(first_term.shape, second_term.shape, third_term.shape)
         return first_term + second_term + third_term
 
@@ -546,11 +557,23 @@ class GPRN_inference(object):
 #                                                                          ExpLogPrior, 
 #                                                                          Entropy))
 #            print('ELB: {0}'.format(sum_ELB))
-            if np.abs(sum_ELB - ELB[-1]) < 1e-2:
+#            print(sum_ELB, ELB[-1])
+            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
 #                print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
+#                plt.figure()
+#                plt.plot(ELB[1:])
+#                plt.xlabel('iterations')
+#                plt.ylabel('evidence lower bound')
+#                plt.show()
                 return sum_ELB
             ELB.append(sum_ELB)
             iterNumber += 1
+            
+#        plt.figure()
+#        plt.plot(ELB[1:])
+#        plt.xlabel('iterations')
+#        plt.ylabel('evidence lower bound')
+#        plt.show()
         return sum_ELB
 
 
