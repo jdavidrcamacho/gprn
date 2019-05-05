@@ -270,7 +270,7 @@ class GPRN_inference(object):
         return L[0]
 
 ##### Mean-Field Inference functions
-    def _update_SIGMAandMU(self, nodes, weights, jitters, time,
+    def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
                            muF, varF, muW , varW):
         """
             Efficient closed-form updates fot variational parameters. This
@@ -290,6 +290,11 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
+#        print('my means', means)
+        yy = np.concatenate(self.y)
+        yy = yy - self._mean(means) if means else yy
+        new_y = np.array_split(yy, self.p)
+
         #the nodes are different
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
@@ -297,7 +302,7 @@ class GPRN_inference(object):
             invKf.append(inv(Kf[i]))
         invKf = np.array(invKf)
         #but we will have equal weights
-        Kw = np.array([self._kernel_matrix(j, time) for j in weights]) 
+        Kw = np.array([self._kernel_matrix(j, time) for j in weight]) 
         #print(Kw)
         invKw = []
         for i,j in enumerate(Kw):
@@ -329,7 +334,8 @@ class GPRN_inference(object):
                 for k in range(self.q):
                     if k != i:
                         sum_muWmuF += np.array(muW[i][k][:]) * muF[k].reshape(self.N)
-                sum_YminusSum += self.y[i] - sum_muWmuF
+                #sum_YminusSum += self.y[i] - sum_muWmuF
+                sum_YminusSum += new_y[i][:] - sum_muWmuF
                 sum_YminusSum *= muW[i][j][:]
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
@@ -360,7 +366,8 @@ class GPRN_inference(object):
                     if k != i:
                         sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k][:])
 #                print(self.y.shape)
-                sum_YminusSum += self.y[i,:] - sum_muFmuW
+                #sum_YminusSum += self.y[i,:] - sum_muFmuW
+                sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
 #                print(error)
@@ -436,7 +443,7 @@ class GPRN_inference(object):
                 second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
 
-    def _mfi_expectedLogLike(self, nodes, weight, jitters, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogLike(self, nodes, weight, means, jitters, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
         corresponds to eq.14 in Nguyen & Bonilla (2013)
@@ -451,6 +458,10 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
+        yy = np.concatenate(self.y)
+        yy = yy - self._mean(means, self.time) if means else yy
+        new_y = np.array_split(yy, self.p)
+        
         #not sure about the jitter but I'll keep it for now
         error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
         first_term = -0.5 * np.log(error_term)
@@ -463,7 +474,8 @@ class GPRN_inference(object):
         second_term = 0
         for i in range(self.p):
             for n in range(self.N):
-                YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
+                #YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
+                YOmegaMu = np.array(new_y[i][n].T - muw[i,:,n] * muf[:,n])
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
         second_term = -0.5 * second_term #/0.5
@@ -493,7 +505,7 @@ class GPRN_inference(object):
 #        print(first_term.shape, second_term.shape, third_term.shape)
         return first_term + second_term + third_term
 
-    def EvidenceLowerBound_MFI(self, nodes, weight, jitters, time, iterations=100):
+    def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, iterations=100):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -525,7 +537,7 @@ class GPRN_inference(object):
 #        print('ELB: 0')
 #        ENT, ELP, ELL = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
+            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, means,
                                                                jitters, time,
                                                                muF, varF, muW, varW)
             
@@ -548,8 +560,8 @@ class GPRN_inference(object):
                                                 sigmaF, muF,  sigmaW, muW)
 #            ELP.append(ExpLogPrior)
             #Expected log-likelihood
-            ExpLogLike = self._mfi_expectedLogLike(nodes, weight, jitters, 
-                                              sigmaF, muF, sigmaW, muW)
+            ExpLogLike = self._mfi_expectedLogLike(nodes, weight, means, jitters,
+                                                   sigmaF, muF, sigmaW, muW)
 #            ELL.append(ExpLogLike)
             #Evidence Lower Bound
             sum_ELB = ExpLogLike + ExpLogPrior + Entropy
