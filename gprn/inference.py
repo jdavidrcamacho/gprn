@@ -461,26 +461,37 @@ class GPRN_inference(object):
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means, self.time) if means else yy
         new_y = np.array_split(yy, self.p)
-        
-        #not sure about the jitter but I'll keep it for now
-        error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
-        first_term = -0.5 * np.log(error_term)
-        
+
         #y = self.y #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
-#        print('mus', muw.shape, muf.shape)
-#        print('sigmas', sigma_f.shape, sigma_w.shape)
+        
+        first_term = 0
         second_term = 0
         for i in range(self.p):
             for n in range(self.N):
-                #YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
-                YOmegaMu = np.array(new_y[i][n].T - muw[i,:,n] * muf[:,n])
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+                first_term += np.log(error)
+                YOmegaMu = np.array(new_y[i][n].T - muw[i,:,n] * muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
-        second_term = -0.5 * second_term #/0.5
+        first_term = -0.5 * first_term
+        second_term = -0.5 * second_term
         
-        third_term = 0
+#        #y = self.y #Px1 dimensional vector
+#        muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
+#        muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
+##        print('mus', muw.shape, muf.shape)
+##        print('sigmas', sigma_f.shape, sigma_w.shape)
+#        second_term = 0
+#        for i in range(self.p):
+#            for n in range(self.N):
+#                #YOmegaMu = np.array(self.y[i,n].T - muw[i,:,n] * muf[:,n])
+#                YOmegaMu = np.array(new_y[i][n].T - muw[i,:,n] * muf[:,n])
+#                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+#                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
+#        second_term = -0.5 * second_term #/0.5
+        
+#        third_term = 0
 #        for j in range(self.q):
 #            diagSigmaf = np.diag(sigma_f[j][:][:])
 #            muF = mu_f[j].reshape(self.N)
@@ -489,7 +500,7 @@ class GPRN_inference(object):
 #                third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
 #                                + np.dot(diagSigmaw, muF*muF)
 #        third_term = -0.5 * third_term / error_term
-        
+        third_term = 0
         for i in range(self.p):
             for j in range(self.q):
                 muw = mu_w.reshape(self.p, self.N)
