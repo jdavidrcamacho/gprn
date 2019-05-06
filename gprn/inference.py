@@ -290,20 +290,18 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-#        print('my means', means)
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means) if means else yy
         new_y = np.array_split(yy, self.p)
 
-        #the nodes are different
+        #the nodes can be different
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
         for i in range(self.q):
             invKf.append(inv(Kf[i]))
         invKf = np.array(invKf)
-        #but we will have equal weights
+        #but we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, time) for j in weight]) 
-        #print(Kw)
         invKw = []
         for i,j in enumerate(Kw):
             invKw = inv(j)
@@ -311,10 +309,7 @@ class GPRN_inference(object):
         error_term = np.sum(np.array(jitters)**2) + np.sum(self.yerr**2)
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
-        
-#        print(muW.shape, varW.shape)
-        #creation of Sigma_fj
-        sigma_f = []
+        sigma_f = [] #creation of Sigma_fj
         for j in range(self.q):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
@@ -325,8 +320,7 @@ class GPRN_inference(object):
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
-        #creation of mu_fj
-        mu_f = []
+        mu_f = [] #creation of mu_fj
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
@@ -334,7 +328,6 @@ class GPRN_inference(object):
                 for k in range(self.q):
                     if k != i:
                         sum_muWmuF += np.array(muW[i][k][:]) * muF[k].reshape(self.N)
-                #sum_YminusSum += self.y[i] - sum_muWmuF
                 sum_YminusSum += new_y[i][:] - sum_muWmuF
                 sum_YminusSum *= muW[i][j][:]
 #                error_term = jitters[i]**2
@@ -343,8 +336,7 @@ class GPRN_inference(object):
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
         mu_f = np.array(mu_f)
 
-        #creation of Sigma_wij
-        sigma_w = []
+        sigma_w = [] #creation of Sigma_wij
         for i in range(self.p):
             for j in range(self.q):
                 muFmuFVarF = np.zeros((self.N, self.N))
@@ -356,8 +348,7 @@ class GPRN_inference(object):
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w)
 
-        #creation of mu_wij
-        mu_w = []
+        mu_w = [] #creation of mu_wij
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
@@ -365,18 +356,14 @@ class GPRN_inference(object):
                 for k in range(self.q):
                     if k != i:
                         sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k][:])
-#                print(self.y.shape)
-                #sum_YminusSum += self.y[i,:] - sum_muFmuW
                 sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
-#                print(error)
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
 #                sum_YminusSum /= error_term
                 mu_w.append(np.dot(sigma_w[j], sum_YminusSum)/error)
-        mu_w = np.array(mu_w)#.reshape(self.q * self.p, self.N)
-#        print(sigma_f.shape, mu_f.shape, sigma_w.shape, mu_w.shape)
+        mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
 
     def _mfi_entropy(self, sigma_f, sigma_w):
@@ -416,31 +403,38 @@ class GPRN_inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        #this means equal weights for all nodes
+        #this means we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
-        #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
-        first_term = 0
+        first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
+        second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
+        L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
+        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
+        mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
             logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
             muKmu = np.dot(mu_f[j].reshape(self.N), cho_solve(L1, mu_f[j].reshape(self.N)))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-
-        #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
-        second_term = 0
-        L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
-        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
-        mu_w = mu_w.reshape(self.q, self.p, self.N)
-        for j in range(self.q):
             for i in range(self.p):
-#                L2 = cho_factor(Kw[j*i], overwrite_a=True, lower=False)
-#                logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
                 muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
                 trace = np.trace(cho_solve(L2, sigma_w[i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
+
+        #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
+#        second_term = 0
+#        L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
+#        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
+#        mu_w = mu_w.reshape(self.q, self.p, self.N)
+#        for j in range(self.q):
+#            for i in range(self.p):
+##                L2 = cho_factor(Kw[j*i], overwrite_a=True, lower=False)
+##                logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
+#                muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
+#                trace = np.trace(cho_solve(L2, sigma_w[i]))
+#                second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, sigma_f, mu_f, sigma_w, mu_w):
@@ -460,28 +454,35 @@ class GPRN_inference(object):
         """
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means, self.time) if means else yy
-        new_y = np.array_split(yy, self.p)
-
-        #y = self.y #Px1 dimensional vector
+        new_y = np.array_split(yy, self.p) #Px1 dimensional vector
+        new_y = np.array(new_y)
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
-        
         first_term = 0
         second_term = 0
+        third_term = 0
         for i in range(self.p):
             for n in range(self.N):
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
                 first_term += np.log(error)
-                YOmegaMu = np.array(new_y[i][n].T - muw[i,:,n] * muf[:,n])
+                #print(i,n, new_y[i,n], muw[i,:,n])
+                YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
+            for j in range(self.q):
+                #muw = mu_w.reshape(self.p, self.N)
+                first = np.dot(muw[i][:], np.dot(sigma_f[j][:][:], muw[i,:,:].T))
+                muF = mu_f[j].reshape(self.N)
+                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
+                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[i][:][:]))
+                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                third_term += (first + second + third) / error
         first_term = -0.5 * first_term
         second_term = -0.5 * second_term
+        third_term = -0.5 * float(third_term)
         
 #        #y = self.y #Px1 dimensional vector
 #        muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
 #        muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
-##        print('mus', muw.shape, muf.shape)
-##        print('sigmas', sigma_f.shape, sigma_w.shape)
 #        second_term = 0
 #        for i in range(self.p):
 #            for n in range(self.N):
@@ -490,7 +491,6 @@ class GPRN_inference(object):
 #                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
 #                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
 #        second_term = -0.5 * second_term #/0.5
-        
 #        third_term = 0
 #        for j in range(self.q):
 #            diagSigmaf = np.diag(sigma_f[j][:][:])
@@ -500,20 +500,18 @@ class GPRN_inference(object):
 #                third_term += np.dot(diagSigmaf, mu_w[i][j]*mu_w[i][j]) \
 #                                + np.dot(diagSigmaw, muF*muF)
 #        third_term = -0.5 * third_term / error_term
-        third_term = 0
-        for i in range(self.p):
-            for j in range(self.q):
-                muw = mu_w.reshape(self.p, self.N)
-#                print('MUW AND SIGMAF', muw.shape, sigma_f.shape)
-                first = np.dot(muw[i][:].T, np.dot(sigma_f[j][:][:], muw[i][:]))
-                muF = mu_f[j].reshape(self.N)
-#                print('MUF AND SIGMAW', muF.shape, sigma_w.shape)
-                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
-                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[i][:][:]))
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
-                third_term += (first + second + third) / error
-        third_term = -0.5 * third_term
-#        print(first_term.shape, second_term.shape, third_term.shape)
+        
+#        third_term = 0
+#        for i in range(self.p):
+#            for j in range(self.q):
+#                muw = mu_w.reshape(self.p, self.N)
+#                first = np.dot(muw[i][:].T, np.dot(sigma_f[j][:][:], muw[i][:]))
+#                muF = mu_f[j].reshape(self.N)
+#                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
+#                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[i][:][:]))
+#                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+#                third_term += (first + second + third) / error
+#        third_term = -0.5 * third_term
         return first_term + second_term + third_term
 
     def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, iterations=100):
@@ -575,13 +573,13 @@ class GPRN_inference(object):
                                                    sigmaF, muF, sigmaW, muW)
 #            ELL.append(ExpLogLike)
             #Evidence Lower Bound
-            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
 #            print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
 #                                                                          ExpLogPrior, 
 #                                                                          Entropy))
+            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
 #            print('ELB: {0}'.format(sum_ELB))
 #            print(sum_ELB, ELB[-1])
-            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
+            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
 #                print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
 #                plt.figure()
 #                plt.plot(ELB[1:])
