@@ -212,7 +212,7 @@ class GPRN_inference(object):
         #u = self._sample_CB(nodes, weight, time)
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
-        #print(f,W)
+#        print(f.shape, W.shape)
         return f, W
 
     def _cholNugget(self, matrix, maximum=10):
@@ -314,7 +314,8 @@ class GPRN_inference(object):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-#                error_term = jitters[i]**2
+##                muWmuWVarW += np.diag(muW[j][i][:] * muW[j][i][:] + varW[j][i][:])
+                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
@@ -324,12 +325,15 @@ class GPRN_inference(object):
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
+                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != i:
                         sum_muWmuF += np.array(muW[i][k][:]) * muF[k].reshape(self.N)
-                sum_YminusSum += new_y[i][:] - sum_muWmuF
+##                        sum_muWmuF += np.array(muW[k][i][:]) * muF[k].reshape(self.N)
+                        sum_YminusSum += new_y[i][:] - sum_muWmuF
                 sum_YminusSum *= muW[i][j][:]
+##                sum_YminusSum *= muW[j][i][:]
 #                error_term = jitters[i]**2
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
@@ -337,9 +341,11 @@ class GPRN_inference(object):
         mu_f = np.array(mu_f)
 
         sigma_w = [] #creation of Sigma_wij
-        for i in range(self.p):
-            for j in range(self.q):
-                muFmuFVarF = np.zeros((self.N, self.N))
+        for j in range(self.q):
+            muFmuFVarF = np.zeros((self.N, self.N))
+            for i in range(self.p):
+                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+##                muFmuFVarF = np.zeros((self.N, self.N))
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
 #                for i in range(self.p):
 #                    error_term = jitters[i]**2
@@ -356,9 +362,11 @@ class GPRN_inference(object):
                 for k in range(self.q):
                     if k != i:
                         sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[i][k][:])
-                sum_YminusSum += new_y[i][:] - sum_muFmuW
+##                        sum_muFmuW += mu_f[k].reshape(self.N) * np.array(muW[k][i][:])
+                        sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error = np.sum(jitters[k]**2) + np.sum(self.yerr[k,:]**2)
+#                print('error ->', error)
 #                for n in range(self.N):
 #                    error_term += self.yerr[i,n]**2 #+ jitters[i]**2
 #                sum_YminusSum /= error_term
@@ -437,7 +445,8 @@ class GPRN_inference(object):
 #                second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
 
-    def _mfi_expectedLogLike(self, nodes, weight, means, jitters, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
+                             sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
         corresponds to eq.14 in Nguyen & Bonilla (2013)
@@ -452,33 +461,59 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        yy = np.concatenate(self.y)
-        yy = yy - self._mean(means, self.time) if means else yy
-        new_y = np.array_split(yy, self.p) #Px1 dimensional vector
-        new_y = np.array(new_y)
-        muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
-        muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
-        first_term = 0
-        second_term = 0
-        third_term = 0
-        for i in range(self.p):
-            for n in range(self.N):
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
-                first_term += np.log(error)
-                #print(i,n, new_y[i,n], muw[i,:,n])
-                YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
-                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
-            for j in range(self.q):
-                #muw = mu_w.reshape(self.p, self.N)
-                first = np.dot(muw[i][:], np.dot(sigma_f[j][:][:], muw[i,:,:].T))
-                muF = mu_f[j].reshape(self.N)
-                second = np.dot(muF, np.dot(sigma_w[i][:][:], muF))
-                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[i][:][:]))
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
-                third_term += (first + second + third) / error
-        first_term = -0.5 * first_term
-        second_term = -0.5 * second_term
-        third_term = -0.5 * float(third_term)
+        if self.p == 1:
+            yy = np.concatenate(self.y)
+            yy = yy - self._mean(means, self.time) if means else yy
+            new_y = np.array_split(yy, self.p) #Px1 dimensional vector
+            new_y = np.array(new_y)
+            muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
+            muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
+            first_term = 0
+            second_term = 0
+            third_term = 0
+            for i in range(self.p):
+                for n in range(self.N):
+                    error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+                    first_term += np.log(error)
+                    #print(i,n, new_y[i,n], muw[i,:,n])
+                    YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
+                    second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
+                for j in range(self.q):
+                    first = np.dot(muw[i][j], np.dot(sigma_f[j][:][:], muw[i,j,:].T))
+                    second = np.dot(mu_f[j], np.dot(sigma_w[:][j][:], mu_f[j].T))
+                    third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[:][j][:]))
+                    error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                    third_term += (first + second[0][0] + third) / error
+            first_term = -0.5 * first_term
+            second_term = -0.5 * second_term
+            third_term = -0.5 * third_term
+        else:
+            yy = np.concatenate(self.y)
+            yy = yy - self._mean(means, self.time) if means else yy
+            new_y = np.array_split(yy, self.p) #Px1 dimensional vector
+            new_y = np.array(new_y)
+            muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
+            muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
+            first_term = 0
+            second_term = 0
+            third_term = 0
+            for i in range(self.p):
+                for n in range(self.N):
+                    error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+                    first_term += np.log(error)
+                    #print(i,n, new_y[i,n], muw[i,:,n])
+                    YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
+                    second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
+                for j in range(self.q):
+                    first = np.dot(muw[i][j], np.dot(sigma_f[j][:][:], muw[i,j,:].T))
+                    second = np.dot(mu_f[j], np.dot(sigma_w[:][j][:], mu_f[j].T))
+                    third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[:][j][:]))
+                    error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                    third_term += (first + second[0][0] + third) / error
+            first_term = -0.5 * first_term
+            second_term = -0.5 * second_term
+            third_term = -0.5 * third_term
+        
         
 #        #y = self.y #Px1 dimensional vector
 #        muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
@@ -514,12 +549,14 @@ class GPRN_inference(object):
 #        third_term = -0.5 * third_term
         return first_term + second_term + third_term
 
-    def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, iterations=100):
+    def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, 
+                               iterations=100, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
+                means = array with the mean functions
                 jitters = jitters array
                 time = time array
                 muF = array with the initial means for each node
@@ -527,6 +564,8 @@ class GPRN_inference(object):
                 muW = array with the initial means for each weight
                 varW = array with the initial variance for each weight
                 iternum = number of iterations
+                prints = True to print ELB value at each iteration
+                plots = True to plot ELB evolution 
             Returns:
                 sum_ELB = Evidence lower bound
                 muF = array with the new means for each node
@@ -543,8 +582,10 @@ class GPRN_inference(object):
         
         iterNumber = 0
         ELB = [0]
-#        print('ELB: 0')
-#        ENT, ELP, ELL = [0], [0], [0]
+        if prints:
+            print('ELB: {0}'.format(0))
+        if plots:
+            ENT, ELP, ELL = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, means,
                                                                jitters, time,
@@ -563,38 +604,58 @@ class GPRN_inference(object):
             
             #Entropy
             Entropy = self._mfi_entropy(sigmaF, sigmaW)
-#            ENT.append(Entropy)
+
             #Expected log prior
             ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
-#            ELP.append(ExpLogPrior)
             #Expected log-likelihood
             ExpLogLike = self._mfi_expectedLogLike(nodes, weight, means, jitters,
                                                    sigmaF, muF, sigmaW, muW)
-#            ELL.append(ExpLogLike)
+            if plots:
+                ENT.append(Entropy)
+                ELL.append(ExpLogLike)
+                ELP.append(ExpLogPrior)
             #Evidence Lower Bound
-#            print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
-#                                                                          ExpLogPrior, 
-#                                                                          Entropy))
             sum_ELB = ExpLogLike + ExpLogPrior + Entropy
-#            print('ELB: {0}'.format(sum_ELB))
-#            print(sum_ELB, ELB[-1])
-            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
-#                print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
-#                plt.figure()
-#                plt.plot(ELB[1:])
-#                plt.xlabel('iterations')
-#                plt.ylabel('evidence lower bound')
-#                plt.show()
+            if prints:
+                print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
+                                                                          ExpLogPrior, Entropy))
+                print('ELB: {0}'.format(sum_ELB))
+
+            if np.abs(sum_ELB - ELB[-1]) < 1e-10:
+                if prints:
+                    print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
+                if plots:
+                    ax1 = plt.subplot(411)
+                    plt.plot(ELB, '-')
+                    plt.ylabel('Evidence lower bound')
+                    plt.subplot(412, sharex=ax1)
+                    plt.plot(ELL, '-')
+                    plt.ylabel('Expected log likelihood')
+                    plt.subplot(413, sharex=ax1)
+                    plt.plot(ELP, '-')
+                    plt.ylabel('Expected log prior')
+                    plt.subplot(414, sharex=ax1)
+                    plt.plot(ENT, '-')
+                    plt.ylabel('Entropy')
+                    plt.xlabel('iteration')
                 return sum_ELB
             ELB.append(sum_ELB)
             iterNumber += 1
-            
-#        plt.figure()
-#        plt.plot(ELB[1:])
-#        plt.xlabel('iterations')
-#        plt.ylabel('evidence lower bound')
-#        plt.show()
+        if plots:
+            ax1 = plt.subplot(411)
+            plt.plot(ELB, '-')
+            plt.ylabel('Evidence lower bound')
+            plt.subplot(412, sharex=ax1)
+            plt.plot(ELL, '-')
+            plt.ylabel('Expected log likelihood')
+            plt.subplot(413, sharex=ax1)
+            plt.plot(ELP, '-')
+            plt.ylabel('Expected log prior')
+            plt.subplot(414, sharex=ax1)
+            plt.plot(ENT, '-')
+            plt.ylabel('Entropy')
+            plt.xlabel('iteration')
         return sum_ELB
 
 
