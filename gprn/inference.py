@@ -138,6 +138,23 @@ class GPRN_inference(object):
             K = kernel(r)
         return K
 
+    def _predict_kernel_matrix(self, kernel, time):
+        """
+            To be used in predict_gp()
+        """
+        size = [time]
+        if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
+            K = kernel(None, time[:, None], self.time[None, :])
+        else:
+            if len(size) == 1:
+                r = time - self.time[None,:]
+            else:
+                r = time[:, None] - self.time[None, :]
+            K = kernel(r)
+        #print(kernel)
+        print(K)
+        return K
+
     def _kernel_pars(self, kernel):
         """
             Returns the hyperparameters of a given kernel
@@ -579,9 +596,8 @@ class GPRN_inference(object):
         """
         ystar = np.zeros([self.p, tstar.size])
         
-        Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
-        Kwstar = np.array([self._predict_kernel_matrix(j, tstar) for j in weights])
-        
+#        print(Kfstar.shape, Kwstar.shape)
+#        print(muF.shape, muW.shape)
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
         invKf = []
         for i in range(self.q):
@@ -591,13 +607,24 @@ class GPRN_inference(object):
         invKw = []
         for i, j in enumerate(Kw):
             invKw = inv(j)
-            
-        for i in range(tstar.size):
-            wstar = np.zeros([self.p, self.q]) #PxQ matrix
-            fstar = np.zeros([self.q, 1]) #Qx1 matrix
+        
+        ystar = []
+        for n in range(tstar.size):
+            Kfstar = np.array([self._predict_kernel_matrix(i, tstar[n]) for i in nodes])
+            Kwstar = np.array([self._predict_kernel_matrix(j, tstar[n]) for j in weights])
+            wstar = [] #np.zeros([self.p, self.q]) #PxQ matrix
+            fstar = [] #np.zeros([self.q, 1]) #Qx1 matrix
             for q in range(self.q):
-                print(Kfstar[q][:][:].shape, invKf[q].shape, muF[q].shape)
-                fstar = np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T)
+#                print(Kfstar[q][:][:].shape, invKf[q].shape, muF[q].shape)
+                fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
                 for p in range(self.p):
-                    wstar = np.dot(np.dot(Kwstar[0][:][:], invKf[0]), muF[p].T)
-        return fstar, wstar
+#                    print(Kwstar[0][:][:].shape, invKw.shape, muW.shape)
+                    muW = muW.reshape(self.p, self.N)
+                    wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
+                    
+            fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
+            wstar = np.array(wstar)#.reshape(self.p, tstar.size)
+            ystar.append(np.dot(wstar, fstar.T))
+        ystar = np.array(ystar).T.reshape(self.p, tstar.size)
+#        print(ystar.shape)
+        return ystar
