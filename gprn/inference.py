@@ -129,7 +129,7 @@ class GPRN_inference(object):
         """
         #if time is None we use the initial time of the class MFI
         #r = time[:, None] - time[None, :] if time!=None else self.time[:, None] - self.time[None, :]
-        r = self.time[:, None] - self.time[None, :]
+        r = time[:, None] - time[None, :]
         
         #to deal with the non-stationary kernels problem
         if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
@@ -147,10 +147,10 @@ class GPRN_inference(object):
             K = kernel(None, time[:, None], self.time[None, :])
         if isinstance(kernel, WN):
 #            zeros = np.zeros([time.size, self.time.size])
-#            nonzeros = np.vstack(WN.pars[0]*np.diag(np.ones(time.size)), 
-#                                 np.zeros([time.size, self.time.size-time.size]))
-            K = np.zeros([time.size, self.time.size]) 
+#            nonzeros = np.vstack(10*np.diag(np.ones(time.size)), np.zeros([time.size, self.time.size-time.size]))
+            K = 10*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
 #            K = zeros + nonzeros
+#            print(K.shape)
         else:
             if len(size) == 1:
                 r = time - self.time[None,:]
@@ -188,20 +188,20 @@ class GPRN_inference(object):
             Returns:
                 CB = matrix CB
         """
-        CB_size = self.N * self.q * (self.p + 1)
+        CB_size = time.size * self.q * (self.p + 1)
         CB = np.zeros((CB_size, CB_size)) #initial empty matrix
         
         position = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
             node_CovMatrix = self._kernel_matrix(nodes[i], time)
-            CB[position:position+self.N, position:position+self.N] = node_CovMatrix
-            position += self.N
+            CB[position:position+time.size, position:position+time.size] = node_CovMatrix
+            position += time.size
         weight_CovMatrix = self._kernel_matrix(weight, time)
         #then we enter the weights
         for i in range(self.qp):
-            CB[position:position+self.N, position:position+self.N] = weight_CovMatrix
-            position += self.N
+            CB[position:position+time.size, position:position+time.size] = weight_CovMatrix
+            position += time.size
         return CB
 
     def _sample_CB(self, nodes, weight, time):
@@ -214,7 +214,7 @@ class GPRN_inference(object):
             Returns:
                 Samples of CB
         """
-        mean = np.zeros(self.N*self.q*(self.p+1))
+        mean = np.zeros(time.size*self.q*(self.p+1))
         cov = self._CB_matrix(nodes, weight, time)
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
