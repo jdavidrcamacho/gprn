@@ -10,7 +10,7 @@ from gprn.nodeFunction import Linear as nodeL
 from gprn.nodeFunction import Polynomial as nodeP
 from gprn.weightFunction import Linear as weightL
 from gprn.weightFunction import Polynomial as weightP
-
+from gprn.weightFunction import WhiteNoise as WN
 
 class GPRN_inference(object):
     """ 
@@ -145,6 +145,12 @@ class GPRN_inference(object):
         size = [time]
         if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
             K = kernel(None, time[:, None], self.time[None, :])
+        if isinstance(kernel, WN):
+#            zeros = np.zeros([time.size, self.time.size])
+#            nonzeros = np.vstack(WN.pars[0]*np.diag(np.ones(time.size)), 
+#                                 np.zeros([time.size, self.time.size-time.size]))
+            K = np.zeros([time.size, self.time.size]) 
+#            K = zeros + nonzeros
         else:
             if len(size) == 1:
                 r = time - self.time[None,:]
@@ -152,7 +158,7 @@ class GPRN_inference(object):
                 r = time[:, None] - self.time[None, :]
             K = kernel(r)
         #print(kernel)
-        print(K)
+#        print(K)
         return K
 
     def _kernel_pars(self, kernel):
@@ -309,7 +315,8 @@ class GPRN_inference(object):
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means) if means else yy
         new_y = np.array_split(yy, self.p)
-
+        new_y = self.y
+        
         #the nodes can be different
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
@@ -542,7 +549,7 @@ class GPRN_inference(object):
                 print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
                                                                           ExpLogPrior, Entropy))
                 print('ELB: {0}'.format(sum_ELB))
-            if np.abs(sum_ELB - ELB[-1]) < 1e-10:
+            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
                 if prints:
                     print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
                 if plots:
@@ -626,5 +633,9 @@ class GPRN_inference(object):
             wstar = np.array(wstar)#.reshape(self.p, tstar.size)
             ystar.append(np.dot(wstar, fstar.T))
         ystar = np.array(ystar).T.reshape(self.p, tstar.size)
-#        print(ystar.shape)
+
+        ystar = np.concatenate(ystar)
+        ystar = ystar + self._mean(means, tstar) if means else ystar
+        ystar = np.array_split(ystar, self.p)
+
         return ystar
