@@ -222,6 +222,21 @@ class GPRN_inference(object):
     #def _u_to_fhatw(self, nodes, weight, time):
     def _u_to_fhatw(self, u):
         """
+            Given a list, divides it in the correspondinf nodes f and
+        weights W parts.
+            Parameters:
+                u = array
+            Returns:
+                f = array with the samples of the nodes
+                W = array with the samples of the weights
+        """
+        f = u[:self.q * self.N].reshape((self.q, 1, self.N))
+        W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
+        return f, W
+
+
+    def u_to_fW(self, nodes, weight, time):
+        """
             Returns the samples of CB that corresponds to the nodes f and
         weights W.
             Parameters:
@@ -232,10 +247,16 @@ class GPRN_inference(object):
                 f = array with the samples of the nodes
                 W = array with the samples of the weights
         """
-        #u = self._sample_CB(nodes, weight, time)
+        u = self._sample_CB(nodes, weight, time)
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
         W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, W
+
+
+    def get_y(self, n, w, time):
+        # obscure way to do it
+        y = np.einsum('ij...,jk...->ik...', w, n).reshape(self.p, time.size)
+        return y
 
     def _cholNugget(self, matrix, maximum=10):
         """
@@ -507,7 +528,7 @@ class GPRN_inference(object):
         var = np.random.rand(D,1);
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
-        
+
         iterNumber = 0
         ELB = [0]
         if prints:
@@ -544,12 +565,12 @@ class GPRN_inference(object):
                 ELP.append(ExpLogPrior)
             
             #Evidence Lower Bound
-            sum_ELB = ExpLogLike + ExpLogPrior + Entropy
+            sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
             if prints:
                 print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
                                                                           ExpLogPrior, Entropy))
                 print('ELB: {0}'.format(sum_ELB))
-            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
+            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
                 if prints:
                     print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
                 if plots:
