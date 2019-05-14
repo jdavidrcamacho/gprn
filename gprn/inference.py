@@ -393,7 +393,7 @@ class GPRN_inference(object):
                         sum_muFmuW += mu_f[j].reshape(self.N) * np.array(muW[i][j][:])
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = np.sum(jitters[j]**2) + np.sum(self.yerr[j,:]**2)
+                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum)/error)
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
@@ -528,7 +528,7 @@ class GPRN_inference(object):
         var = np.random.rand(D,1);
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
-
+#        print('sigma y', jitters[0]**2)
         iterNumber = 0
         ELB = [0]
         if prints:
@@ -570,7 +570,9 @@ class GPRN_inference(object):
                 print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
                                                                           ExpLogPrior, Entropy))
                 print('ELB: {0}'.format(sum_ELB))
-            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
+#            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
+            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
+            if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
                 if plots:
