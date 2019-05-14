@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pylab as plt
-from scipy.linalg import inv, cho_factor, cho_solve, LinAlgError
+from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -269,20 +269,20 @@ class GPRN_inference(object):
                 L = Matrix containing the Cholesky factor
         """
         try:
-            L =  cho_factor(matrix, overwrite_a=True, lower=False)
+            L =  cholesky(matrix)
         except LinAlgError:
             nugget = np.abs(np.diag(matrix).mean()) * 1e-5 #nugget to add to the diagonal
             n = 1 #number of tries
             while n <= maximum:
                 print ('n:',n, ', nugget:', nugget)
                 try:
-                    L =  cho_factor(matrix + nugget, overwrite_a=True, lower=False)
+                    L =  cholesky(matrix + nugget*np.identity(self.time.size))
                 except LinAlgError:
                     nugget *= 10
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
-        return L[0]
+        return L
 
     def _cholShift(self, matrix, maximum=10):
         """
@@ -359,6 +359,7 @@ class GPRN_inference(object):
                 error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
+##        print(np.diag(sigma_f[0]))
 
         mu_f = [] #creation of mu_fj
         for j in range(self.q):
@@ -374,6 +375,7 @@ class GPRN_inference(object):
                 sum_YminusSum *= muW[i][j][:]
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
         mu_f = np.array(mu_f)
+##        print(mu_f)
         
         sigma_w = [] #creation of Sigma_wij
         for j in range(self.q):
@@ -409,20 +411,26 @@ class GPRN_inference(object):
             Returns:
                 ent_sum = final entropy
         """
-        import matplotlib.pylab as plt
+#        import matplotlib.pylab as plt
 
         q = self.q #number of nodes
         p = self.p #number of outputs
         
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
-#            print(sigma_f[i])
-#            plt.imshow(sigma_f[i])
             L1 = self._cholNugget(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1)))
             for j in range(p):
                 L2 = self._cholNugget(sigma_w[i][j])
                 ent_sum += np.sum(np.log(np.diag(L2)))
+#        Kf = np.array([self._kernel_matrix(i, self.time) for i in sigma_f])
+#        Kw = np.array([self._kernel_matrix(j, self.time) for j in sigma_w])
+#        for i in range(q):
+#            L1 = self._cholNugget(Kf[i])
+#            ent_sum += np.sum(np.log(np.diag(L1)))
+#            for j in range(p):
+#                L2 = self._cholNugget(Kw[0])
+#                ent_sum += np.sum(np.log(np.diag(L2)))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -493,14 +501,20 @@ class GPRN_inference(object):
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
             for j in range(self.q):
-                first = np.dot(muw[i][j], np.dot(sigma_f[j][:][:], muw[i,j,:].T))
-                second = np.dot(mu_f[j], np.dot(sigma_w[j][i][:], mu_f[j].T))
-                third = np.trace(np.dot(sigma_f[j][:][:], sigma_w[j][i][:]))
+                #first = np.dot(muw[i][j], np.dot(sigma_f[j][:][:], muw[i][j].T))
+                first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
+                #second = np.dot(mu_f[j], np.dot(sigma_w[j][i][:], mu_f[j].T))
+                second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
+                third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
-                third_term += (first + second[0][0] + third) / error
+                third_term += (first + second[0][0] + third)/ error
+#                print(first, '\n', second, '\n', third)
         first_term = -0.5 * first_term
+#        print('this is the first term', first_term)
         second_term = -0.5 * second_term
+#        print('this is the second term', second_term)
         third_term = -0.5 * third_term
+#        print('and the third is', third_term)
         return first_term + second_term + third_term
 
     def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, 
@@ -562,6 +576,7 @@ class GPRN_inference(object):
             
             #Entropy
             Entropy = self._mfi_entropy(sigmaF, sigmaW)
+##            Entropy = self._mfi_entropy(nodes, weight)
             #Expected log prior
             ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
