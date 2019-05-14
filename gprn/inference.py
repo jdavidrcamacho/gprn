@@ -374,7 +374,7 @@ class GPRN_inference(object):
                 sum_YminusSum *= muW[i][j][:]
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
         mu_f = np.array(mu_f)
-
+        
         sigma_w = [] #creation of Sigma_wij
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
@@ -398,6 +398,7 @@ class GPRN_inference(object):
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
 
+
     def _mfi_entropy(self, sigma_f, sigma_w):
         """
             Calculates the entropy in mean-field inference, corresponds to 
@@ -408,11 +409,15 @@ class GPRN_inference(object):
             Returns:
                 ent_sum = final entropy
         """
+        import matplotlib.pylab as plt
+
         q = self.q #number of nodes
         p = self.p #number of outputs
         
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
+#            print(sigma_f[i])
+#            plt.imshow(sigma_f[i])
             L1 = self._cholNugget(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1)))
             for j in range(p):
@@ -526,13 +531,17 @@ class GPRN_inference(object):
         D = self.time.size * self.q *(self.p+1);
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
+        #experiment
+        np.random.seed(100)
+        mu = np.random.rand(D,1);
+        np.random.seed(200)
+        var = np.random.rand(D,1);
+        
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
 #        print('sigma y', jitters[0]**2)
         iterNumber = 0
         ELB = [0]
-        if prints:
-            print('ELB: {0}'.format(0))
         if plots:
             ENT, ELP, ELL = [0], [0], [0]
         while iterNumber < iterations:
@@ -567,9 +576,9 @@ class GPRN_inference(object):
             #Evidence Lower Bound
             sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
             if prints:
+                print('ELB: {0}'.format(sum_ELB))
                 print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
                                                                           ExpLogPrior, Entropy))
-                print('ELB: {0}'.format(sum_ELB))
 #            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
             if criteria < 1e-5 and criteria != 0 :
