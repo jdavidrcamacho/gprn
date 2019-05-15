@@ -270,7 +270,7 @@ class GPRN_inference(object):
         """
         nugget = 0 
         try:
-            L =  cholesky(matrix+ nugget*np.identity(self.time.size))
+            L =  cholesky(matrix + nugget*np.identity(self.time.size))
         except LinAlgError:
             print('NUGGET ADDED TO DIAGONAL!')
             nugget += np.abs(np.diag(matrix).mean()) * 1e-6 #nugget to add to the diagonal
@@ -316,6 +316,53 @@ class GPRN_inference(object):
                     n += 1
             raise LinAlgError("Still not positive definite, even with a shift in eigenvalues.")
         return L
+
+    def jitChol(self, A, maxTries=10, warning=True):
+    
+        """Do a Cholesky decomposition with jitter.
+        Description:
+        U = jitChol(A, maxTries, warning) attempts a Cholesky
+         decomposition on the given matrix, if matrix isn't positive
+         definite the function adds 'jitter' and tries again. Thereafter
+         the amount of jitter is multiplied by 10 each time it is added
+         again. This is continued for a maximum of 10 times.  The amount of
+         jitter added is returned.
+         Returns:
+          U - the Cholesky decomposition for the matrix.
+         Arguments:
+          A - the matrix for which the Cholesky decomposition is required.
+          maxTries - the maximum number of times that jitter is added before
+           giving up (default 10).
+          warning - whether to give a warning for adding jitter (default is True)
+        See also
+        CHOL, PDINV, LOGDET
+        Copyright (c) 2005, 2006 Neil D. Lawrence
+        
+        """
+        warning = True
+        jitter = 0
+        i = 0
+    
+        while(True):
+            try:
+                # Try --- need to check A is positive definite
+                if jitter == 0:
+                    jitter = abs(np.trace(A))/A.shape[0]*1e-6
+                    LC = cholesky(A, lower=True)
+                    return LC.T
+                else:
+                    if warning:
+                        # pdb.set_trace()
+                        print("Adding jitter of %f in jitChol()." % jitter)
+                    LC = cholesky(A+jitter*np.eye(A.shape[0]), lower=True)
+                    return LC.T
+            except LinAlgError:
+                # Seems to have been non-positive definite.
+                if i<maxTries:
+                    jitter = jitter*10
+                else:
+                    raise LinAlgError("Matrix non positive definite, jitter of " +  str(jitter) + " added but failed after " + str(i) + " trials.")
+            i += 1
 
 ##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
@@ -413,16 +460,17 @@ class GPRN_inference(object):
             Returns:
                 ent_sum = final entropy
         """
-        print('ENTERING THE ENTROPY')
         q = self.q #number of nodes
         p = self.p #number of outputs
         
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
             L1 = self._cholNugget(sigma_f[i])
+#            L1 = self.jitChol(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1)))
             for j in range(p):
                 L2 = self._cholNugget(sigma_w[i][j])
+#                L2 = self.jitChol(sigma_w[i][j])
                 ent_sum += np.sum(np.log(np.diag(L2)))
         return ent_sum
 
@@ -440,7 +488,6 @@ class GPRN_inference(object):
             Returns:
                 expected log prior
         """
-        print('ENTERING THE LOG PRIOR')
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
         #this means we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
@@ -454,11 +501,11 @@ class GPRN_inference(object):
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
             logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
-            muKmu = np.dot(mu_f[j].reshape(self.N), cho_solve(L1, mu_f[j].reshape(self.N)))
+            muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
             for i in range(self.p):
-                muKmu = np.dot(mu_w[j,i], cho_solve(L2, mu_w[j,i]))
+                muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
@@ -479,7 +526,6 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        print('ENTERING THE LOG LIKE')
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means, self.time) if means else yy
         new_y = np.array_split(yy, self.p) #Px1 dimensional vector
