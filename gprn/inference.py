@@ -268,15 +268,19 @@ class GPRN_inference(object):
             Returns:
                 L = Matrix containing the Cholesky factor
         """
+        nugget = 0 
         try:
-            L =  cholesky(matrix)
+            L =  cholesky(matrix+ nugget*np.identity(self.time.size))
         except LinAlgError:
-            nugget = np.abs(np.diag(matrix).mean()) * 1e-5 #nugget to add to the diagonal
+            print('NUGGET ADDED TO DIAGONAL!')
+            nugget += np.abs(np.diag(matrix).mean()) * 1e-6 #nugget to add to the diagonal
             n = 1 #number of tries
             while n <= maximum:
-                print ('n:',n, ', nugget:', nugget)
+                print ('n:',n, ', nugget:',nugget)
+                #print(np.diag(matrix))
                 try:
                     L =  cholesky(matrix + nugget*np.identity(self.time.size))
+                    return L
                 except LinAlgError:
                     nugget *= 10
                 finally:
@@ -296,21 +300,22 @@ class GPRN_inference(object):
                 L = matrix containing the Cholesky factor
         """
         try:
-            L =  cho_factor(matrix, overwrite_a=True, lower=False)
+            L =  cholesky(matrix)
         except LinAlgError:
-            shift = 1e-3 #shift to add to the diagonal
+            print('DIAGONAL SHIFTED!')
+            shift = 1e-5 #shift to add to the diagonal
             n = 1 #number of tries
             while n <= maximum:
                 print ('n:', n, ', shift:', shift)
                 try:
-                    L =  cho_factor(matrix + shift*np.identity(self.time.size), 
-                                    overwrite_a=True, lower=False)
+                    L =  cholesky(matrix + shift*np.identity(self.time.size))
+                    return L
                 except LinAlgError:
                     shift *= 10
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with a shift in eigenvalues.")
-        return L[0]
+        return L
 
 ##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
@@ -359,7 +364,6 @@ class GPRN_inference(object):
                 error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
-##        print(np.diag(sigma_f[0]))
 
         mu_f = [] #creation of mu_fj
         for j in range(self.q):
@@ -370,12 +374,10 @@ class GPRN_inference(object):
                 for k in range(self.q):
                     if k != j:
                         sum_muWmuF += np.array(muW[i][j][:]) * muF[j].reshape(self.N)
-##                        print('sum muWmuF', sum_muWmuF)
                     sum_YminusSum += new_y[i][:] - sum_muWmuF
                 sum_YminusSum *= muW[i][j][:]
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
         mu_f = np.array(mu_f)
-##        print(mu_f)
         
         sigma_w = [] #creation of Sigma_wij
         for j in range(self.q):
@@ -411,8 +413,7 @@ class GPRN_inference(object):
             Returns:
                 ent_sum = final entropy
         """
-#        import matplotlib.pylab as plt
-
+        print('ENTERING THE ENTROPY')
         q = self.q #number of nodes
         p = self.p #number of outputs
         
@@ -423,14 +424,6 @@ class GPRN_inference(object):
             for j in range(p):
                 L2 = self._cholNugget(sigma_w[i][j])
                 ent_sum += np.sum(np.log(np.diag(L2)))
-#        Kf = np.array([self._kernel_matrix(i, self.time) for i in sigma_f])
-#        Kw = np.array([self._kernel_matrix(j, self.time) for j in sigma_w])
-#        for i in range(q):
-#            L1 = self._cholNugget(Kf[i])
-#            ent_sum += np.sum(np.log(np.diag(L1)))
-#            for j in range(p):
-#                L2 = self._cholNugget(Kw[0])
-#                ent_sum += np.sum(np.log(np.diag(L2)))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -447,6 +440,7 @@ class GPRN_inference(object):
             Returns:
                 expected log prior
         """
+        print('ENTERING THE LOG PRIOR')
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
         #this means we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
@@ -485,6 +479,7 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
+        print('ENTERING THE LOG LIKE')
         yy = np.concatenate(self.y)
         yy = yy - self._mean(means, self.time) if means else yy
         new_y = np.array_split(yy, self.p) #Px1 dimensional vector
@@ -543,8 +538,8 @@ class GPRN_inference(object):
         """ 
         #Initial variational parameters
         D = self.time.size * self.q *(self.p+1);
-        mu = np.random.randn(D,1);
-        var = np.random.rand(D,1);
+#        mu = np.random.randn(D,1);
+#        var = np.random.rand(D,1);
         #experiment
         np.random.seed(100)
         mu = np.random.rand(D,1);
@@ -557,7 +552,7 @@ class GPRN_inference(object):
         iterNumber = 0
         ELB = [0]
         if plots:
-            ENT, ELP, ELL = [0], [0], [0]
+            ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, means,
                                                                jitters, time,
@@ -574,19 +569,19 @@ class GPRN_inference(object):
                     varW.append(np.diag(sigmaW[j][i]))
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
             
-            #Entropy
-            Entropy = self._mfi_entropy(sigmaF, sigmaW)
-##            Entropy = self._mfi_entropy(nodes, weight)
             #Expected log prior
             ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
             ExpLogLike = self._mfi_expectedLogLike(nodes, weight, means, jitters,
                                                    sigmaF, muF, sigmaW, muW)
+            #Entropy
+            Entropy = self._mfi_entropy(sigmaF, sigmaW)
+            
             if plots:
-                ENT.append(Entropy)
                 ELL.append(ExpLogLike)
                 ELP.append(ExpLogPrior)
+                ENT.append(Entropy)
             
             #Evidence Lower Bound
             sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
