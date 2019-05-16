@@ -270,52 +270,23 @@ class GPRN_inference(object):
         """
         nugget = 0 
         try:
-            L =  cholesky(matrix + nugget*np.identity(self.time.size))
+            nugget += np.abs(np.diag(matrix).mean()) * 1e-6
+            L =  cholesky(matrix, lower=True)
+            return L, nugget
         except LinAlgError:
             print('NUGGET ADDED TO DIAGONAL!')
-            nugget += np.abs(np.diag(matrix).mean()) * 1e-6 #nugget to add to the diagonal
             n = 1 #number of tries
             while n <= maximum:
                 print ('n:',n, ', nugget:',nugget)
-                #print(np.diag(matrix))
                 try:
-                    L =  cholesky(matrix + nugget*np.identity(self.time.size))
-                    return L
+                    L =  cholesky(matrix + nugget*np.identity(self.time.size),
+                                  lower=True)
+                    return L, nugget
                 except LinAlgError:
                     nugget *= 10
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
-        return L
-
-    def _cholShift(self, matrix, maximum=10):
-        """
-            Returns the cholesky decomposition to a given matrix, if this matrix
-        is not positive definite, we shift all the eigenvalues up by the 
-        positive scalar to avoid a ill-conditioned matrix
-            Parameters:
-                matrix = matrix to decompose
-                maximum = number of times a shift is added.
-            Returns:
-                L = matrix containing the Cholesky factor
-        """
-        try:
-            L =  cholesky(matrix)
-        except LinAlgError:
-            print('DIAGONAL SHIFTED!')
-            shift = 1e-5 #shift to add to the diagonal
-            n = 1 #number of tries
-            while n <= maximum:
-                print ('n:', n, ', shift:', shift)
-                try:
-                    L =  cholesky(matrix + shift*np.identity(self.time.size))
-                    return L
-                except LinAlgError:
-                    shift *= 10
-                finally:
-                    n += 1
-            raise LinAlgError("Still not positive definite, even with a shift in eigenvalues.")
-        return L
 
     def jitChol(self, A, maxTries=10, warning=True):
     
@@ -349,13 +320,13 @@ class GPRN_inference(object):
                 if jitter == 0:
                     jitter = abs(np.trace(A))/A.shape[0]*1e-6
                     LC = cholesky(A, lower=True)
-                    return LC.T
+                    return LC.T, jitter
                 else:
                     if warning:
                         # pdb.set_trace()
                         print("Adding jitter of %f in jitChol()." % jitter)
                     LC = cholesky(A+jitter*np.eye(A.shape[0]), lower=True)
-                    return LC.T
+                    return LC.T, jitter
             except LinAlgError:
                 # Seems to have been non-positive definite.
                 if i<maxTries:
@@ -463,15 +434,17 @@ class GPRN_inference(object):
         q = self.q #number of nodes
         p = self.p #number of outputs
         
+        #print(sigma_f[0])
+        
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
             L1 = self._cholNugget(sigma_f[i])
 #            L1 = self.jitChol(sigma_f[i])
-            ent_sum += np.sum(np.log(np.diag(L1)))
+            ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
-                L2 = self._cholNugget(sigma_w[i][j])
-#                L2 = self.jitChol(sigma_w[i][j])
-                ent_sum += np.sum(np.log(np.diag(L2)))
+               L2 = self._cholNugget(sigma_w[i][j])
+#               L2 = self.jitChol(sigma_w[i][j])
+               ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -496,18 +469,25 @@ class GPRN_inference(object):
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
+#        L2 = self._cholNugget(Kw[0])
         logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
+#        print('logKw', logKw)
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
-            L1 = cho_factor(Kf[j], overwrite_a=True, lower=False)
+            L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
+#            L1 = self._cholNugget(Kf[j])
             logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
+            print('logKf', logKf)
             muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
+            print('muKmu', muKmu)
             trace = np.trace(cho_solve(L1, sigma_f[j]))
+            print('trace', trace)
             first_term += logKf -0.5*muKmu -0.5*trace
             for i in range(self.p):
                 muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
+        print('1st', first_term, '2nd', second_term)
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
