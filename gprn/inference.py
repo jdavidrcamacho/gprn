@@ -269,11 +269,12 @@ class GPRN_inference(object):
                 L = Matrix containing the Cholesky factor
         """
         nugget = 0 
-        #matrix = np.round(matrix, 25)
-        #print(np.diag(matrix))
         for i,j in enumerate(np.diag(matrix)):
             print('%.16f' %np.diag(matrix)[i])
         print()
+        #matrix = np.round(matrix, 5)
+        #print(np.diag(matrix))
+
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-6
             L =  cholesky(matrix, lower=True)
@@ -290,9 +291,10 @@ class GPRN_inference(object):
                     #L = np.round(L, 5)
                     return L, nugget
                 except LinAlgError:
-                    nugget *= 10
+                    nugget *= 10.0
                 finally:
                     n += 1
+            #return -np.inf
             raise LinAlgError("Still not positive definite, even with nugget.")
 
     def jitChol(self, A, maxTries=10, warning=True):
