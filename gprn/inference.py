@@ -269,18 +269,25 @@ class GPRN_inference(object):
                 L = Matrix containing the Cholesky factor
         """
         nugget = 0 
+        #matrix = np.round(matrix, 25)
+        #print(np.diag(matrix))
+        for i,j in enumerate(np.diag(matrix)):
+            print('%.16f' %np.diag(matrix)[i])
+        print()
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-6
             L =  cholesky(matrix, lower=True)
+            #L = np.round(L, 5)
             return L, nugget
         except LinAlgError:
             print('NUGGET ADDED TO DIAGONAL!')
-            n = 1 #number of tries
-            while n <= maximum:
-                print ('n:',n, ', nugget:',nugget)
+            n = 0 #number of tries
+            while n < maximum:
+                print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L =  cholesky(matrix + nugget*np.identity(self.time.size),
                                   lower=True)
+                    #L = np.round(L, 5)
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10
@@ -418,6 +425,12 @@ class GPRN_inference(object):
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum)/error)
         mu_w = np.array(mu_w)
+        
+#        sigma_f = np.round(sigma_f, 8)
+#        mu_f = np.round(mu_f, 8)
+#        sigma_w = np.round(sigma_w, 8)
+#        mu_w = np.round(mu_w, 8)
+        
         return sigma_f, mu_f, sigma_w, mu_w
 
 
@@ -477,17 +490,17 @@ class GPRN_inference(object):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
 #            L1 = self._cholNugget(Kf[j])
             logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
-            print('logKf', logKf)
+##            print('logKf', logKf)
             muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
-            print('muKmu', muKmu)
+##            print('muKmu', muKmu)
             trace = np.trace(cho_solve(L1, sigma_f[j]))
-            print('trace', trace)
+##            print('trace', trace)
             first_term += logKf -0.5*muKmu -0.5*trace
             for i in range(self.p):
                 muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
-        print('1st', first_term, '2nd', second_term)
+##        print('1st', first_term, '2nd', second_term)
         return first_term + second_term
 
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
