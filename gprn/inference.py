@@ -248,15 +248,34 @@ class GPRN_inference(object):
                 W = array with the samples of the weights
         """
         u = self._sample_CB(nodes, weight, time)
-        f = u[:self.q * self.N].reshape((self.q, 1, self.N))
-        W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
+        f = u[:self.q * time.size].reshape((self.q, 1, time.size))
+        W = u[self.q * time.size:].reshape((self.p, self.q, time.size))
         return f, W
 
 
-    def get_y(self, n, w, time):
+    def get_y(self, n, w, time, means = None):
         # obscure way to do it
         y = np.einsum('ij...,jk...->ik...', w, n).reshape(self.p, time.size)
+        y = (y + self._mean(means, time)) if means else time
+
         return y
+
+    def _cholSimple(self, matrix):
+        """
+            Returns the cholesky decomposition to a given matrix.
+            Parameters:
+                matrix = matrix to decompose
+            Returns:
+                L = Matrix containing the Cholesky factor
+        """
+        nugget = 0 #because of all the tests
+        try:
+            L =  cholesky(matrix, lower=True)
+            return L, nugget
+        except LinAlgError:
+            L = cholesky(matrix).T
+            return L, nugget
+
 
     def _cholNugget(self, matrix, maximum=10):
         """
@@ -266,19 +285,20 @@ class GPRN_inference(object):
                 matrix = matrix to decompose
                 maximum = number of times a nugget is added.
             Returns:
-                L = Matrix containing the Cholesky factor
+                L = matrix containing the Cholesky factor
+                nugget = nugget added to the diagonal
         """
-        nugget = 0 
-        for i,j in enumerate(np.diag(matrix)):
-            print('%.16f' %np.diag(matrix)[i])
-        print()
-        #matrix = np.round(matrix, 5)
-        #print(np.diag(matrix))
+        nugget = 0 #our nugget starts as zero
+#        for i,j in enumerate(np.diag(matrix)):
+#            print('%.16f' %np.diag(matrix)[i])
+#        print()
+#        matrix = np.round(matrix, 5)
+#        print(np.diag(matrix))
 
         try:
-            nugget += np.abs(np.diag(matrix).mean()) * 1e-6
-            L =  cholesky(matrix, lower=True)
-            #L = np.round(L, 5)
+            nugget += np.abs(np.diag(matrix).mean()) * 1e-5
+            #L = cholesky(matrix, lower = True)
+            L = cholesky(matrix).T
             return L, nugget
         except LinAlgError:
             print('NUGGET ADDED TO DIAGONAL!')
@@ -286,9 +306,8 @@ class GPRN_inference(object):
             while n < maximum:
                 print ('n:', n+1, ', nugget:', nugget)
                 try:
-                    L =  cholesky(matrix + nugget*np.identity(self.time.size),
-                                  lower=True)
-                    #L = np.round(L, 5)
+                    #L = cholesky(matrix + nugget*np.identity(self.time.size), lower = True)
+                    L = cholesky(matrix + nugget*np.identity(self.time.size)).T
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10.0
@@ -297,52 +316,6 @@ class GPRN_inference(object):
             #return -np.inf
             raise LinAlgError("Still not positive definite, even with nugget.")
 
-    def jitChol(self, A, maxTries=10, warning=True):
-    
-        """Do a Cholesky decomposition with jitter.
-        Description:
-        U = jitChol(A, maxTries, warning) attempts a Cholesky
-         decomposition on the given matrix, if matrix isn't positive
-         definite the function adds 'jitter' and tries again. Thereafter
-         the amount of jitter is multiplied by 10 each time it is added
-         again. This is continued for a maximum of 10 times.  The amount of
-         jitter added is returned.
-         Returns:
-          U - the Cholesky decomposition for the matrix.
-         Arguments:
-          A - the matrix for which the Cholesky decomposition is required.
-          maxTries - the maximum number of times that jitter is added before
-           giving up (default 10).
-          warning - whether to give a warning for adding jitter (default is True)
-        See also
-        CHOL, PDINV, LOGDET
-        Copyright (c) 2005, 2006 Neil D. Lawrence
-        
-        """
-        warning = True
-        jitter = 0
-        i = 0
-    
-        while(True):
-            try:
-                # Try --- need to check A is positive definite
-                if jitter == 0:
-                    jitter = abs(np.trace(A))/A.shape[0]*1e-6
-                    LC = cholesky(A, lower=True)
-                    return LC.T, jitter
-                else:
-                    if warning:
-                        # pdb.set_trace()
-                        print("Adding jitter of %f in jitChol()." % jitter)
-                    LC = cholesky(A+jitter*np.eye(A.shape[0]), lower=True)
-                    return LC.T, jitter
-            except LinAlgError:
-                # Seems to have been non-positive definite.
-                if i<maxTries:
-                    jitter = jitter*10
-                else:
-                    raise LinAlgError("Matrix non positive definite, jitter of " +  str(jitter) + " added but failed after " + str(i) + " trials.")
-            i += 1
 
 ##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
@@ -366,7 +339,7 @@ class GPRN_inference(object):
                 mu_w = array with the means for each weight
         """
         yy = np.concatenate(self.y)
-        yy = yy - self._mean(means) if means else yy
+        yy = (yy - self._mean(means)) if means else yy
         new_y = np.array_split(yy, self.p)
         new_y = self.y
         
@@ -403,7 +376,7 @@ class GPRN_inference(object):
                         sum_muWmuF += np.array(muW[i][j][:]) * muF[j].reshape(self.N)
                     sum_YminusSum += new_y[i][:] - sum_muWmuF
                 sum_YminusSum *= muW[i][j][:]
-            mu_f.append(np.dot(sigma_f[j], sum_YminusSum)/error_term)
+            mu_f.append(np.dot(sigma_f[j], sum_YminusSum/error_term))
         mu_f = np.array(mu_f)
         
         sigma_w = [] #creation of Sigma_wij
@@ -425,14 +398,8 @@ class GPRN_inference(object):
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
-                mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum)/error)
+                mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
-        
-#        sigma_f = np.round(sigma_f, 8)
-#        mu_f = np.round(mu_f, 8)
-#        sigma_w = np.round(sigma_w, 8)
-#        mu_w = np.round(mu_w, 8)
-        
         return sigma_f, mu_f, sigma_w, mu_w
 
 
@@ -449,17 +416,16 @@ class GPRN_inference(object):
         q = self.q #number of nodes
         p = self.p #number of outputs
         
-        #print(sigma_f[0])
-        
+
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
             L1 = self._cholNugget(sigma_f[i])
-#            L1 = self.jitChol(sigma_f[i])
+#            L1 = self._cholSimple(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
-               L2 = self._cholNugget(sigma_w[i][j])
-#               L2 = self.jitChol(sigma_w[i][j])
-               ent_sum += np.sum(np.log(np.diag(L2[0])))
+                L2 = self._cholNugget(sigma_w[i][j])
+#                L2 = self._cholSimple(sigma_f[i])
+                ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -483,27 +449,86 @@ class GPRN_inference(object):
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
-        L2 = cho_factor(Kw[0], overwrite_a=True, lower=False)
-#        L2 = self._cholNugget(Kw[0])
+        Lw = self._cholNugget(Kw[0])[0]
+        Kw_inv = inv(Kw[0])
+        #logKw = -self.q * np.sum(np.log(np.diag(L2)))
+        logKw = -np.sum(np.log(np.diag(Lw)))
+        mu_w = mu_w.reshape(self.q, self.p, self.N)
+        
+        for j in range(self.q):
+            Lf = self._cholNugget(Kf[j])[0]
+            print(Lf.T)
+            #logKf = - self.q * np.sum(np.log(np.diag(L1)))
+            logKf = -np.sum(np.log(np.diag(Lf)))
+            Kf_inv = inv(Kf[j])
+            #Kmu = inv(L1) @ mu_f[j].reshape(self.N)
+            #muKmu = Kmu @ Kmu.T
+            muK = inv(Lf) @mu_f[j].reshape(self.N) 
+#            Kmu = inv(L1) @mu_f[j].reshape(self.N)
+            muKmu = muK @muK.T
+            #muKmu = mu_f[j].reshape(self.N) @(inv(L1)@inv(L1.T)) @mu_f[j].reshape(self.N)
+            #muKmu = (mu_f[j].reshape(self.N) @inv(L1)) @(mu_f[j].reshape(self.N) @inv(L1)).T
+            
+            #muKmu = mu_f[j].reshape(self.N) @ Kf_inv @ mu_f[j].reshape(self.N)
+            trace = np.trace(Kf_inv @sigma_f[j])
+            first_term += logKf -0.5*muKmu -0.5*trace
+            print('muKmu, trace, first_term')
+            print(muKmu, trace, first_term)
+            for i in range(self.p):
+                #Kmu = inv(L2) @ mu_w[j,i]
+                #muKmu = Kmu @ Kmu.T
+                
+                #muKmu = mu_w[j,i] @(inv(L2)@inv(L2.T)) @mu_w[j,i]
+                muK = inv(Lw) @mu_w[j,i] 
+                muKmu = muK.T @muK
+                #muKmu = mu_w[j,i] @ Kw_inv @ mu_w[j,i]
+                trace = np.trace(Kw_inv @sigma_w[j][i])
+                second_term += logKw -0.5*muKmu -0.5*trace
+                print('muKmu, trace, second_term')
+                print(muKmu, trace, second_term, '\n')
+        return first_term + second_term
+
+
+    def _mfi_expectedLogPrior_correct(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
+        """
+            Calculates the expection of the log prior wrt q(f,w) in mean-field 
+        inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log prior
+        """
+        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
+        #this means we will have equal weights for all nodes
+        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
+        
+        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
+        first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
+        second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
+        L2 = cho_factor(Kw[0], overwrite_a=True, lower=True)
         logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
-#        print('logKw', logKw)
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         for j in range(self.q):
             L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
-#            L1 = self._cholNugget(Kf[j])
             logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
-##            print('logKf', logKf)
             muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
-##            print('muKmu', muKmu)
             trace = np.trace(cho_solve(L1, sigma_f[j]))
-##            print('trace', trace)
             first_term += logKf -0.5*muKmu -0.5*trace
+            print('muKmu, trace, first_term')
+            print(muKmu, trace, first_term)
             for i in range(self.p):
                 muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
-##        print('1st', first_term, '2nd', second_term)
+                print('muKmu, trace, second_term')
+                print(muKmu, trace, second_term, '\n')
         return first_term + second_term
+
 
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
                              sigma_f, mu_f, sigma_w, mu_w):
@@ -522,7 +547,7 @@ class GPRN_inference(object):
                 expected log-likelihood
         """
         yy = np.concatenate(self.y)
-        yy = yy - self._mean(means, self.time) if means else yy
+        yy = (yy - self._mean(means, self.time)) if means else yy
         new_y = np.array_split(yy, self.p) #Px1 dimensional vector
         new_y = np.array(new_y)
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
@@ -544,14 +569,11 @@ class GPRN_inference(object):
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
                 third_term += (first + second[0][0] + third)/ error
-#                print(first, '\n', second, '\n', third)
         first_term = -0.5 * first_term
-#        print('this is the first term', first_term)
         second_term = -0.5 * second_term
-#        print('this is the second term', second_term)
         third_term = -0.5 * third_term
-#        print('and the third is', third_term)
         return first_term + second_term + third_term
+
 
     def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, 
                                iterations=100, prints = False, plots = False):
@@ -579,9 +601,9 @@ class GPRN_inference(object):
         """ 
         #Initial variational parameters
         D = self.time.size * self.q *(self.p+1);
-#        mu = np.random.randn(D,1);
-#        var = np.random.rand(D,1);
-        #experiment
+        mu = np.random.randn(D,1);
+        var = np.random.rand(D,1);
+#        #experiment
         np.random.seed(100)
         mu = np.random.rand(D,1);
         np.random.seed(200)
@@ -589,7 +611,7 @@ class GPRN_inference(object):
         
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
-#        print('sigma y', jitters[0]**2)
+
         iterNumber = 0
         ELB = [0]
         if plots:
@@ -686,8 +708,6 @@ class GPRN_inference(object):
         """
         ystar = np.zeros([self.p, tstar.size])
         
-#        print(Kfstar.shape, Kwstar.shape)
-#        print(muF.shape, muW.shape)
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
         invKf = []
         for i in range(self.q):
@@ -705,10 +725,8 @@ class GPRN_inference(object):
             wstar = [] #np.zeros([self.p, self.q]) #PxQ matrix
             fstar = [] #np.zeros([self.q, 1]) #Qx1 matrix
             for q in range(self.q):
-#                print(Kfstar[q][:][:].shape, invKf[q].shape, muF[q].shape)
                 fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
                 for p in range(self.p):
-#                    print(Kwstar[0][:][:].shape, invKw.shape, muW.shape)
                     muW = muW.reshape(self.p, self.N)
                     wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
                     
@@ -716,9 +734,71 @@ class GPRN_inference(object):
             wstar = np.array(wstar)#.reshape(self.p, tstar.size)
             ystar.append(np.dot(wstar, fstar.T))
         ystar = np.array(ystar).T.reshape(self.p, tstar.size)
-
         ystar = np.concatenate(ystar)
-        ystar = ystar + self._mean(means, tstar) if means else ystar
+        ystar = (ystar + self._mean(means, tstar)) if means else ystar
         ystar = np.array_split(ystar, self.p)
-
         return ystar
+
+
+##### Other function ###########################################################
+def jitChol(A, maxTries=10, warning=True):
+
+    """Do a Cholesky decomposition with jitter.
+    Description:
+    U = jitChol(A, maxTries, warning) attempts a Cholesky
+     decomposition on the given matrix, if matrix isn't positive
+     definite the function adds 'jitter' and tries again. Thereafter
+     the amount of jitter is multiplied by 10 each time it is added
+     again. This is continued for a maximum of 10 times.  The amount of
+     jitter added is returned.
+     Returns:
+      U - the Cholesky decomposition for the matrix.
+     Arguments:
+      A - the matrix for which the Cholesky decomposition is required.
+      maxTries - the maximum number of times that jitter is added before
+       giving up (default 10).
+      warning - whether to give a warning for adding jitter (default is True)
+    See also
+    CHOL, PDINV, LOGDET
+    Copyright (c) 2005, 2006 Neil D. Lawrence
+    
+    """
+    warning = True
+    jitter = 0
+    i = 0
+
+    while(True):
+        try:
+            # Try --- need to check A is positive definite
+            if jitter == 0:
+                jitter = abs(np.trace(A))/A.shape[0]*1e-6
+                LC = cholesky(A, lower=True)
+                return LC.T, jitter
+            else:
+                if warning:
+                    # pdb.set_trace()
+                    print("Adding jitter of %f in jitChol()." % jitter)
+                LC = cholesky(A+jitter*np.eye(A.shape[0]), lower=True)
+                return LC.T, jitter
+        except LinAlgError:
+            # Seems to have been non-positive definite.
+            if i<maxTries:
+                jitter = jitter*10
+            else:
+                raise LinAlgError("Matrix non positive definite, jitter of " \
+                                  + str(jitter) + " added but failed after " \
+                                  + str(i) + " trials.")
+        i += 1
+
+def _cholesky(A):
+    """
+        Source:
+        https://rosettacode.org/wiki/Cholesky_decomposition
+    """
+    L = [[0.0] * len(A) for _ in range(len(A))]
+    for i, (Ai, Li) in enumerate(zip(A, L)):
+        for j, Lj in enumerate(L[:i+1]):
+            s = sum(Li[k] * Lj[k] for k in range(j))
+            Li[j] = np.sqrt(Ai[i] - s) if (i == j) else \
+                      (1.0 / Lj[j] * (Ai[j] - s))
+    return L
