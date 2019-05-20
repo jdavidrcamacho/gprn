@@ -457,7 +457,7 @@ class GPRN_inference(object):
         
         for j in range(self.q):
             Lf = self._cholNugget(Kf[j])[0]
-            print(Lf.T)
+            print(Lf)
             #logKf = - self.q * np.sum(np.log(np.diag(L1)))
             logKf = -np.sum(np.log(np.diag(Lf)))
             Kf_inv = inv(Kf[j])
