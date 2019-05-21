@@ -178,7 +178,7 @@ class SquaredExponential(nodeFunction):
     def __call__(self, r):
         try:
             return exp(-0.5 * r**2 / self.ell**2) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+                    + self.wn**2 *np.diag(np.diag(np.ones_like(r))) 
         except ValueError:
             return exp(-0.5 * r**2 / self.ell**2)
 

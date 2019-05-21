@@ -127,15 +127,13 @@ class GPRN_inference(object):
             Returns the covariance matrix created by evaluating a given kernel 
         at inputs time.
         """
-        #if time is None we use the initial time of the class MFI
-        #r = time[:, None] - time[None, :] if time!=None else self.time[:, None] - self.time[None, :]
         r = time[:, None] - time[None, :]
         
         #to deal with the non-stationary kernels problem
         if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r)
+            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predict_kernel_matrix(self, kernel, time):
@@ -146,26 +144,22 @@ class GPRN_inference(object):
         if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
             K = kernel(None, time[:, None], self.time[None, :])
         if isinstance(kernel, WN):
-#            zeros = np.zeros([time.size, self.time.size])
-#            nonzeros = np.vstack(10*np.diag(np.ones(time.size)), np.zeros([time.size, self.time.size-time.size]))
-            K = 10*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
-#            K = zeros + nonzeros
-#            print(K.shape)
+            K = 0*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
         else:
             if len(size) == 1:
                 r = time - self.time[None,:]
             else:
                 r = time[:, None] - self.time[None, :]
-            K = kernel(r)
-        #print(kernel)
-#        print(K)
+            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
+
 
     def _kernel_pars(self, kernel):
         """
             Returns the hyperparameters of a given kernel
         """
         return kernel.pars
+
 
     def _weights_matrix(self, weight):
         """
@@ -176,6 +170,7 @@ class GPRN_inference(object):
             weights.append(weight)
         weight_matrix = np.array(weights).reshape((self.p, self.q))
         return weight_matrix
+
 
     def _CB_matrix(self, nodes, weight, time):
         """
@@ -222,7 +217,7 @@ class GPRN_inference(object):
     #def _u_to_fhatw(self, nodes, weight, time):
     def _u_to_fhatw(self, u):
         """
-            Given a list, divides it in the correspondinf nodes f and
+            Given a list, divides it in the corresponding nodes f and
         weights W parts.
             Parameters:
                 u = array
@@ -260,22 +255,6 @@ class GPRN_inference(object):
 
         return y
 
-    def _cholSimple(self, matrix):
-        """
-            Returns the cholesky decomposition to a given matrix.
-            Parameters:
-                matrix = matrix to decompose
-            Returns:
-                L = Matrix containing the Cholesky factor
-        """
-        nugget = 0 #because of all the tests
-        try:
-            L =  cholesky(matrix, lower=True)
-            return L, nugget
-        except LinAlgError:
-            L = cholesky(matrix).T
-            return L, nugget
-
 
     def _cholNugget(self, matrix, maximum=10):
         """
@@ -294,26 +273,22 @@ class GPRN_inference(object):
 #        print()
 #        matrix = np.round(matrix, 5)
 #        print(np.diag(matrix))
-
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-5
-            #L = cholesky(matrix, lower = True)
             L = cholesky(matrix).T
             return L, nugget
         except LinAlgError:
-            print('NUGGET ADDED TO DIAGONAL!')
+            print('NUGGETS ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
                 print ('n:', n+1, ', nugget:', nugget)
                 try:
-                    #L = cholesky(matrix + nugget*np.identity(self.time.size), lower = True)
-                    L = cholesky(matrix + nugget*np.identity(self.time.size)).T
+                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0])).T
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10.0
                 finally:
                     n += 1
-            #return -np.inf
             raise LinAlgError("Still not positive definite, even with nugget.")
 
 
@@ -416,17 +391,15 @@ class GPRN_inference(object):
         q = self.q #number of nodes
         p = self.p #number of outputs
         
-
         ent_sum = 0 #starts at zero then we sum everything
         for i in range(q):
             L1 = self._cholNugget(sigma_f[i])
-#            L1 = self._cholSimple(sigma_f[i])
             ent_sum += np.sum(np.log(np.diag(L1[0])))
             for j in range(p):
                 L2 = self._cholNugget(sigma_w[i][j])
-#                L2 = self._cholSimple(sigma_f[i])
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
+
 
     def _mfi_expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
         """
@@ -457,39 +430,34 @@ class GPRN_inference(object):
         
         for j in range(self.q):
             Lf = self._cholNugget(Kf[j])[0]
-            print(Lf)
             #logKf = - self.q * np.sum(np.log(np.diag(L1)))
             logKf = -np.sum(np.log(np.diag(Lf)))
             Kf_inv = inv(Kf[j])
-            #Kmu = inv(L1) @ mu_f[j].reshape(self.N)
-            #muKmu = Kmu @ Kmu.T
-            muK = inv(Lf) @mu_f[j].reshape(self.N) 
-#            Kmu = inv(L1) @mu_f[j].reshape(self.N)
-            muKmu = muK @muK.T
-            #muKmu = mu_f[j].reshape(self.N) @(inv(L1)@inv(L1.T)) @mu_f[j].reshape(self.N)
-            #muKmu = (mu_f[j].reshape(self.N) @inv(L1)) @(mu_f[j].reshape(self.N) @inv(L1)).T
             
-            #muKmu = mu_f[j].reshape(self.N) @ Kf_inv @ mu_f[j].reshape(self.N)
-            trace = np.trace(Kf_inv @sigma_f[j])
+            #muK = inv(Lf) @mu_f[j].reshape(self.N) 
+            #muKmu = muK @muK.T
+            #muKmu = mu_f[j].reshape(self.N) @(inv(L1)@inv(L1.T)) @mu_f[j].reshape(self.N)
+            #muKmu = (inv(Lf) @mu_f[j].reshape(self.N)) @(inv(Lf) @mu_f[j].reshape(self.N)).T
+            
+            muKmu = (Kf_inv @mu_f[j].reshape(self.N)) @mu_f[j].reshape(self.N)
+            trace = np.trace(sigma_f[j] @Kf_inv)
             first_term += logKf -0.5*muKmu -0.5*trace
-            print('muKmu, trace, first_term')
-            print(muKmu, trace, first_term)
+#            print('muKmu, trace, first_term')
+#            print(muKmu, trace, first_term)
             for i in range(self.p):
-                #Kmu = inv(L2) @ mu_w[j,i]
-                #muKmu = Kmu @ Kmu.T
-                
                 #muKmu = mu_w[j,i] @(inv(L2)@inv(L2.T)) @mu_w[j,i]
-                muK = inv(Lw) @mu_w[j,i] 
-                muKmu = muK.T @muK
-                #muKmu = mu_w[j,i] @ Kw_inv @ mu_w[j,i]
-                trace = np.trace(Kw_inv @sigma_w[j][i])
+                #muK = inv(Lw) @mu_w[j,i] 
+                #muKmu = muK.T @muK
+                
+                muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
+                trace = np.trace(sigma_w[j][i] @Kw_inv)
                 second_term += logKw -0.5*muKmu -0.5*trace
-                print('muKmu, trace, second_term')
-                print(muKmu, trace, second_term, '\n')
+#                print('muKmu, trace, second_term')
+#                print(muKmu, trace, second_term, '\n')
         return first_term + second_term
 
 
-    def _mfi_expectedLogPrior_correct(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
+    def _mfi_expectedLogPrior_old(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expection of the log prior wrt q(f,w) in mean-field 
         inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
@@ -519,14 +487,14 @@ class GPRN_inference(object):
             muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-            print('muKmu, trace, first_term')
-            print(muKmu, trace, first_term)
+#            print('muKmu, trace, first_term')
+#            print(muKmu, trace, first_term)
             for i in range(self.p):
                 muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
-                print('muKmu, trace, second_term')
-                print(muKmu, trace, second_term, '\n')
+#                print('muKmu, trace, second_term')
+#                print(muKmu, trace, second_term, '\n')
         return first_term + second_term
 
 
@@ -604,10 +572,10 @@ class GPRN_inference(object):
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
 #        #experiment
-        np.random.seed(100)
-        mu = np.random.rand(D,1);
-        np.random.seed(200)
-        var = np.random.rand(D,1);
+#        np.random.seed(100)
+#        mu = np.random.rand(D,1);
+#        np.random.seed(200)
+#        var = np.random.rand(D,1);
         
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
@@ -633,12 +601,15 @@ class GPRN_inference(object):
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
             
             #Expected log prior
+#            print('lp')
             ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
+#            print('ll')
             ExpLogLike = self._mfi_expectedLogLike(nodes, weight, means, jitters,
                                                    sigmaF, muF, sigmaW, muW)
             #Entropy
+#            print('ent')
             Entropy = self._mfi_entropy(sigmaF, sigmaW)
             
             if plots:
@@ -652,12 +623,13 @@ class GPRN_inference(object):
                 print('ELB: {0}'.format(sum_ELB))
                 print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
                                                                           ExpLogPrior, Entropy))
-#            if np.abs(sum_ELB - ELB[-1]) < 1e-5:
+#            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
             if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
                 if plots:
+                    plt.figure()
                     ax1 = plt.subplot(411)
                     plt.plot(ELB[1:], '-')
                     plt.ylabel('Evidence lower bound')
@@ -675,6 +647,7 @@ class GPRN_inference(object):
             ELB.append(sum_ELB)
             iterNumber += 1
         if plots:
+            plt.figure()
             ax1 = plt.subplot(411)
             plt.plot(ELB[1:], '-')
             plt.ylabel('Evidence lower bound')
@@ -766,7 +739,6 @@ def jitChol(A, maxTries=10, warning=True):
     warning = True
     jitter = 0
     i = 0
-
     while(True):
         try:
             # Try --- need to check A is positive definite
@@ -802,3 +774,19 @@ def _cholesky(A):
             Li[j] = np.sqrt(Ai[i] - s) if (i == j) else \
                       (1.0 / Lj[j] * (Ai[j] - s))
     return L
+
+def _cholSimple(matrix):
+    """
+        Returns the cholesky decomposition to a given matrix.
+        Parameters:
+            matrix = matrix to decompose
+        Returns:
+            L = Matrix containing the Cholesky factor
+    """
+    nugget = 0 #because of all the tests
+    try:
+        L =  cholesky(matrix, lower=True)
+        return L, nugget
+    except LinAlgError:
+        L = cholesky(matrix).T
+        return L, nugget
