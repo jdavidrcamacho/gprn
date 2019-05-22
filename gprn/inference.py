@@ -150,7 +150,7 @@ class GPRN_inference(object):
                 r = time - self.time[None,:]
             else:
                 r = time[:, None] - self.time[None, :]
-            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
 
@@ -276,14 +276,16 @@ class GPRN_inference(object):
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-5
             L = cholesky(matrix).T
+#            L = cholesky(matrix, lower =True)
             return L, nugget
         except LinAlgError:
-            print('NUGGETS ADDED TO DIAGONAL!')
+#            print('NUGGETS ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
-                print ('n:', n+1, ', nugget:', nugget)
+#                print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L = cholesky(matrix + nugget*np.identity(matrix.shape[0])).T
+#                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0]), lower =True)
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10.0
@@ -572,10 +574,10 @@ class GPRN_inference(object):
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
 #        #experiment
-#        np.random.seed(100)
-#        mu = np.random.rand(D,1);
-#        np.random.seed(200)
-#        var = np.random.rand(D,1);
+        np.random.seed(100)
+        mu = np.random.rand(D,1);
+        np.random.seed(200)
+        var = np.random.rand(D,1);
         
         muF, muW = self._u_to_fhatw(mu)
         varF, varW = self._u_to_fhatw(var)
