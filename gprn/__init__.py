@@ -4,7 +4,7 @@
 """
     To import everything
 """
-#weight functions
+#covariance functions
 from gprn import covFunction
 #mean functions
 from gprn import meanFunction
