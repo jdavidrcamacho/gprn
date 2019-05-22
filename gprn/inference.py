@@ -6,11 +6,9 @@ from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
-from gprn.nodeFunction import Linear as nodeL
-from gprn.nodeFunction import Polynomial as nodeP
-from gprn.weightFunction import Linear as weightL
-from gprn.weightFunction import Polynomial as weightP
-from gprn.weightFunction import WhiteNoise as WN
+from gprn.covFunction import Linear as covL
+from gprn.covFunction import Polynomial as covP
+from gprn.covFunction import WhiteNoise as covWN
 
 class GPRN_inference(object):
     """ 
@@ -130,7 +128,7 @@ class GPRN_inference(object):
         r = time[:, None] - time[None, :]
         
         #to deal with the non-stationary kernels problem
-        if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
+        if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
             K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
@@ -141,9 +139,9 @@ class GPRN_inference(object):
             To be used in predict_gp()
         """
         size = [time]
-        if isinstance(kernel, (nodeL, nodeP, weightL, weightP)):
+        if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], self.time[None, :])
-        if isinstance(kernel, WN):
+        if isinstance(kernel, covWN):
             K = 0*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
         else:
             if len(size) == 1:
@@ -214,38 +212,37 @@ class GPRN_inference(object):
         norm = multivariate_normal(mean, cov, allow_singular=True)
         return norm.rvs()
 
-    #def _u_to_fhatw(self, nodes, weight, time):
-    def _u_to_fhatw(self, u):
+    def _fhat_and_w(self, u):
         """
-            Given a list, divides it in the corresponding nodes f and
-        weights W parts.
+            Given a list, divides it in the corresponding nodes (f hat) and
+        weights (w) parts.
             Parameters:
                 u = array
             Returns:
                 f = array with the samples of the nodes
-                W = array with the samples of the weights
+                w = array with the samples of the weights
         """
         f = u[:self.q * self.N].reshape((self.q, 1, self.N))
-        W = u[self.q * self.N:].reshape((self.p, self.q, self.N))
-        return f, W
+        w = u[self.q * self.N:].reshape((self.p, self.q, self.N))
+        return f, w
 
 
-    def u_to_fW(self, nodes, weight, time):
+    def u_to_fhatW(self, nodes, weight, time):
         """
-            Returns the samples of CB that corresponds to the nodes f and
-        weights W.
+            Returns the samples of CB that corresponds to the nodes f hat and
+        weights w.
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
                 time = array containing the time
             Returns:
-                f = array with the samples of the nodes
-                W = array with the samples of the weights
+                fhat = array with the samples of the nodes
+                w = array with the samples of the weights
         """
         u = self._sample_CB(nodes, weight, time)
-        f = u[:self.q * time.size].reshape((self.q, 1, time.size))
-        W = u[self.q * time.size:].reshape((self.p, self.q, time.size))
-        return f, W
+        fhat = u[:self.q * time.size].reshape((self.q, 1, time.size))
+        w = u[self.q * time.size:].reshape((self.p, self.q, time.size))
+        return fhat, w
 
 
     def get_y(self, n, w, time, means = None):
@@ -293,6 +290,37 @@ class GPRN_inference(object):
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
 
+    def _plots(self, ELB, ELL, ELP, ENT):
+        """
+            Plots the evolution of the evidence lower bound, expected log 
+        likelihood, expected log prior, and entropy
+        """
+        plt.figure()
+        ax1 = plt.subplot(411)
+        plt.plot(ELB, '-')
+        plt.ylabel('Evidence lower bound')
+        plt.subplot(412, sharex=ax1)
+        plt.plot(ELL, '-')
+        plt.ylabel('Expected log likelihood')
+        plt.subplot(413, sharex=ax1)
+        plt.plot(ELP, '-')
+        plt.ylabel('Expected log prior')
+        plt.subplot(414, sharex=ax1)
+        plt.plot(ENT, '-')
+        plt.ylabel('Entropy')
+        plt.xlabel('iteration')
+        plt.show()
+        return 0
+
+    def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
+        """
+            Prints the evidence lower bound, expected log likelihood, expected
+        log prior, and entropy
+        """
+        print('ELB: ' + str(sum_ELB))
+        print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
+              + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
+        return 0
 
 ##### Mean-Field Inference functions
     def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
@@ -418,7 +446,6 @@ class GPRN_inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        #this means we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
@@ -435,27 +462,13 @@ class GPRN_inference(object):
             #logKf = - self.q * np.sum(np.log(np.diag(L1)))
             logKf = -np.sum(np.log(np.diag(Lf)))
             Kf_inv = inv(Kf[j])
-            
-            #muK = inv(Lf) @mu_f[j].reshape(self.N) 
-            #muKmu = muK @muK.T
-            #muKmu = mu_f[j].reshape(self.N) @(inv(L1)@inv(L1.T)) @mu_f[j].reshape(self.N)
-            #muKmu = (inv(Lf) @mu_f[j].reshape(self.N)) @(inv(Lf) @mu_f[j].reshape(self.N)).T
-            
             muKmu = (Kf_inv @mu_f[j].reshape(self.N)) @mu_f[j].reshape(self.N)
             trace = np.trace(sigma_f[j] @Kf_inv)
             first_term += logKf -0.5*muKmu -0.5*trace
-#            print('muKmu, trace, first_term')
-#            print(muKmu, trace, first_term)
             for i in range(self.p):
-                #muKmu = mu_w[j,i] @(inv(L2)@inv(L2.T)) @mu_w[j,i]
-                #muK = inv(Lw) @mu_w[j,i] 
-                #muKmu = muK.T @muK
-                
                 muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
                 trace = np.trace(sigma_w[j][i] @Kw_inv)
                 second_term += logKw -0.5*muKmu -0.5*trace
-#                print('muKmu, trace, second_term')
-#                print(muKmu, trace, second_term, '\n')
         return first_term + second_term
 
 
@@ -474,7 +487,6 @@ class GPRN_inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        #this means we will have equal weights for all nodes
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
@@ -489,14 +501,10 @@ class GPRN_inference(object):
             muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
             trace = np.trace(cho_solve(L1, sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-#            print('muKmu, trace, first_term')
-#            print(muKmu, trace, first_term)
             for i in range(self.p):
                 muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
                 trace = np.trace(cho_solve(L2, sigma_w[j][i]))
                 second_term += logKw -0.5*muKmu -0.5*trace
-#                print('muKmu, trace, second_term')
-#                print(muKmu, trace, second_term, '\n')
         return first_term + second_term
 
 
@@ -516,12 +524,11 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        yy = np.concatenate(self.y)
-        yy = (yy - self._mean(means, self.time)) if means else yy
-        new_y = np.array_split(yy, self.p) #Px1 dimensional vector
-        new_y = np.array(new_y)
+        yy = (np.concatenate(self.y) - self._mean(means, self.time)) if means else np.concatenate(self.y)
+        new_y = np.array(np.array_split(yy, self.p)) #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
+        
         first_term = 0
         second_term = 0
         third_term = 0
@@ -555,32 +562,26 @@ class GPRN_inference(object):
                 means = array with the mean functions
                 jitters = jitters array
                 time = time array
-                muF = array with the initial means for each node
-                varF = array with the initial variance for each node
-                muW = array with the initial means for each weight
-                varW = array with the initial variance for each weight
-                iternum = number of iterations
+                iterations = number of iterations
                 prints = True to print ELB value at each iteration
                 plots = True to plot ELB evolution 
             Returns:
                 sum_ELB = Evidence lower bound
                 muF = array with the new means for each node
-                varF = array with the new variance for each node
                 muW = array with the new means for each weight
-                varW = array with the new variance for each weight
         """ 
         #Initial variational parameters
         D = self.time.size * self.q *(self.p+1);
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
 #        #experiment
-        np.random.seed(100)
-        mu = np.random.rand(D,1);
-        np.random.seed(200)
-        var = np.random.rand(D,1);
+#        np.random.seed(100)
+#        mu = np.random.rand(D,1);
+#        np.random.seed(200)
+#        var = np.random.rand(D,1);
         
-        muF, muW = self._u_to_fhatw(mu)
-        varF, varW = self._u_to_fhatw(var)
+        muF, muW = self._fhat_and_w(mu)
+        varF, varW = self._fhat_and_w(var)
 
         iterNumber = 0
         ELB = [0]
@@ -603,17 +604,13 @@ class GPRN_inference(object):
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
             
             #Expected log prior
-#            print('lp')
             ExpLogPrior = self._mfi_expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
-#            print('ll')
             ExpLogLike = self._mfi_expectedLogLike(nodes, weight, means, jitters,
                                                    sigmaF, muF, sigmaW, muW)
             #Entropy
-#            print('ent')
             Entropy = self._mfi_entropy(sigmaF, sigmaW)
-            
             if plots:
                 ELL.append(ExpLogLike)
                 ELP.append(ExpLogPrior)
@@ -622,50 +619,23 @@ class GPRN_inference(object):
             #Evidence Lower Bound
             sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
             if prints:
-                print('ELB: {0}'.format(sum_ELB))
-                print(' loglike: {0} \n logprior: {1} \n entropy {2} \n'.format(ExpLogLike, 
-                                                                          ExpLogPrior, Entropy))
-#            if np.abs(sum_ELB - ELB[-1]) < 1e-15:
+                self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
+            #Stoping criteria
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
             if criteria < 1e-5 and criteria != 0 :
                 if prints:
-                    print('\nELB converged to {0}; algorithm stopped at iteration {1}'.format(sum_ELB,iterNumber))
+                    print('\nELB converged to ' +str(sum_ELB) \
+                          + '; algorithm stopped at iteration ' +str(iterNumber))
                 if plots:
-                    plt.figure()
-                    ax1 = plt.subplot(411)
-                    plt.plot(ELB[1:], '-')
-                    plt.ylabel('Evidence lower bound')
-                    plt.subplot(412, sharex=ax1)
-                    plt.plot(ELL[1:-1], '-')
-                    plt.ylabel('Expected log likelihood')
-                    plt.subplot(413, sharex=ax1)
-                    plt.plot(ELP[1:-1], '-')
-                    plt.ylabel('Expected log prior')
-                    plt.subplot(414, sharex=ax1)
-                    plt.plot(ENT[1:-1], '-')
-                    plt.ylabel('Entropy')
-                    plt.xlabel('iteration')
+                    self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
                 return sum_ELB, muF, muW
             ELB.append(sum_ELB)
             iterNumber += 1
         if plots:
-            plt.figure()
-            ax1 = plt.subplot(411)
-            plt.plot(ELB[1:], '-')
-            plt.ylabel('Evidence lower bound')
-            plt.subplot(412, sharex=ax1)
-            plt.plot(ELL[1:-1], '-')
-            plt.ylabel('Expected log likelihood')
-            plt.subplot(413, sharex=ax1)
-            plt.plot(ELP[1:-1], '-')
-            plt.ylabel('Expected log prior')
-            plt.subplot(414, sharex=ax1)
-            plt.plot(ENT[1:-1], '-')
-            plt.ylabel('Entropy')
-            plt.xlabel('iteration')
+            self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
         return sum_ELB, muF, muW
         
-
+        
     def Prediction_MFI(self, nodes, weights, means, jitters, tstar, muF, muW):
         """
             Prediction for mean-field inference
@@ -715,7 +685,7 @@ class GPRN_inference(object):
         return ystar
 
 
-##### Other function ###########################################################
+##### Other functions ##########################################################
 def jitChol(A, maxTries=10, warning=True):
 
     """Do a Cholesky decomposition with jitter.
