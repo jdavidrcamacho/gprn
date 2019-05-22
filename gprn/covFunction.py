@@ -742,3 +742,559 @@ class dCosine_dwn(Cosine):
             return 2*self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return np.zeros_like(r)
+        
+        
+##### Laplacian ##############################################################
+class Laplacian(covFunction):
+    """
+        Definition of the Laplacian kernel.
+        Parameters:
+            theta = amplitude
+            ell = characteristic lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, ell, wn):
+        super(Laplacian, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn
+        self.type = 'stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r): 
+        try:
+            return self.theta**2 * exp(-np.abs(r)/self.ell) \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return self.theta**2 * exp(-np.abs(r)/self.ell) 
+
+class dLaplacian_dtheta(Laplacian):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, ell, wn):
+        super(dLaplacian_dtheta, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return 2*self.theta**2 * exp(-np.abs(r)/self.ell) 
+
+class dLaplacian_dell(Laplacian):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, theta, ell, wn):
+        super(dLaplacian_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return -0.5*self.theta**2 * r * exp(- np.abs(r)/self.ell) / self.ell
+
+class dLaplacian_dwn(Laplacian):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, ell, wn):
+        super(dLaplacian_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+##### Exponential ##############################################################
+class Exponential(covFunction):
+    """
+        Definition of the exponential kernel.
+        Parameters:
+            theta = amplitude
+            ell = characteristic lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, ell, wn):
+        super(Exponential, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn
+        self.type = 'stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r): 
+        try:
+            return self.theta**2 * exp(-np.abs(r)/(2*self.ell**2)) \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return self.theta**2 * exp(-np.abs(r)/self.ell) 
+
+class dExpoential_dtheta(Exponential):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, ell, wn):
+        super(dExpoential_dtheta, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        raise 2*self.theta**2 * exp(-np.abs(r)/(2*self.ell**2))
+
+class dExpoential_dell(Exponential):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, theta, ell, wn):
+        super(dExpoential_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        raise -0.5 * self.theta**2 * r * exp(- np.abs(r)/self.ell) / self.ell
+
+class dExpoential_dwn(Exponential):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, ell, wn):
+        super(dExpoential_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+##### Matern 3/2 ###############################################################
+class Matern32(covFunction):
+    """
+        Definition of the Matern 3/2 kernel. This kernel arise when setting 
+    v=3/2 in the matern family of kernels
+        Parameters:
+            theta = amplitude
+            ell = characteristic lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, ell, wn):
+        super(Matern32, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.type = 'stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r):
+        try:
+            return self.theta**2 * (1.0+np.sqrt(3.0)*np.abs(r)/self.ell) \
+                        *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell) \
+                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return self.theta**2 * (1.0+np.sqrt(3.0)*np.abs(r)/self.ell) \
+                        *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
+
+class dMatern32_dtheta(Matern32):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern32_dtheta, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return 2*self.theta**2 * (1.0+np.sqrt(3.0)*np.abs(r)/self.ell) \
+                        *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
+
+class dMatern32_dell(Matern32):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern32_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return self.theta**2 * (sqrt(3)*r*(1+(sqrt(3)*r)/self.ell) \
+                *exp(-(sqrt(3)*r) / self.ell)) / self.ell \
+                -(sqrt(3) * r * exp(-(sqrt(3)*r) / self.ell))/self.ell
+
+class dMatern32_dwn(Matern32):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern32_dwn, self).__init__(theta, ell, wn)
+        self.theta = theta 
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+#### Matern 5/2 ################################################################
+class Matern52(covFunction):
+    """
+        Definition of the Matern 5/2 kernel. This kernel arise when setting 
+    v=5/2 in the matern family of kernels
+        Parameters:
+            theta = amplitude
+            ell = characteristic lenght scale  
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, ell, wn):
+        super(Matern52, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+        self.type = 'stationary and isotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r):
+        try:
+            return self.theta**2 * (1.0+( 3*np.sqrt(5)*self.ell*np.abs(r) \
+                           +5*np.abs(r)**2)/(3*self.ell**2) ) \
+                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell) \
+                           + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return self.theta**2 * (1.0+( 3*np.sqrt(5)*self.ell*np.abs(r) \
+                           +5*np.abs(r)**2)/(3*self.ell**2) ) \
+                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
+
+class dMatern52_dtheta(Matern52):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern52_dtheta, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return 2*self.theta**2 * (1.0+(3*np.sqrt(5)*self.ell*np.abs(r) \
+                           +5*np.abs(r)**2)/(3*self.ell**2)) \
+                           *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
+
+class dMatern52_dell(Matern52):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern52_dell, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return self.theta**2 * self.ell * ((sqrt(5)*r*(1+(sqrt(5)*r) \
+                                 /self.ell+(5*r**2)/(3*self.ell**2)) \
+                             *exp(-(sqrt(5)*r)/self.ell)) \
+            /self.ell**2 +(-(sqrt(5)*r)/self.ell**2-(10*r**2) \
+                           /(3*self.ell**3)) \
+                           *exp(-(sqrt(5)*r)/self.ell))
+
+class dMatern52_dwn(Matern52):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, ell, wn):
+        super(dMatern52_dwn, self).__init__(theta, ell, wn)
+        self.theta = theta
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+#### Linear ####################################################################
+class Linear(covFunction):
+    """
+        Definition of the Linear kernel.
+            theta = amplitude (should we even have an amplitude???)
+            c = constant
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, c, wn):
+        super(Linear, self).__init__(theta, c, wn)
+        self.theta = theta
+        self.c = c
+        self.wn = wn
+        self.type = 'non-stationary and anisotropic'
+        self.derivatives = 3    #number of derivatives in this kernel
+        self.params_size = 3    #number of hyperparameters
+
+    def __call__(self, r, t1, t2):
+        try:
+            return  self.theta**2 * (t1 - self.c) * (t2 - self.c) \
+                + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return  (t1 - self.c) * (t2 - self.c)
+
+class dLinear_dtheta(Linear):
+    """
+        Log-derivative in order to theta???
+    """
+    def __init__(self, theta, c, wn):
+        super(dLinear_dtheta, self).__init__(theta, c, wn)
+        self.theta = theta
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return 2*self.theta**2 * (t1 - self.c) * (t2 - self.c) 
+
+class dLinear_dc(Linear):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, theta, c, wn):
+        super(dLinear_dc, self).__init__(theta, c, wn)
+        self.thta = theta
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.theta**2 * self.c * (-t1 - t2 + 2*self.c)
+
+class dLinear_dwn(Linear):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, c, wn):
+        super(dLinear_dwn, self).__init__(theta, c, wn)
+        self.theta = theta
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+##### Gamma-exponential ########################################################
+class GammaExp(covFunction):
+    """
+        Definition of the gamma-exponential kernel
+            theta = amplitude
+            gamma = shape parameter ( 0 < gamma <= 2)
+            ell = lenght scale
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, gamma, ell, wn):
+        super(GammaExp, self).__init__(theta, gamma, ell, wn)
+        self.theta = theta
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+        self.type = 'non-stationary and anisotropic'
+        self.derivatives = 4    #number of derivatives in this kernel
+        self.params_size = 4    #number of hyperparameters
+
+    def __call__(self, r):
+        try: 
+            return self.theta**2 * exp(-(np.abs(r)/self.ell)**self.gamma) \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return self.theta**2 * exp(-(np.abs(r)/self.ell) ** self.gamma) 
+
+class dGammaExp_dtheta(GammaExp):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, gamma, ell, wn):
+        super(dGammaExp_dtheta, self).__init__(theta, gamma, ell, wn)
+        self.theta = theta
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return 2*self.theta**2 * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dgamma(GammaExp):
+    """
+        Log-derivative in order to ell
+    """
+    def __init__(self, theta, gamma, ell, wn):
+        super(dGammaExp_dgamma, self).__init__(theta, gamma, ell, wn)
+        self.theta = theta
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return - self.theta**2 * self.gamma * (np.abs(r)/self.ell)**self.gamma \
+                *np.log(np.abs(r)/self.ell) * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dell(GammaExp):
+    """
+        Log-derivative in order to gamma
+    """
+    def __init__(self, theta, gamma, ell, wn):
+        super(dGammaExp_dell, self).__init__(theta, gamma, ell, wn)
+        self.theta = theta 
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        return self.theta**2 * (np.abs(r)/self.ell)**self.gamma \
+                * self.gamma * exp(-(np.abs(r)/self.ell)**self.gamma)
+
+class dGammaExp_dwn(GammaExp):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, gamma, ell, wn):
+        super(dGammaExp_dwn, self).__init__(theta, gamma, ell, wn)
+        self.theta = theta
+        self.gamma = gamma
+        self.ell = ell
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+        
+        
+##### Polinomial ###############################################################
+class Polynomial(covFunction):
+    """
+        Definition of the polinomial kernel
+            theta = amplitude ???
+            a = real value > 0
+            b = real value >= 0
+            c = integer value
+            wn = white noise amplitude
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(Polynomial, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+        self.type = 'unknown'
+        self.derivatives = 5    #number of derivatives in this kernel
+        self.params_size = 5    #number of hyperparameters
+
+    def __call__(self, r, t1, t2):
+        try: 
+            return self.theta**2 * (self.a * t1 * t2 + self.b)**self.c \
+                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return (self.a * t1 * t2 + self.b)**self.c 
+
+class dPolynomial_dtheta(Polynomial):
+    """
+        Log-derivative in order to theta
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(dPolynomial_dtheta, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return 2*self.theta**2 * (self.a * t1 * t2 + self.b)**self.c 
+
+class dPolynomial_da(Polynomial):
+    """
+        Log-derivative in order to a
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(dPolynomial_da, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.theta**2 * self.c*t1*t2*(self.b+self.a*t1*t2)**(self.c-1)*self.a
+
+class dPolynomial_db(Polynomial):
+    """
+        Log-derivative in order to b
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(dPolynomial_db, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.theta**2 * self.c*(self.b+self.a*t1*t2)**(self.c-1)*self.b
+
+class dPolynomial_dc(Polynomial):
+    """
+        Log-derivative in order to c
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(dPolynomial_dc, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r, t1, t2):
+        return self.theta**2 * self.c*(self.b+self.a*t1*t2)**self.c \
+                *np.log(self.a*t1*t2+self.b)
+
+class dPolynomial_dwn(Polynomial):
+    """
+        Log-derivative in order to the white noise
+    """
+    def __init__(self, theta, a, b, c, wn):
+        super(dPolynomial_dwn, self).__init__(theta, a, b, c, wn)
+        self.theta = theta
+        self.a = a
+        self.b = b
+        self.c = c
+        self.wn = wn
+
+    def __call__(self, r):
+        try:
+            return 2*self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)
+
+
+### END
+
