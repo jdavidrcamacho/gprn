@@ -148,7 +148,7 @@ class GPRN_inference(object):
                 r = time - self.time[None,:]
             else:
                 r = time[:, None] - self.time[None, :]
-            K = kernel(r) #+ 1e-5*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
 
@@ -276,10 +276,10 @@ class GPRN_inference(object):
 #            L = cholesky(matrix, lower =True)
             return L, nugget
         except LinAlgError:
-#            print('NUGGETS ADDED TO DIAGONAL!')
+            print('NUGGETS ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
-#                print ('n:', n+1, ', nugget:', nugget)
+                print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L = cholesky(matrix + nugget*np.identity(matrix.shape[0])).T
 #                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0]), lower =True)
@@ -574,7 +574,7 @@ class GPRN_inference(object):
         D = self.time.size * self.q *(self.p+1);
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
-#        #experiment
+        #experiment
 #        np.random.seed(100)
 #        mu = np.random.rand(D,1);
 #        np.random.seed(200)
@@ -622,7 +622,7 @@ class GPRN_inference(object):
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-5 and criteria != 0 :
+            if criteria < 1e-10 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' +str(iterNumber))
@@ -670,16 +670,19 @@ class GPRN_inference(object):
             wstar = [] #np.zeros([self.p, self.q]) #PxQ matrix
             fstar = [] #np.zeros([self.q, 1]) #Qx1 matrix
             for q in range(self.q):
-                fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
-                for p in range(self.p):
-                    muW = muW.reshape(self.p, self.N)
-                    wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
+#                fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
+                fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
+            for p in range(self.p):
+                muW = muW.reshape(self.p, self.N)
+#                    wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
+                wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
                     
             fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
             wstar = np.array(wstar)#.reshape(self.p, tstar.size)
-            ystar.append(np.dot(wstar, fstar.T))
+            ystar.append(wstar @fstar.T)
         ystar = np.array(ystar).T.reshape(self.p, tstar.size)
         ystar = np.concatenate(ystar)
+#        ystar = (ystar - self._mean(means, tstar)) if means else ystar
         ystar = (ystar + self._mean(means, tstar)) if means else ystar
         ystar = np.array_split(ystar, self.p)
         return ystar
