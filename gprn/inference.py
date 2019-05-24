@@ -674,12 +674,12 @@ class GPRN_inference(object):
         wstar = []
         fstar = []
         for q in range(self.q):
-            fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
-#            fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
+#            fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
+            fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
         for p in range(self.p):
             muW = muW.reshape(self.p, self.N)
-            wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
-#            wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
+#            wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
+            wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
 
         #for now this will only work with one dataset, to be fixed the in future
         fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
@@ -687,12 +687,12 @@ class GPRN_inference(object):
 
 #        print((wstar * fstar).shape)
         ystar = wstar * fstar
-        print(ystar)
+#        print(ystar.shape)
 #        ystar = np.array(ystar).T.reshape(tstar.size)
 #        ystar = np.concatenate(ystar)
 #        ystar = (ystar - self._mean(means, tstar)) if means else ystar
-        ystar = (ystar + self._mean(means, tstar)) if means else ystar
-        ystar = np.array_split(ystar, self.p)
+        ystar = ystar + self._mean(means, tstar)
+#        ystar = np.array_split(ystar, self.p)
         return ystar
 
 
