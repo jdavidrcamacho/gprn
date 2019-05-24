@@ -138,17 +138,17 @@ class GPRN_inference(object):
         """
             To be used in predict_gp()
         """
-        size = [time]
+#        size = [time]
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], self.time[None, :])
         if isinstance(kernel, covWN):
             K = 0*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
         else:
-            if len(size) == 1:
-                r = time - self.time[None,:]
-            else:
-                r = time[:, None] - self.time[None, :]
-            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
+#            if len(size) == 1:
+#                r = time - self.time[None,:]
+#            else:
+            r = time[:, None] - self.time[None, :]
+            K = kernel(r) #+ 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
 
@@ -343,10 +343,8 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-        yy = np.concatenate(self.y)
-        yy = (yy - self._mean(means)) if means else yy
+        yy = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(yy, self.p)
-        new_y = self.y
         
         #the nodes can be different
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -524,7 +522,7 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        yy = (np.concatenate(self.y) - self._mean(means, self.time)) if means else np.concatenate(self.y)
+        yy = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(yy, self.p)) #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
@@ -663,25 +661,35 @@ class GPRN_inference(object):
         for i, j in enumerate(Kw):
             invKw = inv(j)
         
-        ystar = []
-        for n in range(tstar.size):
-            Kfstar = np.array([self._predict_kernel_matrix(i, tstar[n]) for i in nodes])
-            Kwstar = np.array([self._predict_kernel_matrix(j, tstar[n]) for j in weights])
-            wstar = [] #np.zeros([self.p, self.q]) #PxQ matrix
-            fstar = [] #np.zeros([self.q, 1]) #Qx1 matrix
-            for q in range(self.q):
-#                fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
-                fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
-            for p in range(self.p):
-                muW = muW.reshape(self.p, self.N)
-#                    wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
-                wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
-                    
-            fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
-            wstar = np.array(wstar)#.reshape(self.p, tstar.size)
-            ystar.append(wstar @fstar.T)
-        ystar = np.array(ystar).T.reshape(self.p, tstar.size)
-        ystar = np.concatenate(ystar)
+#        ystar = []
+#        for n in range(tstar.size):
+        
+        #Kfstar and Kwstar are arrays
+        Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
+        Kwstar = np.array([self._predict_kernel_matrix(j, tstar) for j in weights])
+
+        Kfstarstar = np.array([self._kernel_matrix(i, tstar) for i in nodes])
+        Kwstarstar = np.array([self._kernel_matrix(j, tstar) for j in weights])
+        
+        wstar = []
+        fstar = []
+        for q in range(self.q):
+            fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
+#            fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
+        for p in range(self.p):
+            muW = muW.reshape(self.p, self.N)
+            wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
+#            wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
+
+        #for now this will only work with one dataset, to be fixed the in future
+        fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
+        wstar = np.array(wstar[0])#.reshape(self.p, tstar.size)
+
+#        print((wstar * fstar).shape)
+        ystar = wstar * fstar
+        print(ystar)
+#        ystar = np.array(ystar).T.reshape(tstar.size)
+#        ystar = np.concatenate(ystar)
 #        ystar = (ystar - self._mean(means, tstar)) if means else ystar
         ystar = (ystar + self._mean(means, tstar)) if means else ystar
         ystar = np.array_split(ystar, self.p)
