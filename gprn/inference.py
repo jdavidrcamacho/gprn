@@ -138,17 +138,13 @@ class GPRN_inference(object):
         """
             To be used in predict_gp()
         """
-#        size = [time]
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], self.time[None, :])
         if isinstance(kernel, covWN):
-            K = 0*np.ones_like(self.time) #+ np.zeros([time.size, self.time.size]) 
+            K = 0*np.ones_like(self.time) 
         else:
-#            if len(size) == 1:
-#                r = time - self.time[None,:]
-#            else:
             r = time[:, None] - self.time[None, :]
-            K = kernel(r) #+ 1e-5*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) 
         return K
 
 
@@ -184,17 +180,17 @@ class GPRN_inference(object):
         CB_size = time.size * self.q * (self.p + 1)
         CB = np.zeros((CB_size, CB_size)) #initial empty matrix
         
-        position = 0 #we start filling CB at position (0,0)
+        pos = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
             node_CovMatrix = self._kernel_matrix(nodes[i], time)
-            CB[position:position+time.size, position:position+time.size] = node_CovMatrix
-            position += time.size
+            CB[pos:pos+time.size, pos:pos+time.size] = node_CovMatrix
+            pos += time.size
         weight_CovMatrix = self._kernel_matrix(weight, time)
         #then we enter the weights
         for i in range(self.qp):
-            CB[position:position+time.size, position:position+time.size] = weight_CovMatrix
-            position += time.size
+            CB[pos:pos+time.size, pos:pos+time.size] = weight_CovMatrix
+            pos += time.size
         return CB
 
     def _sample_CB(self, nodes, weight, time):
@@ -265,15 +261,9 @@ class GPRN_inference(object):
                 nugget = nugget added to the diagonal
         """
         nugget = 0 #our nugget starts as zero
-#        for i,j in enumerate(np.diag(matrix)):
-#            print('%.16f' %np.diag(matrix)[i])
-#        print()
-#        matrix = np.round(matrix, 5)
-#        print(np.diag(matrix))
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-5
             L = cholesky(matrix).T
-#            L = cholesky(matrix, lower =True)
             return L, nugget
         except LinAlgError:
             print('NUGGETS ADDED TO DIAGONAL!')
@@ -282,13 +272,13 @@ class GPRN_inference(object):
                 print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L = cholesky(matrix + nugget*np.identity(matrix.shape[0])).T
-#                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0]), lower =True)
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10.0
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
+
 
     def _plots(self, ELB, ELL, ELP, ENT):
         """
@@ -312,6 +302,7 @@ class GPRN_inference(object):
         plt.show()
         return 0
 
+
     def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
         """
             Prints the evidence lower bound, expected log likelihood, expected
@@ -322,7 +313,8 @@ class GPRN_inference(object):
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
 
-##### Mean-Field Inference functions
+
+##### Mean-Field Inference functions ###########################################
     def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
                            muF, varF, muW , varW):
         """
@@ -346,17 +338,18 @@ class GPRN_inference(object):
         yy = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(yy, self.p)
         
-        #the nodes can be different
+        #kernel matrix for the nodes
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
         invKf = []
         for i in range(self.q):
             invKf.append(inv(Kf[i]))
-        invKf = np.array(invKf)
-        #but we will have equal weights for all nodes
+        invKf = np.array(invKf) #inverse matrix of Kf
+        #kernel matrix for the weights
         Kw = np.array([self._kernel_matrix(j, time) for j in weight]) 
         invKw = []
         for i,j in enumerate(Kw):
             invKw = inv(j)
+        invKw = np.array(invKw) #inverse matrix of Kw
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         sigma_f = [] #creation of Sigma_fj
@@ -390,6 +383,7 @@ class GPRN_inference(object):
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
+        
         mu_w = [] #creation of mu_wij
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
@@ -537,9 +531,7 @@ class GPRN_inference(object):
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
             for j in range(self.q):
-                #first = np.dot(muw[i][j], np.dot(sigma_f[j][:][:], muw[i][j].T))
                 first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
-                #second = np.dot(mu_f[j], np.dot(sigma_w[j][i][:], mu_f[j].T))
                 second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
                 error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
@@ -572,7 +564,8 @@ class GPRN_inference(object):
         D = self.time.size * self.q *(self.p+1);
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
-        #experiment
+        
+#        #experiment
 #        np.random.seed(100)
 #        mu = np.random.rand(D,1);
 #        np.random.seed(200)
@@ -694,6 +687,10 @@ class GPRN_inference(object):
         ystar = ystar + self._mean(means, tstar)
 #        ystar = np.array_split(ystar, self.p)
         return ystar
+
+
+##### Nonparametric Variational Inference functions ############################
+
 
 
 ##### Other functions ##########################################################
