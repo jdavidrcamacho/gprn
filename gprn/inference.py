@@ -134,26 +134,39 @@ class GPRN_inference(object):
             K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
+#    def _predict_kernel_matrix(self, kernel, time):
+#        """
+#            To be used in predict_gp()
+#        """
+#        if isinstance(kernel, (covL, covP)):
+#            K = kernel(None, time[:, None], self.time[None, :])
+#        if isinstance(kernel, covWN):
+#            K = 0*np.ones_like(self.time) 
+#        else:
+#            r = time[:, None] - self.time[None, :]
+#            K = kernel(r) 
+#        return K
     def _predict_kernel_matrix(self, kernel, time):
         """
             To be used in predict_gp()
         """
         if isinstance(kernel, (covL, covP)):
-            K = kernel(None, time[:, None], self.time[None, :])
+            K = kernel(None, time, self.time[None, :])
         if isinstance(kernel, covWN):
             K = 0*np.ones_like(self.time) 
         else:
-            r = time[:, None] - self.time[None, :]
+            if time.size == 1:
+                r = time - self.time[None, :]
+            else:
+                r = time[:,None] - self.time[None,:]
             K = kernel(r) 
         return K
-
 
     def _kernel_pars(self, kernel):
         """
             Returns the hyperparameters of a given kernel
         """
         return kernel.pars
-
 
     def _weights_matrix(self, weight):
         """
@@ -164,7 +177,6 @@ class GPRN_inference(object):
             weights.append(weight)
         weight_matrix = np.array(weights).reshape((self.p, self.q))
         return weight_matrix
-
 
     def _CB_matrix(self, nodes, weight, time):
         """
@@ -222,7 +234,6 @@ class GPRN_inference(object):
         w = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, w
 
-
     def u_to_fhatW(self, nodes, weight, time):
         """
             Returns the samples of CB that corresponds to the nodes f hat and
@@ -240,14 +251,11 @@ class GPRN_inference(object):
         w = u[self.q * time.size:].reshape((self.p, self.q, time.size))
         return fhat, w
 
-
     def get_y(self, n, w, time, means = None):
         # obscure way to do it
         y = np.einsum('ij...,jk...->ik...', w, n).reshape(self.p, time.size)
         y = (y + self._mean(means, time)) if means else time
-
         return y
-
 
     def _cholNugget(self, matrix, maximum=10):
         """
@@ -279,7 +287,6 @@ class GPRN_inference(object):
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
 
-
     def _plots(self, ELB, ELL, ELP, ENT):
         """
             Plots the evolution of the evidence lower bound, expected log 
@@ -301,7 +308,6 @@ class GPRN_inference(object):
         plt.xlabel('iteration')
         plt.show()
         return 0
-
 
     def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
         """
@@ -337,6 +343,7 @@ class GPRN_inference(object):
         """
         yy = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(yy, self.p)
+        #new_y = self.y
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -357,7 +364,8 @@ class GPRN_inference(object):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error_term = (np.sum(jitters[i])/self.p)**2 \
+                            + (np.sum(self.yerr[i,:])/self.N)**2
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
@@ -365,7 +373,8 @@ class GPRN_inference(object):
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
-                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error_term = (np.sum(jitters[i])/self.p)**2 \
+                            + (np.sum(self.yerr[i,:])/self.N)**2
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != j:
@@ -379,7 +388,8 @@ class GPRN_inference(object):
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
             for i in range(self.p):
-                error_term = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error_term = (np.sum(jitters[i])/self.p)**2 \
+                            + (np.sum(self.yerr[i,:])/self.N)**2
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
@@ -394,7 +404,8 @@ class GPRN_inference(object):
                         sum_muFmuW += mu_f[j].reshape(self.N) * np.array(muW[i][j][:])
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error = (np.sum(jitters[i])/self.p)**2 \
+                        + (np.sum(self.yerr[i,:])/self.N)**2
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
@@ -464,40 +475,40 @@ class GPRN_inference(object):
         return first_term + second_term
 
 
-    def _mfi_expectedLogPrior_old(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
-        """
-            Calculates the expection of the log prior wrt q(f,w) in mean-field 
-        inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
-            Parameters:
-                nodes = array of node functions 
-                weight = weight function
-                sigma_f = array with the covariance for each node
-                mu_f = array with the means for each node
-                sigma_w = array with the covariance for each weight
-                mu_w = array with the means for each weight
-            Returns:
-                expected log prior
-        """
-        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
-        
-        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
-        first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
-        second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
-        L2 = cho_factor(Kw[0], overwrite_a=True, lower=True)
-        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
-        mu_w = mu_w.reshape(self.q, self.p, self.N)
-        for j in range(self.q):
-            L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
-            logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
-            muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
-            trace = np.trace(cho_solve(L1, sigma_f[j]))
-            first_term += logKf -0.5*muKmu -0.5*trace
-            for i in range(self.p):
-                muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
-                trace = np.trace(cho_solve(L2, sigma_w[j][i]))
-                second_term += logKw -0.5*muKmu -0.5*trace
-        return first_term + second_term
+#    def _mfi_expectedLogPrior_old(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
+#        """
+#            Calculates the expection of the log prior wrt q(f,w) in mean-field 
+#        inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                sigma_f = array with the covariance for each node
+#                mu_f = array with the means for each node
+#                sigma_w = array with the covariance for each weight
+#                mu_w = array with the means for each weight
+#            Returns:
+#                expected log prior
+#        """
+#        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
+#        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
+#        
+#        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
+#        first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
+#        second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
+#        L2 = cho_factor(Kw[0], overwrite_a=True, lower=True)
+#        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
+#        mu_w = mu_w.reshape(self.q, self.p, self.N)
+#        for j in range(self.q):
+#            L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
+#            logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
+#            muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
+#            trace = np.trace(cho_solve(L1, sigma_f[j]))
+#            first_term += logKf -0.5*muKmu -0.5*trace
+#            for i in range(self.p):
+#                muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
+#                trace = np.trace(cho_solve(L2, sigma_w[j][i]))
+#                second_term += logKw -0.5*muKmu -0.5*trace
+#        return first_term + second_term
 
 
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
@@ -534,7 +545,8 @@ class GPRN_inference(object):
                 first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
                 second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,:]**2)
+                error = (np.sum(jitters[i])/self.p)**2 \
+                            + (np.sum(self.yerr[i,:])/self.N)**2
                 third_term += (first + second[0][0] + third)/ error
         first_term = -0.5 * first_term
         second_term = -0.5 * second_term
@@ -613,7 +625,7 @@ class GPRN_inference(object):
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-10 and criteria != 0 :
+            if criteria < 1e-20 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' +str(iterNumber))
@@ -642,51 +654,31 @@ class GPRN_inference(object):
             Returns:
                 ystar = predicted means
         """
-        ystar = np.zeros([self.p, tstar.size])
-        
         Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        invKf = []
-        for i in range(self.q):
-            invKf.append(inv(Kf[i]))
-        invKf = np.array(invKf)
+        invKf = np.array([inv(i) for i in Kf])
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights])
-        invKw = []
-        for i, j in enumerate(Kw):
-            invKw = inv(j)
-        
-#        ystar = []
-#        for n in range(tstar.size):
-        
-        #Kfstar and Kwstar are arrays
+        invKw = np.array([inv(j) for j in Kw])
+
+        ystar = [] #final mean
+        stdstar = [] #final standard deviation
+        for n in range(tstar.size):
+            Kfstar = np.array([self._predict_kernel_matrix(i, tstar[n]) for i in nodes])
+            Kwstar = np.array([self._predict_kernel_matrix(j, tstar[n]) for j in weights])
+            Ewstar = Kwstar[0] @(invKw @muW[0].T)
+            Efstar = Kfstar[0] @(invKf[0] @muF[0].T)
+            ystar.append(Ewstar@ Efstar)
+        ystar = np.array(ystar).reshape(tstar.size)
+        ystar += self._mean(means, tstar) #adding the mean function
+
+        #standard deviation
+        stdstar = [] #final standard deviation
         Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
         Kwstar = np.array([self._predict_kernel_matrix(j, tstar) for j in weights])
-
         Kfstarstar = np.array([self._kernel_matrix(i, tstar) for i in nodes])
         Kwstarstar = np.array([self._kernel_matrix(j, tstar) for j in weights])
-        
-        wstar = []
-        fstar = []
-        for q in range(self.q):
-#            fstar.append(np.dot(np.dot(Kfstar[q][:][:], invKf[q]), muF[q].T))
-            fstar.append((invKf[q] @muF[q].T).T @Kfstar[q][:][:].T)
-        for p in range(self.p):
-            muW = muW.reshape(self.p, self.N)
-#            wstar.append(np.dot(np.dot(Kwstar[0][:][:], invKw), muW[p][:].T))
-            wstar.append((invKw @muW[p][:].T) @Kwstar[0][:][:].T)
+        print(Kfstar.shape, Kfstarstar.shape)
 
-        #for now this will only work with one dataset, to be fixed the in future
-        fstar = np.array(fstar[0][0])#.reshape(self.q, tstar.size)
-        wstar = np.array(wstar[0])#.reshape(self.p, tstar.size)
-
-#        print((wstar * fstar).shape)
-        ystar = wstar * fstar
-#        print(ystar.shape)
-#        ystar = np.array(ystar).T.reshape(tstar.size)
-#        ystar = np.concatenate(ystar)
-#        ystar = (ystar - self._mean(means, tstar)) if means else ystar
-        ystar = ystar + self._mean(means, tstar)
-#        ystar = np.array_split(ystar, self.p)
-        return ystar
+        return ystar, stdstar
 
 
 ##### Nonparametric Variational Inference functions ############################
