@@ -577,11 +577,11 @@ class GPRN_inference(object):
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
         
-#        #experiment
-#        np.random.seed(100)
-#        mu = np.random.rand(D,1);
-#        np.random.seed(200)
-#        var = np.random.rand(D,1);
+        #experiment
+        np.random.seed(100)
+        mu = np.random.rand(D,1);
+        np.random.seed(200)
+        var = np.random.rand(D,1);
         
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
@@ -659,25 +659,34 @@ class GPRN_inference(object):
         Kw = np.array([self._kernel_matrix(j, self.time) for j in weights])
         invKw = np.array([inv(j) for j in Kw])
 
-        ystar = [] #final mean
-        stdstar = [] #final standard deviation
+        #mean
+        ystar = []
         for n in range(tstar.size):
             Kfstar = np.array([self._predict_kernel_matrix(i, tstar[n]) for i in nodes])
             Kwstar = np.array([self._predict_kernel_matrix(j, tstar[n]) for j in weights])
             Ewstar = Kwstar[0] @(invKw @muW[0].T)
             Efstar = Kfstar[0] @(invKf[0] @muF[0].T)
             ystar.append(Ewstar@ Efstar)
-        ystar = np.array(ystar).reshape(tstar.size)
+        ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
 
         #standard deviation
-        stdstar = [] #final standard deviation
         Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
         Kwstar = np.array([self._predict_kernel_matrix(j, tstar) for j in weights])
         Kfstarstar = np.array([self._kernel_matrix(i, tstar) for i in nodes])
         Kwstarstar = np.array([self._kernel_matrix(j, tstar) for j in weights])
-        print(Kfstar.shape, Kfstarstar.shape)
-
+        #firstTerm = tstar.size x tstar.size matrix
+        firstTermAux1 = (Kwstar[0] @invKw[0].T @muW[0].T).T @Kwstar[0] @invKw[0] @muW[0].T
+        firstTermAux2 = Kfstarstar - Kfstar[0] @invKf[0].T @Kfstar[0].T
+        firstTerm = np.array(firstTermAux1 * firstTermAux2).reshape(tstar.size, tstar.size)
+        #secondTerm = tstar.size x tstar.size matrix
+        secondTerm = np.identity(tstar.size)
+        secondTermAux1 = Kwstarstar - Kwstar[0] @invKw[0].T @Kwstar[0].T
+        secondTermAux2 = firstTermAux2.reshape(tstar.size, tstar.size)
+        secondTermAux3 = (Kfstar[0] @invKf[0].T @muF[0].T) @(Kfstar[0] @invKf[0].T @muF[0].T).T
+        secondTermAux4 = np.identity(tstar.size) * np.mean(self.yerr[0])
+        secondTerm *= secondTermAux1[0] @(secondTermAux2 + secondTermAux3 + secondTermAux4)
+        stdstar = np.sqrt(np.diag(firstTerm + secondTerm)) #final standard deviation
         return ystar, stdstar
 
 
