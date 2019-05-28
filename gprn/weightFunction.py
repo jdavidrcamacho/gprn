@@ -428,7 +428,7 @@ class RQP(weightFunction):
         super(RQP, self).__init__(amplitude, alpha, ell_e, P, ell_p)
         self.amplitude = amplitude
         self.alpha = alpha
-        self.RQP_ell_e = ell_e
+        self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
         self.type = 'non-stationary and anisotropic'

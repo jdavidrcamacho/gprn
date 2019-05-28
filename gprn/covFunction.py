@@ -548,7 +548,7 @@ class RQP(covFunction):
         super(RQP, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
         self.alpha = alpha
-        self.RQP_ell_e = ell_e
+        self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
         self.wn = wn
@@ -559,11 +559,11 @@ class RQP(covFunction):
     def __call__(self, r):
         try:
             return self.theta**2 * exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2) \
-                        /(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha) \
+                        *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha) \
                         + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
             return self.theta**2 *exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2) \
-                        /(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
+                        *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
 
 class dRQP_dtheta(RQP):
     """
@@ -580,7 +580,7 @@ class dRQP_dtheta(RQP):
 
     def __call__(self, r):
         return 2*self.theta**2 * exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell_p**2) \
-                        /(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
+                        *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
 
 class dRQP_dalpha(RQP):
     """
@@ -894,6 +894,7 @@ class Matern32(covFunction):
         super(Matern32, self).__init__(theta, ell, wn)
         self.theta = theta
         self.ell = ell
+        self.wn = wn
         self.type = 'stationary and isotropic'
         self.derivatives = 3    #number of derivatives in this kernel
         self.params_size = 3    #number of hyperparameters
