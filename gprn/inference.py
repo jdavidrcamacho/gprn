@@ -341,9 +341,9 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-#        new_y = np.concatenate(self.y) - self._mean(means)
-#        new_y = np.array_split(new_y, self.p)
-        new_y = self.y
+        new_y = np.concatenate(self.y) - self._mean(means)
+        new_y = np.array_split(new_y, self.p)
+#        new_y = self.y
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -632,7 +632,7 @@ class GPRN_inference(object):
             Efstar = Kfstar[0] @(invKf[0] @muF[0].T)
             ystar.append(Ewstar@ Efstar)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
-#        ystar += self._mean(means, tstar) #adding the mean function
+        ystar += self._mean(means, tstar) #adding the mean function
 
         #standard deviation
         Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
