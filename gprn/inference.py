@@ -230,7 +230,7 @@ class GPRN_inference(object):
                 f = array with the samples of the nodes
                 w = array with the samples of the weights
         """
-        f = u[:self.q * self.N].reshape((self.q, 1, self.N))
+        f = u[:self.q * self.N].reshape((1, self.q, self.N))
         w = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, w
 
@@ -247,7 +247,7 @@ class GPRN_inference(object):
                 w = array with the samples of the weights
         """
         u = self._sample_CB(nodes, weight, time)
-        fhat = u[:self.q * time.size].reshape((self.q, 1, time.size))
+        fhat = u[:self.q * time.size].reshape((1, self.q, time.size))
         w = u[self.q * time.size:].reshape((self.p, self.q, time.size))
         return fhat, w
 
@@ -341,9 +341,9 @@ class GPRN_inference(object):
                 sigma_w = array with the covariance for each weight
                 mu_w = array with the means for each weight
         """
-        yy = np.concatenate(self.y) - self._mean(means)
-        new_y = np.array_split(yy, self.p)
-        #new_y = self.y
+#        new_y = np.concatenate(self.y) - self._mean(means)
+#        new_y = np.array_split(new_y, self.p)
+        new_y = self.y
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -475,42 +475,6 @@ class GPRN_inference(object):
         return first_term + second_term
 
 
-#    def _mfi_expectedLogPrior_old(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
-#        """
-#            Calculates the expection of the log prior wrt q(f,w) in mean-field 
-#        inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
-#            Parameters:
-#                nodes = array of node functions 
-#                weight = weight function
-#                sigma_f = array with the covariance for each node
-#                mu_f = array with the means for each node
-#                sigma_w = array with the covariance for each weight
-#                mu_w = array with the means for each weight
-#            Returns:
-#                expected log prior
-#        """
-#        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-#        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
-#        
-#        #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
-#        first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
-#        second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
-#        L2 = cho_factor(Kw[0], overwrite_a=True, lower=True)
-#        logKw = - self.q* np.sum(np.log(np.diag(L2[0])))
-#        mu_w = mu_w.reshape(self.q, self.p, self.N)
-#        for j in range(self.q):
-#            L1 = cho_factor(Kf[j], overwrite_a=True, lower=True)
-#            logKf = - self.q * np.sum(np.log(np.diag(L1[0])))
-#            muKmu = mu_f[j].reshape(self.N) @ cho_solve(L1, mu_f[j].reshape(self.N))
-#            trace = np.trace(cho_solve(L1, sigma_f[j]))
-#            first_term += logKf -0.5*muKmu -0.5*trace
-#            for i in range(self.p):
-#                muKmu = mu_w[j,i] @ cho_solve(L2, mu_w[j,i])
-#                trace = np.trace(cho_solve(L2, sigma_w[j][i]))
-#                second_term += logKw -0.5*muKmu -0.5*trace
-#        return first_term + second_term
-
-
     def _mfi_expectedLogLike(self, nodes, weight, means, jitters, 
                              sigma_f, mu_f, sigma_w, mu_w):
         """
@@ -527,8 +491,8 @@ class GPRN_inference(object):
             Returns:
                 expected log-likelihood
         """
-        yy = np.concatenate(self.y) - self._mean(means, self.time)
-        new_y = np.array(np.array_split(yy, self.p)) #Px1 dimensional vector
+        new_y = np.concatenate(self.y) - self._mean(means, self.time)
+        new_y = np.array(np.array_split(new_y, self.p)) #Px1 dimensional vector
         muw = mu_w.reshape(self.p, self.q, self.N) #PxQ dimensional vector
         muf = mu_f.reshape(self.q, self.N) #Qx1 dimensional vector
         
@@ -577,11 +541,11 @@ class GPRN_inference(object):
         mu = np.random.randn(D,1);
         var = np.random.rand(D,1);
         
-        #experiment
-        np.random.seed(100)
-        mu = np.random.rand(D,1);
-        np.random.seed(200)
-        var = np.random.rand(D,1);
+#        #experiment
+#        np.random.seed(100)
+#        mu = np.random.randn(D,1);
+#        np.random.seed(200)
+#        var = np.random.rand(D,1);
         
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
@@ -591,8 +555,8 @@ class GPRN_inference(object):
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, means,
-                                                               jitters, time,
+            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
+                                                               means, jitters, time,
                                                                muF, varF, muW, varW)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
             varF =  []
@@ -668,7 +632,7 @@ class GPRN_inference(object):
             Efstar = Kfstar[0] @(invKf[0] @muF[0].T)
             ystar.append(Ewstar@ Efstar)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
-        ystar += self._mean(means, tstar) #adding the mean function
+#        ystar += self._mean(means, tstar) #adding the mean function
 
         #standard deviation
         Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
@@ -684,7 +648,7 @@ class GPRN_inference(object):
         secondTermAux1 = Kwstarstar - Kwstar[0] @invKw[0].T @Kwstar[0].T
         secondTermAux2 = firstTermAux2.reshape(tstar.size, tstar.size)
         secondTermAux3 = (Kfstar[0] @invKf[0].T @muF[0].T) @(Kfstar[0] @invKf[0].T @muF[0].T).T
-        secondTermAux4 = np.identity(tstar.size) * np.mean(self.yerr[0])
+        secondTermAux4 = np.identity(tstar.size) * np.mean(self.yerr[0]**2)
         secondTerm *= secondTermAux1[0] @(secondTermAux2 + secondTermAux3 + secondTermAux4)
         stdstar = np.sqrt(np.diag(firstTerm + secondTerm)) #final standard deviation
         return ystar, stdstar
