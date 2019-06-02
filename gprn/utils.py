@@ -129,9 +129,9 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         #Initialize the walkers
         p0=[prior_func() for i in range(nwalkers)]
         #running burns and runs
-        print("Running burn-in")
+        print("Running burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
-        print("Running production chain")
+        print("Running production chain...")
         sampler.run_mcmc(p0, runs)
         #preparing samples to return
         samples = sampler.chain[:, burns:, :].reshape((-1, ndim))
@@ -147,7 +147,8 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         dsampler = dynesty.DynamicNestedSampler(loglike_func, prior_func, ndim=ndim, 
                                         nlive = 5, sample='rwalk',
                                         queue_size=4, pool=Pool(4))
-        dsampler.run_nested(nlive_init = 1000, maxiter = iterations)
+        print("Running dynesty...")
+        dsampler.run_nested(nlive_init = 20, maxiter = iterations)
         results = dsampler.results
     return results
 
