@@ -321,8 +321,8 @@ class GPRN_inference(object):
 
 
 ##### Mean-Field Inference functions ###########################################
-    def _update_SIGMAandMU(self, nodes, weight, means, jitters,  time,
-                           muF, varF, muW , varW):
+    def _MFIupdate_SigmaMU(self, nodes, weight, means, jitters,  time,
+                               muF, varF, muW , varW):
         """
             Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
@@ -343,7 +343,7 @@ class GPRN_inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(new_y, self.p)
-#        new_y = self.y
+        #new_y = self.y
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
@@ -538,8 +538,8 @@ class GPRN_inference(object):
         """ 
         #Initial variational parameters
         D = self.time.size * self.q *(self.p+1);
-        mu = np.random.randn(D,1);
-        var = np.random.rand(D,1);
+        mu = np.random.randn(D,1) #+ np.mean(self.y);
+        var = np.random.rand(D,1) #+ np.var(self.y);
         
 #        #experiment
 #        np.random.seed(100)
@@ -548,14 +548,16 @@ class GPRN_inference(object):
 #        var = np.random.rand(D,1);
         
         muF, muW = self._fhat_and_w(mu)
+        #muF + np.mean(self.y)
         varF, varW = self._fhat_and_w(var)
+        #varF + np.var(self.y)
 
         iterNumber = 0
         ELB = [0]
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self._update_SIGMAandMU(nodes, weight, 
+            sigmaF, muF, sigmaW, muW = self._MFIupdate_SigmaMU(nodes, weight, 
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
@@ -588,8 +590,8 @@ class GPRN_inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-20 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-5:]) - ELB[-1])
+            if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' +str(iterNumber))
@@ -655,7 +657,8 @@ class GPRN_inference(object):
 
 
 ##### Nonparametric Variational Inference functions ############################
-
+    def _NpVI_SigmaMu(self):
+        return 0
 
 
 ##### Other functions ##########################################################
