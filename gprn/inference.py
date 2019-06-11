@@ -120,7 +120,7 @@ class GPRN_inference(object):
 
 
 ##### To create matrices and samples
-    def _kernel_matrix(self, kernel, time = None):
+    def _kernelMatrix(self, kernel, time = None):
         """
             Returns the covariance matrix created by evaluating a given kernel 
         at inputs time.
@@ -134,7 +134,7 @@ class GPRN_inference(object):
             K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
-#    def _predict_kernel_matrix(self, kernel, time):
+#    def _predictKernelMatrix(self, kernel, time):
 #        """
 #            To be used in predict_gp()
 #        """
@@ -146,7 +146,7 @@ class GPRN_inference(object):
 #            r = time[:, None] - self.time[None, :]
 #            K = kernel(r) 
 #        return K
-    def _predict_kernel_matrix(self, kernel, time):
+    def _predictKernelMatrix(self, kernel, time):
         """
             To be used in predict_gp()
         """
@@ -195,10 +195,10 @@ class GPRN_inference(object):
         pos = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
-            node_CovMatrix = self._kernel_matrix(nodes[i], time)
+            node_CovMatrix = self._kernelMatrix(nodes[i], time)
             CB[pos:pos+time.size, pos:pos+time.size] = node_CovMatrix
             pos += time.size
-        weight_CovMatrix = self._kernel_matrix(weight, time)
+        weight_CovMatrix = self._kernelMatrix(weight, time)
         #then we enter the weights
         for i in range(self.qp):
             CB[pos:pos+time.size, pos:pos+time.size] = weight_CovMatrix
@@ -346,13 +346,13 @@ class GPRN_inference(object):
         #new_y = self.y
         
         #kernel matrix for the nodes
-        Kf = np.array([self._kernel_matrix(i, time) for i in nodes])
+        Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
         invKf = []
         for i in range(self.q):
             invKf.append(inv(Kf[i]))
         invKf = np.array(invKf) #inverse matrix of Kf
         #kernel matrix for the weights
-        Kw = np.array([self._kernel_matrix(j, time) for j in weight]) 
+        Kw = np.array([self._kernelMatrix(j, time) for j in weight]) 
         invKw = []
         for i,j in enumerate(Kw):
             invKw = inv(j)
@@ -369,6 +369,7 @@ class GPRN_inference(object):
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
+        muF = muF.reshape(self.q, self.N)
         mu_f = [] #creation of mu_fj
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
@@ -383,7 +384,7 @@ class GPRN_inference(object):
                 sum_YminusSum *= muW[i][j][:]
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum/error_term))
         mu_f = np.array(mu_f)
-        
+
         sigma_w = [] #creation of Sigma_wij
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
@@ -448,8 +449,8 @@ class GPRN_inference(object):
             Returns:
                 expected log prior
         """
-        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights]) 
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
         
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
@@ -587,18 +588,19 @@ class GPRN_inference(object):
             
             #Evidence Lower Bound
             sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
+            ELB.append(sum_ELB)
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-5:]) - ELB[-1])
+            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
             if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
-                          + '; algorithm stopped at iteration ' +str(iterNumber))
+                          + '; algorithm stopped at iteration ' \
+                          +str(iterNumber) +'\n')
                 if plots:
                     self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
                 return sum_ELB, muF, muW
-            ELB.append(sum_ELB)
             iterNumber += 1
         if plots:
             self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
@@ -620,39 +622,45 @@ class GPRN_inference(object):
             Returns:
                 ystar = predicted means
         """
-        Kf = np.array([self._kernel_matrix(i, self.time) for i in nodes])
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         invKf = np.array([inv(i) for i in Kf])
-        Kw = np.array([self._kernel_matrix(j, self.time) for j in weights])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
         invKw = np.array([inv(j) for j in Kw])
 
         #mean
         ystar = []
         for n in range(tstar.size):
-            Kfstar = np.array([self._predict_kernel_matrix(i, tstar[n]) for i in nodes])
-            Kwstar = np.array([self._predict_kernel_matrix(j, tstar[n]) for j in weights])
-            Ewstar = Kwstar[0] @(invKw @muW[0].T)
-            Efstar = Kfstar[0] @(invKf[0] @muF[0].T)
+            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+            Efstar, Ewstar = 0, 0
+            for j in range(self.q):
+                Efstar += Kfstar[j] @(invKf[j] @muF[j].T) 
+                for i in range(self.p):
+                    Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
             ystar.append(Ewstar@ Efstar)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
 
         #standard deviation
-        Kfstar = np.array([self._predict_kernel_matrix(i, tstar) for i in nodes])
-        Kwstar = np.array([self._predict_kernel_matrix(j, tstar) for j in weights])
-        Kfstarstar = np.array([self._kernel_matrix(i, tstar) for i in nodes])
-        Kwstarstar = np.array([self._kernel_matrix(j, tstar) for j in weights])
+        Kfstar = np.array([self._predictKernelMatrix(i, tstar) for i in nodes])
+        Kwstar = np.array([self._predictKernelMatrix(j, tstar) for j in weights])
+        Kfstarstar = np.array([self._kernelMatrix(i, tstar) for i in nodes])
+        Kwstarstar = np.array([self._kernelMatrix(j, tstar) for j in weights])
+        
         #firstTerm = tstar.size x tstar.size matrix
-        firstTermAux1 = (Kwstar[0] @invKw[0].T @muW[0].T).T @Kwstar[0] @invKw[0] @muW[0].T
-        firstTermAux2 = Kfstarstar - Kfstar[0] @invKf[0].T @Kfstar[0].T
+        firstTermAux1 = (Kwstar[0] @invKw[0].T @muW[0].T).T @(Kwstar[0] @invKw[0] @muW[0].T)
+        firstTermAux2 = Kfstarstar - (Kfstar[0] @invKf[0].T @Kfstar[0].T)
         firstTerm = np.array(firstTermAux1 * firstTermAux2).reshape(tstar.size, tstar.size)
         #secondTerm = tstar.size x tstar.size matrix
-        secondTerm = np.identity(tstar.size)
         secondTermAux1 = Kwstarstar - Kwstar[0] @invKw[0].T @Kwstar[0].T
         secondTermAux2 = firstTermAux2.reshape(tstar.size, tstar.size)
         secondTermAux3 = (Kfstar[0] @invKf[0].T @muF[0].T) @(Kfstar[0] @invKf[0].T @muF[0].T).T
-        secondTermAux4 = np.identity(tstar.size) * np.mean(self.yerr[0]**2)
-        secondTerm *= secondTermAux1[0] @(secondTermAux2 + secondTermAux3 + secondTermAux4)
-        stdstar = np.sqrt(np.diag(firstTerm + secondTerm)) #final standard deviation
+        secondTerm = secondTermAux1[0] @(secondTermAux2 + secondTermAux3)
+        
+        errors = np.identity(tstar.size) * ((np.sum(jitters)/self.p)**2 \
+                            + (np.sum(self.yerr[0,:])/self.N)**2)
+        total = firstTerm + secondTerm + errors
+        stdstar = np.sqrt(np.diag(total)) #final standard deviation
         return ystar, stdstar
 
 
