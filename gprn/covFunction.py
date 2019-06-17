@@ -117,7 +117,7 @@ class dConstant_dwn(Constant):
         Log-derivative in order to the white noise
     """
     def __init__(self, c, wn):
-        super(dConstant_dc, self).__init__(c, wn)
+        super(dConstant_dwn, self).__init__(c, wn)
         self.c = c
         self.wn = wn
 
@@ -311,7 +311,6 @@ class dPeriodic_dwn(Periodic):
         self.wn = wn
 
     def __call__(self, r):
-        return
         try:
             return 2*self.wn**2 * np.diag(np.diag(np.ones_like(r)))
         except ValueError:
@@ -757,7 +756,7 @@ class Laplacian(covFunction):
         super(Laplacian, self).__init__(theta, ell, wn)
         self.theta = theta
         self.ell = ell
-        self.wn
+        self.wn = wn
         self.type = 'stationary and isotropic'
         self.derivatives = 3    #number of derivatives in this kernel
         self.params_size = 3    #number of hyperparameters
@@ -800,7 +799,7 @@ class dLaplacian_dwn(Laplacian):
         Log-derivative in order to the white noise
     """
     def __init__(self, theta, ell, wn):
-        super(dLaplacian_dell, self).__init__(theta, ell, wn)
+        super(dLaplacian_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -825,7 +824,7 @@ class Exponential(covFunction):
         super(Exponential, self).__init__(theta, ell, wn)
         self.theta = theta
         self.ell = ell
-        self.wn
+        self.wn = wn
         self.type = 'stationary and isotropic'
         self.derivatives = 3    #number of derivatives in this kernel
         self.params_size = 3    #number of hyperparameters
@@ -868,7 +867,7 @@ class dExpoential_dwn(Exponential):
         Log-derivative in order to the white noise
     """
     def __init__(self, theta, ell, wn):
-        super(dExpoential_dell, self).__init__(theta, ell, wn)
+        super(dExpoential_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
         self.ell = ell
         self.wn = wn

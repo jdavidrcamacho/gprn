@@ -88,7 +88,7 @@ class GPRN_inference(object):
         pars = list(pars)
         assert len(pars) == self.mean_pars_size
         self._mean_pars = copy(pars)
-        for i, m in enumerate(self.means):
+        for _, m in enumerate(self.means):
             if m is None: 
                 continue
             j = 0
@@ -173,7 +173,7 @@ class GPRN_inference(object):
             Returns a q*p matrix of weights
         """
         weights = [] #we will need a q*p matrix of weights
-        for i in range(self.qp):
+        for _ in range(self.qp):
             weights.append(weight)
         weight_matrix = np.array(weights).reshape((self.p, self.q))
         return weight_matrix
@@ -458,13 +458,13 @@ class GPRN_inference(object):
         Lw = self._cholNugget(Kw[0])[0]
         Kw_inv = inv(Kw[0])
         #logKw = -self.q * np.sum(np.log(np.diag(L2)))
-        logKw = -np.sum(np.log(np.diag(Lw)))
+        logKw = -np.float(np.sum(np.log(np.diag(Lw))))
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         
         for j in range(self.q):
             Lf = self._cholNugget(Kf[j])[0]
             #logKf = - self.q * np.sum(np.log(np.diag(L1)))
-            logKf = -np.sum(np.log(np.diag(Lf)))
+            logKf = -np.float(np.sum(np.log(np.diag(Lf))))
             Kf_inv = inv(Kf[j])
             muKmu = (Kf_inv @mu_f[j].reshape(self.N)) @mu_f[j].reshape(self.N)
             trace = np.trace(sigma_f[j] @Kf_inv)
@@ -538,7 +538,7 @@ class GPRN_inference(object):
                 muW = array with the new means for each weight
         """ 
         #Initial variational parameters
-        D = self.time.size * self.q *(self.p+1);
+        D = self.time.size * self.q *(self.p+1)
         mu = np.random.randn(D,1) #+ np.mean(self.y);
         var = np.random.rand(D,1) #+ np.var(self.y);
         
@@ -593,7 +593,7 @@ class GPRN_inference(object):
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
             criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-5 and criteria != 0 :
+            if criteria < 1e-10 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
