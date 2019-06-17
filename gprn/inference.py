@@ -109,8 +109,8 @@ class GPRN_inference(object):
                     m[i*N : (i+1)*N] = meanfun(self.time)
         else:
             N = time.size
-            ttt = np.tile(time, self.p)
-            m = np.zeros_like(ttt)
+            tt = np.tile(time, self.p)
+            m = np.zeros_like(tt)
             for i, meanfun in enumerate(means):
                 if meanfun is None:
                     continue
@@ -134,18 +134,6 @@ class GPRN_inference(object):
             K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         return K
 
-#    def _predictKernelMatrix(self, kernel, time):
-#        """
-#            To be used in predict_gp()
-#        """
-#        if isinstance(kernel, (covL, covP)):
-#            K = kernel(None, time[:, None], self.time[None, :])
-#        if isinstance(kernel, covWN):
-#            K = 0*np.ones_like(self.time) 
-#        else:
-#            r = time[:, None] - self.time[None, :]
-#            K = kernel(r) 
-#        return K
     def _predictKernelMatrix(self, kernel, time):
         """
             To be used in predict_gp()
@@ -671,7 +659,6 @@ class GPRN_inference(object):
 
 ##### Other functions ##########################################################
 def jitChol(A, maxTries=10, warning=True):
-
     """Do a Cholesky decomposition with jitter.
     Description:
     U = jitChol(A, maxTries, warning) attempts a Cholesky
