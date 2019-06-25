@@ -309,7 +309,7 @@ class GPRN_inference(object):
 
 
 ##### Mean-Field Inference functions ###########################################
-    def _MFIupdate_SigmaMU(self, nodes, weight, means, jitters,  time,
+    def _mfi_updateSigmaMu(self, nodes, weight, means, jitters,  time,
                                muF, varF, muW , varW):
         """
             Efficient closed-form updates fot variational parameters. This
@@ -508,7 +508,7 @@ class GPRN_inference(object):
 
 
     def EvidenceLowerBound_MFI(self, nodes, weight, means, jitters, time, 
-                               iterations=100, prints = False, plots = False):
+                               iterations = 100, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -546,7 +546,7 @@ class GPRN_inference(object):
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self._MFIupdate_SigmaMU(nodes, weight, 
+            sigmaF, muF, sigmaW, muW = self._mfi_updateSigmaMu(nodes, weight, 
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
@@ -580,8 +580,8 @@ class GPRN_inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-10 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-5:]) - ELB[-1])
+            if criteria < 1e-3 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
@@ -653,10 +653,94 @@ class GPRN_inference(object):
 
 
 ##### Nonparametric Variational Inference functions ############################
-    def _NpVI_SigmaMu(self):
+    def _npvi_updateMu(self, k):
+        """ 
+            Update of the mean parameters and variance of the mixture components.
+            This doesn't make much sense in my head but I'll keep it until I
+        find a better idea to update the variational means
+        """
+        #variational parameters
+        D = self.time.size * self.q *(self.p+1)
+        mu = np.random.randn(D, k) #muF[:, k]
+        sigma = np.array([])
+        muF = np.array([])
+        muW = np.array([])
+        for i in range(k):
+            sigma = np.append(sigma, np.var(mu[:,i]))
+            meme, mumu = self._fhat_and_w(mu)
+            muF = np.append(muF, meme)
+            muW = np.append(muW, mumu)
+
+        return mu, sigma
+
+
+    def _npvi_expectedLogJoint(self, nodes, weights, mu, sigma):
+        """
+            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
+        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
+        appendix
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log prior
+        """
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+
+        #we have q nodes -> j in the paper, p output -> i in the paper, 
+        #and k distributions -> k in the paper
+        first_term = 0
+        
+        
+        
+        
+        
+    def _npvi_expectedLogLike(self, nodes, weight, means, jitters, muF):
         return 0
 
 
+    def EvidenceLowerBound_NPVI(self, nodes, weight, means, jitters, time, 
+                                k = 2, iterations = 100, 
+                                prints = False, plots = False):
+        """
+            Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                means = array with the mean functions
+                jitters = jitters array
+                time = time array
+                k = mixture of k isotropic Gaussian distributions
+                iterations = number of iterations
+                prints = True to print ELB value at each iteration
+                plots = True to plot ELB evolution 
+            Returns:
+                sum_ELB = Evidence lower bound
+                muF = array with the new means for each node
+                muW = array with the new means for each weight
+        """ 
+        #Initial variational mean
+        D = self.time.size * self.q *(self.p+1)
+        muF = np.random.randn(D, k) #muF[:, k]
+        sigmaF = np.array([])
+        for i in range(k):
+            sigmaF = np.append(sigmaF, np.var(muF[:,i]))
+            
+        iterNumber = 0
+        ELB = [0]
+        if plots:
+            ELP, ELL, ENT = [0], [0], [0]
+        while iterNumber < iterations:
+            muF, sigmaF = self._npvi_updateMu(k)
+            
+
+            
+        return 0
 ##### Other functions ##########################################################
 def jitChol(A, maxTries=10, warning=True):
     """Do a Cholesky decomposition with jitter.
