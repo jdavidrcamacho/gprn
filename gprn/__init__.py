@@ -8,12 +8,10 @@
 from gprn import covFunction
 #mean functions
 from gprn import meanFunction
-#mother class of our GPRN
-from gprn import gprn
 #mean-field inference
-from gprn import mfi_infernce 
+from gprn import mfi 
 #nonparametric variational inference
-from gprn import npvi_inference
+from gprn import npvi
 #util functions
 from gprn import utils
 
