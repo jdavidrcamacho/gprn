@@ -695,7 +695,7 @@ class GPRN_inference(object):
         #we have q nodes -> j in the paper, p output -> i in the paper, 
         #and k distributions -> k in the paper
         first_term = 0
-        
+#        for 
         
         
         
