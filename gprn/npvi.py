@@ -10,9 +10,9 @@ from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
 from gprn.covFunction import WhiteNoise as covWN
 
-class GPRN(object):
+class inference(object):
     """ 
-        Mother class to perform variational inference for a GPRN. 
+        Class to perform variational inference for GPRNs. 
         See Nguyen & Bonilla (2013) for more information.
         Parameters:
             nodes = latent noide functions f(x), called f hat in the article
@@ -66,7 +66,7 @@ class GPRN(object):
         'Given data and number of components dont match'
 
 
-##### mean functions definition
+##### mean functions definition ################################################
     @property
     def mean_pars_size(self):
         return self._mean_pars_size
@@ -119,7 +119,7 @@ class GPRN(object):
         return m
 
 
-### To create matrices and samples
+##### To create matrices and samples ###########################################
     def _kernelMatrix(self, kernel, time = None):
         """
             Returns the covariance matrix created by evaluating a given kernel 
@@ -275,34 +275,123 @@ class GPRN(object):
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
 
-    def _plots(self, ELB, ELL, ELP, ENT):
+
+##### Nonparametric Variational Inference functions ############################
+    def _npvi_updateMu(self, k):
+        """ 
+            Update of the mean parameters and variance of the mixture components.
+            This doesn't make much sense in my head but I'll keep it until I
+        find a better idea to update the variational means
         """
-            Plots the evolution of the evidence lower bound, expected log 
-        likelihood, expected log prior, and entropy
+        #variational parameters
+        D = self.time.size * self.q *(self.p+1)
+        mu = np.random.randn(D, k) #muF[:, k]
+        sigma = np.array([])
+        muF = np.array([])
+        muW = np.array([])
+        for i in range(k):
+            sigma = np.append(sigma, np.var(mu[:,i]))
+            meme, mumu = self._fhat_and_w(mu)
+            muF = np.append(muF, meme)
+            muW = np.append(muW, mumu)
+
+        return mu, sigma
+
+
+    def _npvi_expectedLogJoint(self, nodes, weights, mu, sigma):
         """
-        plt.figure()
-        ax1 = plt.subplot(411)
-        plt.plot(ELB, '-')
-        plt.ylabel('Evidence lower bound')
-        plt.subplot(412, sharex=ax1)
-        plt.plot(ELL, '-')
-        plt.ylabel('Expected log likelihood')
-        plt.subplot(413, sharex=ax1)
-        plt.plot(ELP, '-')
-        plt.ylabel('Expected log prior')
-        plt.subplot(414, sharex=ax1)
-        plt.plot(ENT, '-')
-        plt.ylabel('Entropy')
-        plt.xlabel('iteration')
-        plt.show()
+            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
+        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
+        appendix
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log prior
+        """
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+
+        #we have q nodes -> j in the paper, p output -> i in the paper, 
+        #and k distributions -> k in the paper
+        first_term = 0
+#        for 
+        
+        
+        
+        
+    def _npvi_expectedLogLike(self, nodes, weight, means, jitters, muF):
         return 0
 
-    def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
+
+    def EvidenceLowerBound_NPVI(self, nodes, weight, means, jitters, time, 
+                                k = 2, iterations = 100, 
+                                prints = False, plots = False):
         """
-            Prints the evidence lower bound, expected log likelihood, expected
-        log prior, and entropy
-        """
-        print('ELB: ' + str(sum_ELB))
-        print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
-              + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
+            Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                means = array with the mean functions
+                jitters = jitters array
+                time = time array
+                k = mixture of k isotropic Gaussian distributions
+                iterations = number of iterations
+                prints = True to print ELB value at each iteration
+                plots = True to plot ELB evolution 
+            Returns:
+                sum_ELB = Evidence lower bound
+                muF = array with the new means for each node
+                muW = array with the new means for each weight
+        """ 
+        #Initial variational mean
+        D = self.time.size * self.q *(self.p+1)
+        muF = np.random.randn(D, k) #muF[:, k]
+        sigmaF = np.array([])
+        for i in range(k):
+            sigmaF = np.append(sigmaF, np.var(muF[:,i]))
+            
+        iterNumber = 0
+        ELB = [0]
+        if plots:
+            ELP, ELL, ENT = [0], [0], [0]
+        while iterNumber < iterations:
+            muF, sigmaF = self._npvi_updateMu(k)
+            
         return 0
+
+#    def _plots(self, ELB, ELL, ELP, ENT):
+#        """
+#            Plots the evolution of the evidence lower bound, expected log 
+#        likelihood, expected log prior, and entropy
+#        """
+#        plt.figure()
+#        ax1 = plt.subplot(411)
+#        plt.plot(ELB, '-')
+#        plt.ylabel('Evidence lower bound')
+#        plt.subplot(412, sharex=ax1)
+#        plt.plot(ELL, '-')
+#        plt.ylabel('Expected log likelihood')
+#        plt.subplot(413, sharex=ax1)
+#        plt.plot(ELP, '-')
+#        plt.ylabel('Expected log prior')
+#        plt.subplot(414, sharex=ax1)
+#        plt.plot(ENT, '-')
+#        plt.ylabel('Entropy')
+#        plt.xlabel('iteration')
+#        plt.show()
+#        return 0
+
+#    def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
+#        """
+#            Prints the evidence lower bound, expected log likelihood, expected
+#        log prior, and entropy
+#        """
+#        print('ELB: ' + str(sum_ELB))
+#        print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
+#              + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
+#        return 0
