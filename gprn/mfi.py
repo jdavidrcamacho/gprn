@@ -307,7 +307,7 @@ class inference(object):
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self.updateSigmaMu(nodes, weight, 
+            sigmaF, muF, sigmaW, muW = self._updateSigmaMu(nodes, weight, 
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
@@ -356,7 +356,7 @@ class inference(object):
         return sum_ELB, muF, muW
         
         
-    def Prediction_MFI(self, nodes, weights, means, jitters, tstar, muF, muW):
+    def Prediction(self, nodes, weights, means, jitters, tstar, muF, muW):
         """
             Prediction for mean-field inference
             Parameters:

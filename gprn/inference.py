@@ -674,28 +674,28 @@ class GPRN_inference(object):
         return mu, sigma
 
 
-    def _npvi_expectedLogJoint(self, nodes, weights, mu, sigma):
-        """
-            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
-        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
-        appendix
-            Parameters:
-                nodes = array of node functions 
-                weight = weight function
-                sigma_f = array with the covariance for each node
-                mu_f = array with the means for each node
-                sigma_w = array with the covariance for each weight
-                mu_w = array with the means for each weight
-            Returns:
-                expected log prior
-        """
-        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
-
-        #we have q nodes -> j in the paper, p output -> i in the paper, 
-        #and k distributions -> k in the paper
-        first_term = 0
-#        for 
+#    def _npvi_expectedLogJoint(self, nodes, weights, mu, sigma):
+#        """
+#            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
+#        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
+#        appendix
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                sigma_f = array with the covariance for each node
+#                mu_f = array with the means for each node
+#                sigma_w = array with the covariance for each weight
+#                mu_w = array with the means for each weight
+#            Returns:
+#                expected log prior
+#        """
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+#
+#        #we have q nodes -> j in the paper, p output -> i in the paper, 
+#        #and k distributions -> k in the paper
+#        first_term = 0
+##        for 
         
         
         
