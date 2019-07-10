@@ -278,7 +278,7 @@ class inference(object):
 
 ##### Mean-Field Inference functions ###########################################
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
-                               iterations = 100, prints = False, plots = False):
+                               iterations = 10, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -341,8 +341,8 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-5:]) - ELB[-1])
-            if criteria < 1e-3 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
+            if criteria < 1e-10 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
@@ -457,8 +457,7 @@ class inference(object):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
@@ -467,8 +466,7 @@ class inference(object):
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != j:
@@ -482,8 +480,7 @@ class inference(object):
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
             for i in range(self.p):
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
@@ -498,8 +495,7 @@ class inference(object):
                         sum_muFmuW += mu_f[j].reshape(self.N) * np.array(muW[i][j][:])
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = (np.sum(jitters[i])/self.p)**2 \
-                        + (np.sum(self.yerr[i,:])/self.N)**2
+                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
@@ -595,18 +591,21 @@ class inference(object):
         third_term = 0
         for i in range(self.p):
             for n in range(self.N):
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
-                first_term += np.log(error)
-                YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
-                second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
+                error = jitters[i]**2 + self.yerr[i,n]**2
+                #first_term += np.log(error)
+                YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] @ muf[:,n])
+                second_term += np.dot(YOmegaMu.T, YOmegaMu) / error
+                
             for j in range(self.q):
                 first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
                 second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
-                error = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
                 third_term += (first + second[0][0] + third)/ error
-        first_term = -0.5 * first_term
+        for i in range(self.p):
+            first_term += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+            
+        first_term = -0.5 * np.log(first_term)
         second_term = -0.5 * second_term
         third_term = -0.5 * third_term
         return first_term + second_term + third_term
