@@ -278,7 +278,7 @@ class inference(object):
 
 ##### Mean-Field Inference functions ###########################################
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
-                               iterations = 10, prints = False, plots = False):
+                               iterations = 100, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -341,8 +341,8 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-10:]) - ELB[-1])
-            if criteria < 1e-10 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-5:]) - ELB[-1])
+            if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
@@ -590,22 +590,19 @@ class inference(object):
         second_term = 0
         third_term = 0
         for i in range(self.p):
+            first_term += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
             for n in range(self.N):
                 error = jitters[i]**2 + self.yerr[i,n]**2
                 #first_term += np.log(error)
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] @ muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu) / error
-                
             for j in range(self.q):
                 first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
                 second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
                 error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
                 third_term += (first + second[0][0] + third)/ error
-        for i in range(self.p):
-            first_term += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
-            
-        first_term = -0.5 * np.log(first_term)
+        first_term = -0.5 * first_term
         second_term = -0.5 * second_term
         third_term = -0.5 * third_term
         return first_term + second_term + third_term

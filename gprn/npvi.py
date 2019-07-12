@@ -286,19 +286,66 @@ class inference(object):
         #variational parameters
         D = self.time.size * self.q *(self.p+1)
         mu = np.random.randn(D, k) #muF[:, k]
-        sigma = np.array([])
-        muF = np.array([])
-        muW = np.array([])
+
+        sigma, muF, muW = [], [], []
         for i in range(k):
-            sigma = np.append(sigma, np.var(mu[:,i]))
-            meme, mumu = self._fhat_and_w(mu)
-            muF = np.append(muF, meme)
-            muW = np.append(muW, mumu)
+            #sigma = np.append(sigma, np.var(mu[:,i]))
+            sigma.append(1)
+            meme, mumu = self._fhat_and_w(mu[:,i])
+            muF.append(meme)
+            muW.append(mumu)
 
-        return mu, sigma
+        return np.array(muF), np.array(muW), np.array(sigma)
 
 
-    def _npvi_expectedLogJoint(self, nodes, weights, mu, sigma):
+#    def _expectedLogLike(self, nodes, weights, means, jitters, 
+#                                    muF, muW, sigma, k):
+#        """
+#            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
+#        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
+#        appendix
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                sigma_f = array with the covariance for each node
+#                mu_f = array with the means for each node
+#                sigma_w = array with the covariance for each weight
+#                mu_w = array with the means for each weight
+#            Returns:
+#                expected log prior
+#        """
+#        new_y = np.concatenate(self.y) - self._mean(means, self.time)
+#        new_y = np.array(np.array_split(new_y, self.p)) #Px1 dimensional vector
+#        
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        Kf_inv = np.array([inv(i) for i in Kf ])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+#        Kw_inv = np.array([inv(i) for j in Kw ])
+#        
+#        sigma_y = 0
+#        for i in range(self.p):
+#            sigma_y += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#
+#        #we have q nodes -> j in the paper, p output -> i in the paper, 
+#        #and k distributions -> k in the paper
+#        first_term = 0
+#        second_term = 0
+#        for ki in range(k):
+#            for i in range(self.p):
+#                for n in range(self.N):
+#                    error = jitters[i]**2 + self.yerr[i,n]**2
+#                    #first_term += np.log(error)
+#                    YOmegaMu = np.array(new_y[i,n].T - muW[ki,i,:,n] @ muF[ki,:,:,n].T)
+#                    first_term += np.dot(YOmegaMu.T, YOmegaMu) / error
+#        
+#            for j in range(self.q):
+#        
+#        
+#        loglike = -0.5*first_term/k
+#        return loglike
+        
+    def _expectedLogJoint(self, nodes, weights, means, jitters, 
+                                    muF, muW, sigma, k):
         """
             Calculates the expection of the log prior wrt q(f,w) in nonparametric 
         variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
@@ -313,22 +360,60 @@ class inference(object):
             Returns:
                 expected log prior
         """
+        new_y = np.concatenate(self.y) - self._mean(means, self.time)
+        new_y = np.array(np.array_split(new_y, self.p)) #Px1 dimensional vector
+        
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        Kf_inv = np.array([inv(i) for i in Kf ])
+        logKf = np.array([np.sum(np.log(np.diag(self._cholNugget(i)[0]))) \
+                          for i in Kf])
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+        Kw_inv = np.array([inv(j) for j in Kw ])
+        logKw = np.array([np.sum(np.log(np.diag(self._cholNugget(j)[0]))) \
+                          for j in Kw])
 
-        #we have q nodes -> j in the paper, p output -> i in the paper, 
-        #and k distributions -> k in the paper
+        sigma_y = 0
+        for i in range(self.p):
+            sigma_y += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+            
         first_term = 0
-#        for 
+        for ki in range(k):
+            for j in range(self.q):
+                first_term += logKf[j]
+                first_term += muF[ki,:,j,:] @(Kf_inv[j] + \
+                                 self.p *sigma[ki]**2 *np.identity(self.N) /sigma_y) @muF[ki,:,j,:].T
+                first_term += sigma[ki]**2 * np.trace(Kf_inv[j])
+        first_term = -0.5 * np.float(first_term) / k
         
+        second_term = 0
+        for ki in range(k):
+            for i in range(self.p):
+                for j in range(self.q):
+                    second_term += logKw
+                    second_term += muW[ki,i,j,:] @(Kw_inv[0,:,:] + \
+                                 self.p *sigma[ki]**2 *np.identity(self.N) /sigma_y) @muW[ki,i,j,:].T
+                    second_term += sigma[ki]**2 * np.trace(Kw_inv[0,:,:])
+        second_term = -0.5 * np.float(second_term) / k
         
+        third_term = 0
+        for ki in range(k):
+            for i in range(self.p):
+                for n in range(self.N):
+                    YOmegaMu = np.array(new_y[i,n].T - muW[ki,i,:,n] @ muF[ki,:,:,n].T)
+                    third_term += np.dot(YOmegaMu.T, YOmegaMu)
+        third_term = -0.5 * np.float(third_term) / (k*sigma_y)
         
-        
-    def _npvi_expectedLogLike(self, nodes, weight, means, jitters, muF):
-        return 0
+        fourth_term = 0
+        log_sigma_y = 0
+        for i in range(self.p):
+            log_sigma_y += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
+        for ki in range(k):
+            fourth_term += sigma[ki]**4 * self.q /sigma_y + k*log_sigma_y
+        fourth_term = -0.5 * np.float(fourth_term) / k
 
-
-    def EvidenceLowerBound_NPVI(self, nodes, weight, means, jitters, time, 
+        return first_term + second_term + third_term + fourth_term
+        
+    def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                                 k = 2, iterations = 100, 
                                 prints = False, plots = False):
         """
@@ -348,21 +433,32 @@ class inference(object):
                 muF = array with the new means for each node
                 muW = array with the new means for each weight
         """ 
-        #Initial variational mean
+        #initial variational parameters
         D = self.time.size * self.q *(self.p+1)
-        muF = np.random.randn(D, k) #muF[:, k]
-        sigmaF = np.array([])
+        mu = np.random.randn(D, k) #muF[:, k]
+
+        sigma, muF, muW = [], [], []
         for i in range(k):
-            sigmaF = np.append(sigmaF, np.var(muF[:,i]))
-            
+            #sigma = np.append(sigma, np.var(mu[:,i]))
+            sigma.append(1)
+            meme, mumu = self._fhat_and_w(mu[:,i])
+            muF.append(meme)
+            muW.append(mumu)
+        muF = np.array(muF)
+        muW = np.array(muW)
+        sigma = np.array(sigma)
+
         iterNumber = 0
         ELB = [0]
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            muF, sigmaF = self._npvi_updateMu(k)
+            #Expected log-likelihood
+            ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
+                                               muF, muW, sigma, k)
+            print(ExpLogJoint)
             
-        return 0
+        return ExpLogJoint
 
 #    def _plots(self, ELB, ELL, ELP, ENT):
 #        """
