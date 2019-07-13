@@ -413,6 +413,11 @@ class inference(object):
 
         return first_term + second_term + third_term + fourth_term
         
+    def _entropy(self, muF, muW, sigma, k):
+        
+        
+        return 0
+    
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                                 k = 2, iterations = 100, 
                                 prints = False, plots = False):
@@ -451,7 +456,7 @@ class inference(object):
         iterNumber = 0
         ELB = [0]
         if plots:
-            ELP, ELL, ENT = [0], [0], [0]
+            ELJ, ENT = [0], [0]
         while iterNumber < iterations:
             #Expected log-likelihood
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
