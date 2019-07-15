@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pylab as plt
 from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError, norm
 from scipy.stats import multivariate_normal
+from scipy.optimize import minimize
 from copy import copy
 
 from gprn.covFunction import Linear as covL
@@ -205,8 +206,8 @@ class inference(object):
         """
         mean = np.zeros(time.size*self.q*(self.p+1))
         cov = self._CB_matrix(nodes, weight, time)
-        norm = multivariate_normal(mean, cov, allow_singular=True)
-        return norm.rvs()
+        normal = multivariate_normal(mean, cov, allow_singular=True)
+        return normal.rvs()
 
     def _fhat_and_w(self, u):
         """
@@ -442,6 +443,11 @@ class inference(object):
         Entropy_result = np.float(a @ beta)
         return Entropy_result
     
+    
+    def _updadeMean(self, mu):
+        return 0
+    
+    
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                                 k = 2, iterations = 100, 
                                 prints = False, plots = False):
@@ -476,12 +482,21 @@ class inference(object):
         muF = np.array(muF)
         muW = np.array(muW)
         sigma = np.array(sigma)
-
+        
+        mu = np.hstack((muF.flatten(), muW.flatten()))
+        print(mu)
+        
         iterNumber = 0
         ELB = [0]
         if plots:
             ELJ, ENT = [0], [0]
         while iterNumber < iterations:
+            ELBO = self._expectedLogJoint(nodes, weight, means, jitters, 
+                                          muF, muW, sigma, k) \
+                    + self._entropy(muF, muW, sigma, k)
+            res = minimize(ELBO, mu, method='COBYLA', 
+               options={'disp': True, 'maxiter': 10})
+            
             #Expected log-likelihood
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
                                                muF, muW, sigma, k)
