@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pylab as plt
-from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError
+from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError, norm
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -414,9 +414,33 @@ class inference(object):
         return first_term + second_term + third_term + fourth_term
         
     def _entropy(self, muF, muW, sigma, k):
+        Sig_nj = np.array([[], []],)
+#        for ki in range(k):
+        for j in range(self.q):
+            Sig_nj = np.hstack((Sig_nj, muF[:, :, j, :].reshape(k, self.N)))
+#        for ki in range(k):
+        for i in range(self.p):
+            for j in range(self.q):
+                Sig_nj = np.hstack((Sig_nj, muW[:, i, j, :].reshape(k, self.N)))
+#        Sig_nj = norm(np.array([muF, muW]))
+                
+        sig_nj = np.diag((sigma[0]**2 + sigma[0]**2) * np.identity(Sig_nj.shape[0]))
         
-        
-        return 0
+        logP = []
+        for ki in range(k):
+            logP.append(-0.5 * np.divide(Sig_nj[ki,:], sig_nj[ki]) \
+                        -0.5 * self.p * np.log(sig_nj[ki]))
+        logP = np.array(logP)
+        a = np.zeros((1, k))
+
+        for ki in range(k):
+            max_val = max(logP[ki,:])
+            ls = max_val + np.log(np.sum(np.exp(logP[:, ki] - max_val)));
+            a[0,ki] = -np.log(k) + ls
+            
+        beta = np.ones((k,1)) / k
+        Entropy_result = np.float(a @ beta)
+        return Entropy_result
     
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                                 k = 2, iterations = 100, 
@@ -444,8 +468,8 @@ class inference(object):
 
         sigma, muF, muW = [], [], []
         for i in range(k):
-            #sigma = np.append(sigma, np.var(mu[:,i]))
-            sigma.append(1)
+            sigma = np.append(sigma, np.var(mu[:,i]))
+            #sigma.append(1)
             meme, mumu = self._fhat_and_w(mu[:,i])
             muF.append(meme)
             muW.append(mumu)
@@ -461,8 +485,10 @@ class inference(object):
             #Expected log-likelihood
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
                                                muF, muW, sigma, k)
+            Entropy = self._entropy(muF, muW, sigma, k)
             print(ExpLogJoint)
-            
+            print(Entropy)
+
         return ExpLogJoint
 
 #    def _plots(self, ELB, ELL, ELP, ENT):
