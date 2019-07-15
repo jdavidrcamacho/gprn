@@ -445,6 +445,7 @@ class inference(object):
     
     
     def _updadeMean(self, mu):
+        mu.reshape
         return 0
     
     
@@ -491,12 +492,10 @@ class inference(object):
         if plots:
             ELJ, ENT = [0], [0]
         while iterNumber < iterations:
-            ELBO = self._expectedLogJoint(nodes, weight, means, jitters, 
-                                          muF, muW, sigma, k) \
-                    + self._entropy(muF, muW, sigma, k)
-            res = minimize(ELBO, mu, method='COBYLA', 
+            res = minimize(self._updadeMean, mu, method='COBYLA', 
                options={'disp': True, 'maxiter': 10})
-            
+            mu  = res.x
+
             #Expected log-likelihood
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
                                                muF, muW, sigma, k)
