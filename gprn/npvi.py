@@ -22,10 +22,11 @@ class inference(object):
                     model doesn't use it
             jitters = jitter value of each dataset
             time = time
+            k = mixture of k isotropic gaussian distributions
             *args = the data (or components), it needs be given in order of
                 data1, data1_error, data2, data2_error, etc...
     """ 
-    def  __init__(self, nodes, weight, means, jitters, time, *args):
+    def  __init__(self, nodes, weight, means, jitters, time, k, *args):
         #node functions; f(x) in Wilson et al. (2012)
         self.nodes = np.array(nodes)
         #weight function; w(x) in Wilson et al. (2012)
@@ -35,7 +36,9 @@ class inference(object):
         #jitters
         self.jitters = np.array(jitters)
         #time
-        self.time = time 
+        self.time = time
+        #mixture of k isotropic gaussian distributions
+        self.k  = k
         #the data, it should be given as data1, data1_error, data2, ...
         self.args = args 
         
@@ -345,8 +348,7 @@ class inference(object):
 #        loglike = -0.5*first_term/k
 #        return loglike
         
-    def _expectedLogJoint(self, nodes, weights, means, jitters, 
-                                    muF, muW, sigma, k):
+    def _expectedLogJoint(self, nodes, weights, means, jitters, muF, muW, sigma):
         """
             Calculates the expection of the log prior wrt q(f,w) in nonparametric 
         variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
@@ -372,7 +374,10 @@ class inference(object):
         Kw_inv = np.array([inv(j) for j in Kw ])
         logKw = np.array([np.sum(np.log(np.diag(self._cholNugget(j)[0]))) \
                           for j in Kw])
-
+        
+        #mixture of k isotropic gaussian distributions
+        k = self.k
+        
         sigma_y = 0
         for i in range(self.p):
             sigma_y += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
@@ -411,29 +416,28 @@ class inference(object):
         for ki in range(k):
             fourth_term += sigma[ki]**4 * self.q /sigma_y + k*log_sigma_y
         fourth_term = -0.5 * np.float(fourth_term) / k
-
         return first_term + second_term + third_term + fourth_term
         
-    def _entropy(self, muF, muW, sigma, k):
+    
+    def _entropy(self, muF, muW, sigma):
+        #mixture of k isotropic gaussian distributions
+        k = self.k
+        
         Sig_nj = np.array([[], []],)
-#        for ki in range(k):
         for j in range(self.q):
             Sig_nj = np.hstack((Sig_nj, muF[:, :, j, :].reshape(k, self.N)))
-#        for ki in range(k):
         for i in range(self.p):
             for j in range(self.q):
                 Sig_nj = np.hstack((Sig_nj, muW[:, i, j, :].reshape(k, self.N)))
-#        Sig_nj = norm(np.array([muF, muW]))
                 
         sig_nj = np.diag((sigma[0]**2 + sigma[0]**2) * np.identity(Sig_nj.shape[0]))
-        
         logP = []
         for ki in range(k):
             logP.append(-0.5 * np.divide(Sig_nj[ki,:], sig_nj[ki]) \
                         -0.5 * self.p * np.log(sig_nj[ki]))
         logP = np.array(logP)
         a = np.zeros((1, k))
-
+        
         for ki in range(k):
             max_val = max(logP[ki,:])
             ls = max_val + np.log(np.sum(np.exp(logP[:, ki] - max_val)));
@@ -444,14 +448,36 @@ class inference(object):
         return Entropy_result
     
     
-    def _updadeMean(self, mu):
-        mu.reshape
-        return 0
+    def _updadeMean(self, nodes, weight, means, jitters, muF, muW):
+        mu = np.hstack((muF.flatten(), muW.flatten()))
+        res = minimize(self._ELBO_updadeMean, x0 = mu, 
+                       args = (nodes, weight, means, jitters), method='COBYLA', 
+                       options={'disp': True, 'maxiter': 100})
+        mu  = res.x
+        
+        k = self.k #mixture of k isotropic gaussian distributions
+        muF = mu[0:k*self.q*self.N].reshape(k, 1, self.q, self.N)
+        muW = mu[k*self.q*self.N:].reshape(k, self.p, self.q, self.N)
+        sigma = []
+        for i in range(k):
+            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
+        return muF, muW , sigma
     
-    
+    def _ELBO_updadeMean(self, mu, nodes, weight, means, jitters):
+        k = self.k #mixture of k isotropic gaussian distributions
+        muF = mu[0:k*self.q*self.N].reshape(k, 1, self.q, self.N)
+        muW = mu[k*self.q*self.N:].reshape(k, self.p, self.q, self.N)
+        sigma = []
+        for i in range(k):
+            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
+        ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
+                                             muF, muW, sigma)
+        Entropy = self._entropy(muF, muW, sigma)
+        return ExpLogJoint + Entropy
+
+
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
-                                k = 2, iterations = 100, 
-                                prints = False, plots = False):
+                           iterations = 100, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -460,7 +486,6 @@ class inference(object):
                 means = array with the mean functions
                 jitters = jitters array
                 time = time array
-                k = mixture of k isotropic Gaussian distributions
                 iterations = number of iterations
                 prints = True to print ELB value at each iteration
                 plots = True to plot ELB evolution 
@@ -469,10 +494,11 @@ class inference(object):
                 muF = array with the new means for each node
                 muW = array with the new means for each weight
         """ 
+        #mixture of k isotropic gaussian distributions
+        k = self.k
         #initial variational parameters
         D = self.time.size * self.q *(self.p+1)
         mu = np.random.randn(D, k) #muF[:, k]
-
         sigma, muF, muW = [], [], []
         for i in range(k):
             sigma = np.append(sigma, np.var(mu[:,i]))
@@ -484,55 +510,55 @@ class inference(object):
         muW = np.array(muW)
         sigma = np.array(sigma)
         
-        mu = np.hstack((muF.flatten(), muW.flatten()))
-        print(mu)
-        
         iterNumber = 0
         ELB = [0]
         if plots:
             ELJ, ENT = [0], [0]
         while iterNumber < iterations:
-            res = minimize(self._updadeMean, mu, method='COBYLA', 
-               options={'disp': True, 'maxiter': 10})
-            mu  = res.x
-
+            muF, muW, sigma = self._updadeMean(nodes, weight, means, jitters, 
+                                               muF, muW)
             #Expected log-likelihood
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
-                                               muF, muW, sigma, k)
-            Entropy = self._entropy(muF, muW, sigma, k)
-            print(ExpLogJoint)
-            print(Entropy)
+                                               muF, muW, sigma)
+            Entropy = self._entropy(muF, muW, sigma)
+            if plots: 
+                ELJ.append(ExpLogJoint/k)
+                ENT.append(Entropy)
+                ELB.append(ExpLogJoint/k + Entropy)
+            sum_ELB = (ExpLogJoint/k + Entropy)
+            if prints:
+                self._prints(sum_ELB, ExpLogJoint/k, Entropy)
+            iterNumber += 1
+        if plots:
+            self._plots(ELB[1:], ELJ[1:-1], ENT[1:-1])
+        return sum_ELB, muF, muW
 
-        return ExpLogJoint
 
-#    def _plots(self, ELB, ELL, ELP, ENT):
-#        """
-#            Plots the evolution of the evidence lower bound, expected log 
-#        likelihood, expected log prior, and entropy
-#        """
-#        plt.figure()
-#        ax1 = plt.subplot(411)
-#        plt.plot(ELB, '-')
-#        plt.ylabel('Evidence lower bound')
-#        plt.subplot(412, sharex=ax1)
-#        plt.plot(ELL, '-')
-#        plt.ylabel('Expected log likelihood')
-#        plt.subplot(413, sharex=ax1)
-#        plt.plot(ELP, '-')
-#        plt.ylabel('Expected log prior')
-#        plt.subplot(414, sharex=ax1)
-#        plt.plot(ENT, '-')
-#        plt.ylabel('Entropy')
-#        plt.xlabel('iteration')
-#        plt.show()
-#        return 0
+    def _plots(self, ELB, ELJ, ENT):
+        """
+            Plots the evolution of the evidence lower bound, expected log joint, 
+        and entropy
+        """
+        plt.figure()
+        ax1 = plt.subplot(311)
+        plt.plot(ELB, '-')
+        plt.ylabel('Evidence lower bound')
+        plt.subplot(312, sharex=ax1)
+        plt.plot(ELJ, '-')
+        plt.ylabel('Expected log joint')
+        plt.subplot(313, sharex=ax1)
+        plt.plot(ENT, '-')
+        plt.ylabel('Entropy')
+        plt.xlabel('iteration')
+        plt.show()
+        return 0
 
-#    def _prints(self, sum_ELB, ExpLogLike, ExpLogPrior, Entropy):
-#        """
-#            Prints the evidence lower bound, expected log likelihood, expected
-#        log prior, and entropy
-#        """
-#        print('ELB: ' + str(sum_ELB))
-#        print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
-#              + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
-#        return 0
+
+    def _prints(self, sum_ELB, ExpLogJoint, Entropy):
+        """
+            Prints the evidence lower bound, expected log joint, and entropy
+        """
+        print('ELB: ' + str(sum_ELB))
+        print(' logjoint: ' + str(ExpLogJoint) + \
+              ' \n entropy: ' + str(Entropy) + ' \n')
+        return 0
