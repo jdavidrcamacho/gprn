@@ -281,72 +281,33 @@ class inference(object):
 
 
 ##### Nonparametric Variational Inference functions ############################
-    def _npvi_updateMu(self, k):
-        """ 
-            Update of the mean parameters and variance of the mixture components.
-            This doesn't make much sense in my head but I'll keep it until I
-        find a better idea to update the variational means
-        """
-        #variational parameters
-        D = self.time.size * self.q *(self.p+1)
-        mu = np.random.randn(D, k) #muF[:, k]
-
-        sigma, muF, muW = [], [], []
-        for i in range(k):
-            #sigma = np.append(sigma, np.var(mu[:,i]))
-            sigma.append(1)
-            meme, mumu = self._fhat_and_w(mu[:,i])
-            muF.append(meme)
-            muW.append(mumu)
-
-        return np.array(muF), np.array(muW), np.array(sigma)
-
-
-#    def _expectedLogLike(self, nodes, weights, means, jitters, 
-#                                    muF, muW, sigma, k):
-#        """
-#            Calculates the expection of the log prior wrt q(f,w) in nonparametric 
-#        variational inference, corresponds to eq.33 in Nguyen & Bonilla (2013)
-#        appendix
-#            Parameters:
-#                nodes = array of node functions 
-#                weight = weight function
-#                sigma_f = array with the covariance for each node
-#                mu_f = array with the means for each node
-#                sigma_w = array with the covariance for each weight
-#                mu_w = array with the means for each weight
-#            Returns:
-#                expected log prior
-#        """
-#        new_y = np.concatenate(self.y) - self._mean(means, self.time)
-#        new_y = np.array(np.array_split(new_y, self.p)) #Px1 dimensional vector
-#        
-#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-#        Kf_inv = np.array([inv(i) for i in Kf ])
-#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
-#        Kw_inv = np.array([inv(i) for j in Kw ])
-#        
-#        sigma_y = 0
-#        for i in range(self.p):
-#            sigma_y += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
-#
-#        #we have q nodes -> j in the paper, p output -> i in the paper, 
-#        #and k distributions -> k in the paper
-#        first_term = 0
-#        second_term = 0
-#        for ki in range(k):
-#            for i in range(self.p):
-#                for n in range(self.N):
-#                    error = jitters[i]**2 + self.yerr[i,n]**2
-#                    #first_term += np.log(error)
-#                    YOmegaMu = np.array(new_y[i,n].T - muW[ki,i,:,n] @ muF[ki,:,:,n].T)
-#                    first_term += np.dot(YOmegaMu.T, YOmegaMu) / error
-#        
-#            for j in range(self.q):
-#        
-#        
-#        loglike = -0.5*first_term/k
-#        return loglike
+    def _updadeMean(self, nodes, weight, means, jitters, muF, muW):
+        mu = np.hstack((muF.flatten(), muW.flatten()))
+        print(mu[0:5])
+        res = minimize(self._ELBO_updadeMean, x0 = mu, 
+                       args = (nodes, weight, means, jitters), method='COBYLA', 
+                       options={'disp': True, 'maxiter': 20})
+        mu  = res.x
+        
+        muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
+        muW = mu[self.k*self.q*self.N :].reshape(self.k, self.p, self.q, self.N)
+        sigma = []
+        for i in range(self.k):
+            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
+        return muF, muW , sigma
+        
+        
+    def _ELBO_updadeMean(self, mu, nodes, weight, means, jitters):
+        muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
+        muW = mu[self.k*self.q*self.N :].reshape(self.k, self.p, self.q, self.N)
+        sigma = []
+        for i in range(self.k):
+            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
+        ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
+                                             muF, muW, sigma)
+        Entropy = self._entropy(muF, muW, sigma)
+        return -(ExpLogJoint + Entropy)
+        
         
     def _expectedLogJoint(self, nodes, weights, means, jitters, muF, muW, sigma):
         """
@@ -375,107 +336,81 @@ class inference(object):
         logKw = np.array([np.sum(np.log(np.diag(self._cholNugget(j)[0]))) \
                           for j in Kw])
         
-        #mixture of k isotropic gaussian distributions
-        k = self.k
-        
         sigma_y = 0
         for i in range(self.p):
             sigma_y += jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
             
         first_term = 0
-        for ki in range(k):
+        for ki in range(self.k):
             for j in range(self.q):
-                first_term += logKf[j]
+                first_term += np.float(logKf[j])
                 first_term += muF[ki,:,j,:] @(Kf_inv[j] + \
                                  self.p *sigma[ki]**2 *np.identity(self.N) /sigma_y) @muF[ki,:,j,:].T
                 first_term += sigma[ki]**2 * np.trace(Kf_inv[j])
-        first_term = -0.5 * np.float(first_term) / k
+        first_term = -0.5 * np.float(first_term) / self.k
         
         second_term = 0
-        for ki in range(k):
+        for ki in range(self.k):
             for i in range(self.p):
                 for j in range(self.q):
-                    second_term += logKw
-                    second_term += muW[ki,i,j,:] @(Kw_inv[0,:,:] + \
-                                 self.p *sigma[ki]**2 *np.identity(self.N) /sigma_y) @muW[ki,i,j,:].T
-                    second_term += sigma[ki]**2 * np.trace(Kw_inv[0,:,:])
-        second_term = -0.5 * np.float(second_term) / k
+                    second_term += np.float(logKw)
+                    second_term += muW[ki, i, j, :] @(np.squeeze(Kw_inv) + \
+                                 sigma[ki]**2 * np.identity(self.N) / sigma_y) @muW[ki, i, j, :].T
+                    #print(second_term)
+                    second_term += sigma[ki]**2 * np.trace(np.squeeze(Kw_inv))
+                    #print(second_term, '\n')
+        second_term = -0.5 * np.float(second_term) / self.k
         
         third_term = 0
-        for ki in range(k):
+        for ki in range(self.k):
             for i in range(self.p):
                 for n in range(self.N):
                     YOmegaMu = np.array(new_y[i,n].T - muW[ki,i,:,n] @ muF[ki,:,:,n].T)
                     third_term += np.dot(YOmegaMu.T, YOmegaMu)
-        third_term = -0.5 * np.float(third_term) / (k*sigma_y)
+        third_term = -0.5 * np.float(third_term) / (self.k*sigma_y)
         
         fourth_term = 0
         log_sigma_y = 0
         for i in range(self.p):
             log_sigma_y += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
-        for ki in range(k):
-            fourth_term += sigma[ki]**4 * self.q /sigma_y + k*log_sigma_y
-        fourth_term = -0.5 * np.float(fourth_term) / k
+        for ki in range(self.k):
+            fourth_term += sigma[ki]**4 * self.q /sigma_y + self.k*log_sigma_y
+        fourth_term = -0.5 * np.float(fourth_term) / self.k
+        #print(first_term, second_term, third_term, fourth_term)
         return first_term + second_term + third_term + fourth_term
         
-    
-    def _entropy(self, muF, muW, sigma):
-        #mixture of k isotropic gaussian distributions
-        k = self.k
         
-        Sig_nj = np.array([[], []],)
+    def _entropy(self, muF, muW, sigma):
+        Sig_nj =[]
+        for ki in range(self.k):
+            Sig_nj.append([])
+        Sig_nj = np.array(Sig_nj)
+        
         for j in range(self.q):
-            Sig_nj = np.hstack((Sig_nj, muF[:, :, j, :].reshape(k, self.N)))
+            Sig_nj = np.hstack((Sig_nj, np.squeeze(muF[:, :, j, :])))
+            #Sig_nj = np.hstack((Sig_nj, muF[:, :, j, :].reshape(self.k, self.N)))
         for i in range(self.p):
             for j in range(self.q):
-                Sig_nj = np.hstack((Sig_nj, muW[:, i, j, :].reshape(k, self.N)))
-                
+                Sig_nj = np.hstack((Sig_nj, muW[:, i, j, :].reshape(self.k, self.N)))
+        
         sig_nj = np.diag((sigma[0]**2 + sigma[0]**2) * np.identity(Sig_nj.shape[0]))
         logP = []
-        for ki in range(k):
+        for ki in range(self.k):
             logP.append(-0.5 * np.divide(Sig_nj[ki,:], sig_nj[ki]) \
                         -0.5 * self.p * np.log(sig_nj[ki]))
         logP = np.array(logP)
-        a = np.zeros((1, k))
+        a = np.zeros((1, self.k))
         
-        for ki in range(k):
+        for ki in range(self.k):
             max_val = max(logP[ki,:])
-            ls = max_val + np.log(np.sum(np.exp(logP[:, ki] - max_val)));
-            a[0,ki] = -np.log(k) + ls
+            ls = max_val + np.log(np.sum(np.exp(logP[:, ki] - max_val)))
+            a[0,ki] = -np.log(self.k) + ls
             
-        beta = np.ones((k,1)) / k
+        beta = np.ones((self.k,1)) / self.k
         Entropy_result = np.float(a @ beta)
         return Entropy_result
     
     
-    def _updadeMean(self, nodes, weight, means, jitters, muF, muW):
-        mu = np.hstack((muF.flatten(), muW.flatten()))
-        res = minimize(self._ELBO_updadeMean, x0 = mu, 
-                       args = (nodes, weight, means, jitters), method='COBYLA', 
-                       options={'disp': True, 'maxiter': 100})
-        mu  = res.x
-        
-        k = self.k #mixture of k isotropic gaussian distributions
-        muF = mu[0:k*self.q*self.N].reshape(k, 1, self.q, self.N)
-        muW = mu[k*self.q*self.N:].reshape(k, self.p, self.q, self.N)
-        sigma = []
-        for i in range(k):
-            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
-        return muF, muW , sigma
-    
-    def _ELBO_updadeMean(self, mu, nodes, weight, means, jitters):
-        k = self.k #mixture of k isotropic gaussian distributions
-        muF = mu[0:k*self.q*self.N].reshape(k, 1, self.q, self.N)
-        muW = mu[k*self.q*self.N:].reshape(k, self.p, self.q, self.N)
-        sigma = []
-        for i in range(k):
-            sigma = np.append(sigma, np.var(np.hstack((muF[i,:,:,:].flatten(), muW[i,:,:,:].flatten()))))
-        ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
-                                             muF, muW, sigma)
-        Entropy = self._entropy(muF, muW, sigma)
-        return ExpLogJoint + Entropy
-
-
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                            iterations = 100, prints = False, plots = False):
         """
@@ -494,16 +429,14 @@ class inference(object):
                 muF = array with the new means for each node
                 muW = array with the new means for each weight
         """ 
-        #mixture of k isotropic gaussian distributions
-        k = self.k
         #initial variational parameters
         D = self.time.size * self.q *(self.p+1)
-        mu = np.random.randn(D, k) #muF[:, k]
+        mu = np.random.randn(D, self.k) #muF[:, k]
         sigma, muF, muW = [], [], []
-        for i in range(k):
-            sigma = np.append(sigma, np.var(mu[:,i]))
+        for ki in range(self.k):
+            sigma = np.append(sigma, np.var(mu[:, ki]))
             #sigma.append(1)
-            meme, mumu = self._fhat_and_w(mu[:,i])
+            meme, mumu = self._fhat_and_w(mu[:, ki])
             muF.append(meme)
             muW.append(mumu)
         muF = np.array(muF)
@@ -521,13 +454,23 @@ class inference(object):
             ExpLogJoint = self._expectedLogJoint(nodes, weight, means, jitters, 
                                                muF, muW, sigma)
             Entropy = self._entropy(muF, muW, sigma)
+            sum_ELB = ExpLogJoint/self.k + Entropy
             if plots: 
-                ELJ.append(ExpLogJoint/k)
+                ELJ.append(ExpLogJoint/self.k)
                 ENT.append(Entropy)
-                ELB.append(ExpLogJoint/k + Entropy)
-            sum_ELB = (ExpLogJoint/k + Entropy)
+                ELB.append(sum_ELB)
             if prints:
-                self._prints(sum_ELB, ExpLogJoint/k, Entropy)
+                self._prints(sum_ELB, ExpLogJoint/self.k, Entropy)
+            #Stoping criteria
+            criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
+            if criteria < 1e-5 and criteria != 0 :
+                if prints:
+                    print('\nELB converged to ' +str(sum_ELB) \
+                          + '; algorithm stopped at iteration ' \
+                          +str(iterNumber) +'\n')
+                if plots:
+                    self._plots(ELB[1:], ELJ[1:-1], ENT[1:-1])
+                return sum_ELB, muF, muW
             iterNumber += 1
         if plots:
             self._plots(ELB[1:], ELJ[1:-1], ENT[1:-1])
