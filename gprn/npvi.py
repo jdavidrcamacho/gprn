@@ -497,22 +497,20 @@ class inference(object):
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
         invKw = np.array([inv(j) for j in Kw])
 
-#muW[ki,i,:,n] @ muF[ki,:,:,n]
-
         #mean
         ystar = []
         for n in range(tstar.size):
             Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
             Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
-            Efstar, Ewstar = 0, 0
-            K = []
+            Ksum = 0
             for ki in range(self.k):
+                Efstar, Ewstar = 0, 0
                 for j in range(self.q):
                     Efstar += Kfstar[j] @(invKf[j] @muF[ki,:,j,:].T) 
                     for i in range(self.p):
                         Ewstar += Kwstar[0] @(invKw[0] @muW[ki,i,j,:].T)
-                K.append(Ewstar@ Efstar)
-            ystar.append(sum(K)/self.k)
+                Ksum += Ewstar @ Efstar
+            ystar.append(Ksum / self.k)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
 
