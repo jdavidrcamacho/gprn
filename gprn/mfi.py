@@ -390,27 +390,27 @@ class inference(object):
         ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
 
-        #standard deviation
-        Kfstar = np.array([self._predictKernelMatrix(i, tstar) for i in nodes])
-        Kwstar = np.array([self._predictKernelMatrix(j, tstar) for j in weights])
-        Kfstarstar = np.array([self._kernelMatrix(i, tstar) for i in nodes])
-        Kwstarstar = np.array([self._kernelMatrix(j, tstar) for j in weights])
-        
-        #firstTerm = tstar.size x tstar.size matrix
-        firstTermAux1 = (Kwstar[0] @invKw[0].T @muW[0].T).T @(Kwstar[0] @invKw[0] @muW[0].T)
-        firstTermAux2 = Kfstarstar - (Kfstar[0] @invKf[0].T @Kfstar[0].T)
-        firstTerm = np.array(firstTermAux1 * firstTermAux2).reshape(tstar.size, tstar.size)
-        #secondTerm = tstar.size x tstar.size matrix
-        secondTermAux1 = Kwstarstar - Kwstar[0] @invKw[0].T @Kwstar[0].T
-        secondTermAux2 = firstTermAux2.reshape(tstar.size, tstar.size)
-        secondTermAux3 = (Kfstar[0] @invKf[0].T @muF[0].T) @(Kfstar[0] @invKf[0].T @muF[0].T).T
-        secondTerm = secondTermAux1[0] @(secondTermAux2 + secondTermAux3)
-        
-        errors = np.identity(tstar.size) * ((np.sum(jitters)/self.p)**2 \
-                            + (np.sum(self.yerr[0,:])/self.N)**2)
-        total = firstTerm + secondTerm + errors
-        stdstar = np.sqrt(np.diag(total)) #final standard deviation
-        return ystar, stdstar
+#        #standard deviation
+#        Kfstar = np.array([self._predictKernelMatrix(i, tstar) for i in nodes])
+#        Kwstar = np.array([self._predictKernelMatrix(j, tstar) for j in weights])
+#        Kfstarstar = np.array([self._kernelMatrix(i, tstar) for i in nodes])
+#        Kwstarstar = np.array([self._kernelMatrix(j, tstar) for j in weights])
+#        
+#        #firstTerm = tstar.size x tstar.size matrix
+#        firstTermAux1 = (Kwstar[0] @invKw[0].T @muW[0].T).T @(Kwstar[0] @invKw[0] @muW[0].T)
+#        firstTermAux2 = Kfstarstar - (Kfstar[0] @invKf[0].T @Kfstar[0].T)
+#        firstTerm = np.array(firstTermAux1 * firstTermAux2).reshape(tstar.size, tstar.size)
+#        #secondTerm = tstar.size x tstar.size matrix
+#        secondTermAux1 = Kwstarstar - Kwstar[0] @invKw[0].T @Kwstar[0].T
+#        secondTermAux2 = firstTermAux2.reshape(tstar.size, tstar.size)
+#        secondTermAux3 = (Kfstar[0] @invKf[0].T @muF[0].T) @(Kfstar[0] @invKf[0].T @muF[0].T).T
+#        secondTerm = secondTermAux1[0] @(secondTermAux2 + secondTermAux3)
+#        
+#        errors = np.identity(tstar.size) * ((np.sum(jitters)/self.p)**2 \
+#                            + (np.sum(self.yerr[0,:])/self.N)**2)
+#        total = firstTerm + secondTerm + errors
+#        stdstar = np.sqrt(np.diag(total)) #final standard deviation
+        return ystar
 
 
 

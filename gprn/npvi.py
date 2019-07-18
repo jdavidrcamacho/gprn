@@ -477,6 +477,46 @@ class inference(object):
         return sum_ELB, muF, muW
 
 
+    def Prediction(self, nodes, weights, means, jitters, tstar, muF, muW):
+        """
+            Prediction for mean-field inference
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                means = array with the mean functions
+                jitters = jitters array
+                tstar = predictions time
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+            Returns:
+                ystar = predicted means
+        """
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        invKf = np.array([inv(i) for i in Kf])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+        invKw = np.array([inv(j) for j in Kw])
+
+#muW[ki,i,:,n] @ muF[ki,:,:,n]
+
+        #mean
+        ystar = []
+        for n in range(tstar.size):
+            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+            Efstar, Ewstar = 0, 0
+            K = []
+            for ki in range(self.k):
+                for j in range(self.q):
+                    Efstar += Kfstar[j] @(invKf[j] @muF[ki,:,j,:].T) 
+                    for i in range(self.p):
+                        Ewstar += Kwstar[0] @(invKw[0] @muW[ki,i,j,:].T)
+                K.append(Ewstar@ Efstar)
+            ystar.append(sum(K)/self.k)
+        ystar = np.array(ystar).reshape(tstar.size) #final mean
+        ystar += self._mean(means, tstar) #adding the mean function
+
+
     def _plots(self, ELB, ELJ, ENT):
         """
             Plots the evolution of the evidence lower bound, expected log joint, 
