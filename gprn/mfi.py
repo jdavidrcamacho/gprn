@@ -156,16 +156,6 @@ class inference(object):
         """
         return kernel.pars
 
-    def _weights_matrix(self, weight):
-        """
-            Returns a q*p matrix of weights
-        """
-        weights = [] #we will need a q*p matrix of weights
-        for _ in range(self.qp):
-            weights.append(weight)
-        weight_matrix = np.array(weights).reshape((self.p, self.q))
-        return weight_matrix
-
     def _CB_matrix(self, nodes, weight, time):
         """
             Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be 
@@ -295,19 +285,28 @@ class inference(object):
                 muF = array with the new means for each node
                 muW = array with the new means for each weight
         """ 
-        #Initial variational parameters
+#        #Initial variational parameters
+#        D = self.time.size * self.q *(self.p+1)
+#        mu = np.random.randn(D,1)
+#        var = np.random.rand(D,1)
+#        muF, muW = self._fhat_and_w(mu)
+#        varF, varW = self._fhat_and_w(var)
+
+        #experiment
         D = self.time.size * self.q *(self.p+1)
-        mu = np.random.randn(D,1)
-        var = np.random.rand(D,1)
+        np.random.seed(100)
+        mu = np.random.rand(D,1);
+        np.random.seed(200)
+        var = np.random.rand(D,1);
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
-
+        
         iterNumber = 0
         ELB = [0]
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
-            sigmaF, muF, sigmaW, muW = self._updateSigmaMu(nodes, weight, 
+            sigmaF, muF, sigmaW, muW = self._updateSigmaMu_new(nodes, weight, 
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
@@ -319,7 +318,7 @@ class inference(object):
             varW =  []
             for j in range(self.q):
                 for i in range(self.p):
-                    varW.append(np.diag(sigmaW[j][i]))
+                    varW.append(np.diag(sigmaW[i, j, :, :]))
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
             
             #Expected log prior
@@ -412,10 +411,85 @@ class inference(object):
 #        stdstar = np.sqrt(np.diag(total)) #final standard deviation
         return ystar
 
-
-
-    def _updateSigmaMu(self, nodes, weight, means, jitters,  time,
-                               muF, varF, muW , varW):
+    def _updateSigmaMu_new(self, nodes, weight, means, jitters, time,
+                           muF, varF, muW, varW):
+        """
+            Efficient closed-form updates fot variational parameters. This
+        corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                jitters = jitters array
+                time = array containing the time
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+                varW = array with the initial variance for each weight
+            Returns:
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+        """
+        new_y = np.concatenate(self.y) - self._mean(means)
+        new_y = np.array_split(new_y, self.p)
+        
+        for i in range(self.p):
+            error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#        error_term = 1
+        
+        #kernel matrix for the nodes
+        Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
+        invKf = []
+        for i in range(self.q):
+            invKf.append(inv(Kf[i]))
+        invKf = np.array(invKf) #inverse matrix of Kf
+        
+        #kernel matrix for the weights
+        Kw = np.array([self._kernelMatrix(j, time) for j in weight]) 
+        invKw = []
+        for i,j in enumerate(Kw):
+            invKw = inv(j)
+        invKw = np.array(invKw) #inverse matrix of Kw
+        
+        #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
+        sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
+        for j in range(self.q):
+            Diag_fj, tmp = 0, 0
+            for i in range(self.p):
+                Diag_fj += muW[i, j, :] * muW[i, j, :] + varW[i, j, :]
+                Sum_nj = np.zeros(self.N)
+                for k in range(self.q):
+                    if k != j:
+                        Sum_nj += muW[i, k, :] * muF[k].reshape(self.N)
+                tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
+            CovF = Kf[j] - Kf[j] @ ((np.diag(error_term / Diag_fj) + Kf[j]) @ invKf[j])
+            sigma_f.append(CovF)
+            mu_f.append(CovF @ tmp / error_term)
+        sigma_f = np.array(sigma_f)
+        mu_f = np.array(mu_f)
+        
+        sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+        for i in range(self.p):
+            for j in range(self.q):
+                mu_fj = mu_f[j]
+                var_fj = np.diag(sigma_f[j])
+                Diag_ij = mu_fj * mu_fj + var_fj
+                CovWij = Kw - Kw @ ((np.diag(error_term / Diag_ij) + Kw) @ invKw)
+                Sum_nj = 0
+                for k in range(self.q):
+                    if k != j:
+                        Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[i, k, :])
+                tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
+                sigma_w.append(CovWij)
+                mu_w.append(CovWij @ tmp / error_term)
+        sigma_w = np.array(sigma_w)
+        mu_w = np.array(mu_w)
+        return sigma_f, mu_f, sigma_w, mu_w
+    
+    
+    def _updateSigmaMu(self, nodes, weight, means, jitters, time,
+                               muF, varF, muW, varW):
         """
             Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
@@ -453,26 +527,30 @@ class inference(object):
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         sigma_f = [] #creation of Sigma_fj
+        print('var', varW[0,0,:],'\n other var', varW[1,0,:])
         for j in range(self.q):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
-                muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                muWmuWVarW += np.diag(muW[i, j, :] * muW[i, j, :] + varW[i, j, :])
+#                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
-
+        #print(np.diag(np.squeeze(sigma_f)))
+        
         muF = muF.reshape(self.q, self.N)
         mu_f = [] #creation of mu_fj
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
-                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != j:
-                        sum_muWmuF += np.array(muW[i][j][:]) * muF[j].reshape(self.N)
+                        sum_muWmuF += np.array(muW[i, j, :]) * muF[j].reshape(self.N)
                     sum_YminusSum += new_y[i][:] - sum_muWmuF
-                sum_YminusSum *= muW[i][j][:]
+                sum_YminusSum *= muW[i, j, :]
             mu_f.append(np.dot(sigma_f[j], sum_YminusSum/error_term))
         mu_f = np.array(mu_f)
 
@@ -480,7 +558,8 @@ class inference(object):
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
             for i in range(self.p):
-                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#                error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
@@ -495,9 +574,11 @@ class inference(object):
                         sum_muFmuW += mu_f[j].reshape(self.N) * np.array(muW[i][j][:])
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                error = 1
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
+        #print('updated', mu_f)
         return sigma_f, mu_f, sigma_w, mu_w
 
 
@@ -515,11 +596,12 @@ class inference(object):
         p = self.p #number of outputs
         
         ent_sum = 0 #starts at zero then we sum everything
-        for i in range(q):
-            L1 = self._cholNugget(sigma_f[i])
+        for j in range(q):
+            L1 = self._cholNugget(sigma_f[j])
+            print(np.diag(sigma_f[j]))
             ent_sum += np.sum(np.log(np.diag(L1[0])))
-            for j in range(p):
-                L2 = self._cholNugget(sigma_w[i][j])
+            for i in range(p):
+                L2 = self._cholNugget(sigma_w[j][i])
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
         return ent_sum
 
@@ -560,7 +642,7 @@ class inference(object):
             first_term += logKf -0.5*muKmu -0.5*trace
             for i in range(self.p):
                 muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
-                trace = np.trace(sigma_w[j][i] @Kw_inv)
+                trace = np.trace(sigma_w[i, j] @Kw_inv)
                 second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
 
@@ -591,16 +673,20 @@ class inference(object):
         third_term = 0
         for i in range(self.p):
             first_term += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
+#            first_term += 1
             for n in range(self.N):
                 error = jitters[i]**2 + self.yerr[i,n]**2
+#                error = 1
                 #first_term += np.log(error)
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] @ muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu) / error
             for j in range(self.q):
-                first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
-                second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
-                third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
+#### CHECK i,j of the weights!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                first = np.diag(sigma_f[j,:,:]) * muw[i,j] @ muw[i,j]
+                second = np.diag(sigma_w[i,j,:]) * mu_f[j] @ mu_f[j].T
+                third = np.diag(sigma_f[j,:,:]) @ np.diag(sigma_w[i,j,:])
                 error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+#                error = 1
                 third_term += (first + second[0][0] + third)/ error
         first_term = -0.5 * first_term
         second_term = -0.5 * second_term

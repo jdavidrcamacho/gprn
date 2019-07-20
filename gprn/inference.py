@@ -352,8 +352,9 @@ class GPRN_inference(object):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
                 muWmuWVarW += np.diag(muW[i][j][:] * muW[i][j][:] + varW[i][j][:])
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+#                error_term = (np.sum(jitters[i])/self.p)**2 \
+#                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
             sigma_f.append(inv(invKf[j] + muWmuWVarW/error_term))
         sigma_f = np.array(sigma_f)
 
@@ -362,8 +363,9 @@ class GPRN_inference(object):
         for j in range(self.q):
             sum_YminusSum = np.zeros(self.N)
             for i in range(self.p):
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+#                error_term = (np.sum(jitters[i])/self.p)**2 \
+#                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
                 sum_muWmuF = np.zeros(self.N)
                 for k in range(self.q):
                     if k != j:
@@ -377,8 +379,9 @@ class GPRN_inference(object):
         for j in range(self.q):
             muFmuFVarF = np.zeros((self.N, self.N))
             for i in range(self.p):
-                error_term = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+#                error_term = (np.sum(jitters[i])/self.p)**2 \
+#                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error_term = 1
                 muFmuFVarF += np.diag(mu_f[j] * mu_f[j] + np.diag(sigma_f[j]))
                 sigma_w.append(inv(invKw + muFmuFVarF/error_term))
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
@@ -393,8 +396,9 @@ class GPRN_inference(object):
                         sum_muFmuW += mu_f[j].reshape(self.N) * np.array(muW[i][j][:])
                     sum_YminusSum += new_y[i][:] - sum_muFmuW
                 sum_YminusSum *= mu_f[j].reshape(self.N)
-                error = (np.sum(jitters[i])/self.p)**2 \
-                        + (np.sum(self.yerr[i,:])/self.N)**2
+#                error = (np.sum(jitters[i])/self.p)**2 \
+#                        + (np.sum(self.yerr[i,:])/self.N)**2
+                error = 1
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
@@ -490,7 +494,8 @@ class GPRN_inference(object):
         third_term = 0
         for i in range(self.p):
             for n in range(self.N):
-                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+#                error = np.sum(jitters[i]**2) + np.sum(self.yerr[i,n]**2)
+                error = 1
                 first_term += np.log(error)
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] * muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu)/ error
@@ -498,8 +503,9 @@ class GPRN_inference(object):
                 first = np.diag(sigma_f[j][:][:]) * muw[i][j] @ muw[i][j]
                 second = np.diag(sigma_w[j][i][:]) * mu_f[j] @ mu_f[j].T
                 third = np.diag(sigma_f[j][:][:]) @ np.diag(sigma_w[j][i][:])
-                error = (np.sum(jitters[i])/self.p)**2 \
-                            + (np.sum(self.yerr[i,:])/self.N)**2
+#                error = (np.sum(jitters[i])/self.p)**2 \
+#                            + (np.sum(self.yerr[i,:])/self.N)**2
+                error = 1
                 third_term += (first + second[0][0] + third)/ error
         first_term = -0.5 * first_term
         second_term = -0.5 * second_term
