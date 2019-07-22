@@ -131,7 +131,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 0*1e-6*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -249,15 +249,15 @@ class inference(object):
         nugget = 0 #our nugget starts as zero
         try:
             nugget += np.abs(np.diag(matrix).mean()) * 1e-5
-            L = cholesky(matrix).T
+            L = cholesky(matrix)
             return L, nugget
         except LinAlgError:
-            print('NUGGETS ADDED TO DIAGONAL!')
+            print('NUGGET ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
                 print ('n:', n+1, ', nugget:', nugget)
                 try:
-                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0])).T
+                    L = cholesky(matrix + nugget*np.identity(matrix.shape[0]))
                     return L, nugget
                 except LinAlgError:
                     nugget *= 10.0
@@ -309,26 +309,28 @@ class inference(object):
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu_new(nodes, weight, 
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
+            #print(sigmaF)
             muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
             varF =  []
             for i in range(self.q):
                 varF.append(np.diag(sigmaF[i]))
-            varF = np.array(varF).reshape(self.q, 1, self.N) #new variance for the nodes
+            varF = np.array(varF).reshape(1, self.q, self.N) #new variance for the nodes
             muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
             varW =  []
             for j in range(self.q):
                 for i in range(self.p):
-                    varW.append(np.diag(sigmaW[i, j, :, :]))
-            varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
-            
+                    varW.append(sigmaW[j, i, :])
+            varW = np.array(varW).reshape(self.p, self.q, self.N, self.N) #new variance for the weights
+            #Entropy
+            print('ENTROPY')
+            Entropy = self._entropy(sigmaF, sigmaW)
             #Expected log prior
+            print('LOG PRIOR')
             ExpLogPrior = self._expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
-            ExpLogLike = self._expectedLogLike(nodes, weight, means, jitters,
+            ExpLogLike = self._expectedLogLike_new(nodes, weight, means, jitters,
                                                    sigmaF, muF, sigmaW, muW)
-            #Entropy
-            Entropy = self._entropy(sigmaF, sigmaW)
             if plots:
                 ELL.append(ExpLogLike)
                 ELP.append(ExpLogPrior)
@@ -436,7 +438,7 @@ class inference(object):
         
         for i in range(self.p):
             error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
-#        error_term = 1
+        error_term = 1
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
@@ -463,7 +465,9 @@ class inference(object):
                     if k != j:
                         Sum_nj += muW[i, k, :] * muF[k].reshape(self.N)
                 tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
-            CovF = Kf[j] - Kf[j] @ ((np.diag(error_term / Diag_fj) + Kf[j]) @ invKf[j])
+#            CovF = Kf[j] - Kf[j] @ ((np.diag(error_term / Diag_fj) + Kf[j]) @ invKf[j])
+            CovF = np.diag(error_term / Diag_fj) + Kf[j]
+            CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
             sigma_f.append(CovF)
             mu_f.append(CovF @ tmp / error_term)
         sigma_f = np.array(sigma_f)
@@ -475,7 +479,10 @@ class inference(object):
                 mu_fj = mu_f[j]
                 var_fj = np.diag(sigma_f[j])
                 Diag_ij = mu_fj * mu_fj + var_fj
-                CovWij = Kw - Kw @ ((np.diag(error_term / Diag_ij) + Kw) @ invKw)
+#                CovWij = Kw - Kw @ ((np.diag(error_term / Diag_ij) + Kw) @ invKw)
+                Kw = np.squeeze(Kw)
+                CovWij = np.diag(error_term / Diag_ij) + Kw
+                CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
                 Sum_nj = 0
                 for k in range(self.q):
                     if k != j:
@@ -483,7 +490,7 @@ class inference(object):
                 tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
                 sigma_w.append(CovWij)
                 mu_w.append(CovWij @ tmp / error_term)
-        sigma_w = np.array(sigma_w)
+        sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
         mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
     
@@ -527,7 +534,6 @@ class inference(object):
         
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         sigma_f = [] #creation of Sigma_fj
-        print('var', varW[0,0,:],'\n other var', varW[1,0,:])
         for j in range(self.q):
             muWmuWVarW = np.zeros((self.N, self.N))
             for i in range(self.p):
@@ -578,7 +584,6 @@ class inference(object):
                 error = 1
                 mu_w.append(np.dot(sigma_w[j][i], sum_YminusSum/error))
         mu_w = np.array(mu_w)
-        #print('updated', mu_f)
         return sigma_f, mu_f, sigma_w, mu_w
 
 
@@ -592,20 +597,65 @@ class inference(object):
             Returns:
                 ent_sum = final entropy
         """
-        q = self.q #number of nodes
-        p = self.p #number of outputs
-        
         ent_sum = 0 #starts at zero then we sum everything
-        for j in range(q):
+        for j in range(self.q):
             L1 = self._cholNugget(sigma_f[j])
-            print(np.diag(sigma_f[j]))
+            #print(np.diag(L1[0]))
             ent_sum += np.sum(np.log(np.diag(L1[0])))
-            for i in range(p):
-                L2 = self._cholNugget(sigma_w[j][i])
+            #print(ent_sum)
+            for i in range(self.p):
+                L2 = self._cholNugget(sigma_w[j, i, :, :])
+                #print(np.diag(L2[0]))
                 ent_sum += np.sum(np.log(np.diag(L2[0])))
+                #print(ent_sum)
         return ent_sum
 
 
+    def _expectedLogLike_new(self, nodes, weight, means, jitters, 
+                             sigma_f, mu_f, sigma_w, mu_w):
+        """
+            Calculates the expected log-likelihood in mean-field inference, 
+        corresponds to eq.14 in Nguyen & Bonilla (2013)
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                jitters = jitters array
+                sigma_f = array with the covariance for each node
+                mu_f = array with the means for each node
+                sigma_w = array with the covariance for each weight
+                mu_w = array with the means for each weight
+            Returns:
+                expected log-likelihood
+        """
+        new_y = np.concatenate(self.y) - self._mean(means, self.time)
+        new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
+
+        for i in range(self.p):
+            error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+        error_term = 1
+
+        Wblk = np.array([])
+        for n in range(self.N):
+            for p in range(self.p):
+                Wblk = np.append(Wblk, mu_w[p,:,n])
+        Fblk = np.array([])
+        for n in range(self.N):
+            for q in range(self.q):
+                for p in range(self.p):
+                    Fblk = np.append(Fblk, mu_f[:,q,n])
+        Ymean = (Wblk * Fblk).reshape(self.N, self.p)
+        Ydiff = (new_y - Ymean) * (new_y - Ymean)
+        logl = -0.5 * np.sum(Ydiff) / error_term
+
+        value = 0
+        for i in range(self.p):
+            for j in range(self.q):
+                value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
+                    np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[j] * mu_f[j]) +\
+                    np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
+        logl += -0.5* value / error_term
+        return logl
+    
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expection of the log prior wrt q(f,w) in mean-field 
@@ -642,7 +692,7 @@ class inference(object):
             first_term += logKf -0.5*muKmu -0.5*trace
             for i in range(self.p):
                 muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
-                trace = np.trace(sigma_w[i, j] @Kw_inv)
+                trace = np.trace(sigma_w[j, i, :, :] @Kw_inv)
                 second_term += logKw -0.5*muKmu -0.5*trace
         return first_term + second_term
 
@@ -672,21 +722,21 @@ class inference(object):
         second_term = 0
         third_term = 0
         for i in range(self.p):
-            first_term += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
-#            first_term += 1
+#            first_term += np.log(jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2)
+            first_term += 1
             for n in range(self.N):
-                error = jitters[i]**2 + self.yerr[i,n]**2
-#                error = 1
+#                error = jitters[i]**2 + self.yerr[i,n]**2
+                error = 1
                 #first_term += np.log(error)
                 YOmegaMu = np.array(new_y[i,n].T - muw[i,:,n] @ muf[:,n])
                 second_term += np.dot(YOmegaMu.T, YOmegaMu) / error
             for j in range(self.q):
 #### CHECK i,j of the weights!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 first = np.diag(sigma_f[j,:,:]) * muw[i,j] @ muw[i,j]
-                second = np.diag(sigma_w[i,j,:]) * mu_f[j] @ mu_f[j].T
-                third = np.diag(sigma_f[j,:,:]) @ np.diag(sigma_w[i,j,:])
-                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
-#                error = 1
+                second = np.diag(sigma_w[j,i,:,:]) * mu_f[j] @ mu_f[j].T
+                third = np.diag(sigma_f[j,:,:]) @ np.diag(sigma_w[j,i,:])
+#                error = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+                error = 1
                 third_term += (first + second[0][0] + third)/ error
         first_term = -0.5 * first_term
         second_term = -0.5 * second_term
