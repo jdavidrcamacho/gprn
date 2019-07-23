@@ -131,7 +131,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 0*1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -341,8 +341,8 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
-            if criteria < 1e-5 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-10:]) - sum_ELB)
+            if criteria < 1e-10 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
@@ -435,8 +435,10 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(new_y, self.p)
         
+        error_term = 0
         for i in range(self.p):
-            error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+            error_term += jitters[i]**2 + (np.sum(self.yerr[i,:]**2))#/self.N)**2
+#        error_term /= self.p
 #        error_term = 1
         
         #kernel matrix for the nodes
@@ -502,11 +504,13 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-
+        
+        error_term = 0
         for i in range(self.p):
-            error_term = jitters[i]**2 + (np.sum(self.yerr[i,:])/self.N)**2
+            error_term += jitters[i]**2 + (np.sum(self.yerr[i,:]**2))#/self.N)**2
+#        error_term /= self.p
 #        error_term = 1
-
+        
         Wblk = np.array([])
         for n in range(self.N):
             for p in range(self.p):
