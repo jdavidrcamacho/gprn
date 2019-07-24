@@ -355,6 +355,46 @@ class inference(object):
             self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
         return sum_ELB, muF, muW
         
+    
+    
+    def Prediction_new(self, nodes, weights, means, jitters, tstar, muF, muW):
+        """
+            Prediction for mean-field inference
+            Parameters:
+                nodes = array of node functions 
+                weight = weight function
+                means = array with the mean functions
+                jitters = jitters array
+                tstar = predictions time
+                muF = array with the initial means for each node
+                varF = array with the initial variance for each node
+                muW = array with the initial means for each weight
+            Returns:
+                ystar = predicted means
+        """
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        Lf = np.array([self._cholNugget(i)[0] for i in Kf])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+        Lw = np.array([self._cholNugget(j)[0] for j in Kw])
+
+        ystar = np.zeros((self.p, tstar.size))
+
+        for i in range(tstar.size):
+            Kf_s = np.array([self._predictKernelMatrix(i1, tstar[i]) for i1 in nodes])
+            Kw_s = np.array([self._predictKernelMatrix(i2, tstar[i]) for i2 in weights])
+            print(inv(np.squeeze(Lf)).shape, Kf_s.shape)
+            alphaLf = inv(np.squeeze(Lf)) @ np.squeeze(Kf_s).T
+            alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
+            idx_f, idx_w = 1, 1
+            Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
+            for q in range(self.q):
+                fstar[q] = alphaLf @ (inv(np.squeeze(Lf)) @ muF)
+
+
+        ystar += self._mean(means, tstar) #adding the mean function
+        return ytars
+
+    
         
     def Prediction(self, nodes, weights, means, jitters, tstar, muF, muW):
         """
@@ -389,6 +429,35 @@ class inference(object):
             ystar.append(Ewstar@ Efstar)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
+
+
+
+
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        invKf = np.array([inv(i) for i in Kf])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+#        invKw = np.array([inv(j) for j in Kw])
+#
+#        final_ystars = []
+#        for p in range(self.p):
+#            #mean
+#            ystar = []
+#            for n in range(tstar.size):
+#                Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+#                Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+#                Efstar, Ewstar = 0, 0
+#                for j in range(self.q):
+#                    Efstar += Kfstar[j] @(invKf[j] @muF[j].T) 
+#                    for i in range(self.p):
+#                        Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
+#                ystar.append(Ewstar@ Efstar)
+#            ystar = np.array(ystar).reshape(tstar.size) #final mean
+#            #ystar += self._mean(means[p], tstar) #adding the mean function
+#            final_ystars.append(ystar)
+#        final_ystars = np.concatenate(final_ystars, axis=0)
+#        final_ystars += self._mean(means, tstar)
+#        final_ystars = np.array_split(final_ystars, self.p)
+
 
 #        #standard deviation
 #        Kfstar = np.array([self._predictKernelMatrix(i, tstar) for i in nodes])
