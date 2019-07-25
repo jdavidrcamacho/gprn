@@ -311,7 +311,7 @@ class inference(object):
                                                                means, jitters, time,
                                                                muF, varF, muW, varW)
             #print(muW)
-            muF = muF.reshape(self.q, 1, self.N) #new mean for the nodes
+            muF = muF.reshape(1, self.q, self.N) #new mean for the nodes
             varF =  []
             for i in range(self.q):
                 varF.append(np.diag(sigmaF[i]))
@@ -341,18 +341,20 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-10:]) - sum_ELB)
-            if criteria < 1e-10 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
+            if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
                           +str(iterNumber) +'\n')
                 if plots:
                     self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
+                print(' it took ' +str(iterNumber) + ' iterations')
                 return sum_ELB, muF, muW
             iterNumber += 1
         if plots:
             self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
+        print(' it took ' +str(iterNumber) + ' iterations')
         return sum_ELB, muF, muW
         
     
@@ -530,12 +532,10 @@ class inference(object):
 #            error_term += jitters[i]**2 + (np.sum(self.yerr[i,:]**2))#/self.N)**2
 #        error_term /= self.p
 #        error_term = 1
-        
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) /self.p
+        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
         for i in range(self.p):
             error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
         error_term = error_term
-#        print('ERROR TERROR', error_term)
 #        error_term = 1
         
         #kernel matrix for the nodes
@@ -552,9 +552,9 @@ class inference(object):
                 Sum_nj = np.zeros(self.N)
                 for k in range(self.q):
                     if k != j:
-                        Sum_nj += muW[i, k, :] * muF[k].reshape(self.N)
+                        muF = muF.T.reshape(1, self.q, self.N )
+                        Sum_nj += muW[i, k, :] * muF[:, k,:].reshape(self.N)
                 tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
-#            CovF = Kf[j] - Kf[j] @ ((np.diag(error_term / Diag_fj) + Kf[j]) @ invKf[j])
             CovF = np.diag(error_term / Diag_fj) + Kf[j]
             CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
             sigma_f.append(CovF)
@@ -568,7 +568,6 @@ class inference(object):
                 mu_fj = mu_f[j]
                 var_fj = np.diag(sigma_f[j])
                 Diag_ij = mu_fj * mu_fj + var_fj
-#                CovWij = Kw - Kw @ ((np.diag(error_term / Diag_ij) + Kw) @ invKw)
                 Kw = np.squeeze(Kw)
                 CovWij = np.diag(error_term / Diag_ij) + Kw
                 CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
@@ -607,15 +606,12 @@ class inference(object):
 #            error_term += jitters[i]**2 + (np.sum(self.yerr[i,:]**2))#/self.N)**2
 #        error_term /= self.p
 #        error_term = 1
-        
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) /self.p
+        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
         for i in range(self.p):
             error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
         error_term = error_term
-#        print('ERROR TERROR', error_term)
 #        error_term = 1
 
-            
         Wblk = np.array([])
         for n in range(self.N):
             for p in range(self.p):
@@ -624,18 +620,36 @@ class inference(object):
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
-                    Fblk = np.append(Fblk, mu_f[:,q,n])
-        Ymean = (Wblk * Fblk).reshape(self.N, self.p)
+                    Fblk = np.append(Fblk, mu_f[q, :, n])
+        Ymean = (Wblk * Fblk)#.reshape(self.N, self.p)
+        yy = np.array([])                           ###Start of sketchy part
+        for i in range(self.q):
+            yy = np.append(yy, new_y)
+        new_y = yy                                  ###End of sketchy part
         Ydiff = (new_y - Ymean) * (new_y - Ymean)
         logl = -0.5 * np.sum(Ydiff) / error_term
 
-        value = 0
-        for i in range(self.p):
-            for j in range(self.q):
-                value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
-                    np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[j] * mu_f[j]) +\
-                    np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
-        logl += -0.5* value / error_term
+#        #ORIGINAL
+#        Wblk = np.array([])
+#        for n in range(self.N):
+#            for p in range(self.p):
+#                Wblk = np.append(Wblk, mu_w[p,:,n])
+#        Fblk = np.array([])
+#        for n in range(self.N):
+#            for q in range(self.q):
+#                for p in range(self.p):
+#                    Fblk = np.append(Fblk, mu_f[:,q,n])
+#        Ymean = (Wblk * Fblk).reshape(self.N, self.p)
+#        Ydiff = (new_y - Ymean) * (new_y - Ymean)
+#        logl = -0.5 * np.sum(Ydiff) / error_term
+#
+#        value = 0
+#        for i in range(self.p):
+#            for j in range(self.q):
+#                value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
+#                    np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[j] * mu_f[j]) +\
+#                    np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
+#        logl += -0.5* value / error_term
         return logl
     
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
