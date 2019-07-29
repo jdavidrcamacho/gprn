@@ -300,6 +300,7 @@ class inference(object):
         var = np.random.rand(D,1);
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
+#        print('before \n', muF, '\n break \n', muW)
         
         iterNumber = 0
         ELB = [0]
@@ -321,7 +322,6 @@ class inference(object):
                     varW.append(np.diag(sigmaW[j, i, :]))
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
 
-            print(muF, muW)
             #Entropy
             Entropy = self._entropy(sigmaF, sigmaW)
             #Expected log prior
@@ -438,44 +438,82 @@ class inference(object):
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
         #kernel matrix for the weights
         Kw = np.array([self._kernelMatrix(j, time) for j in weight]) 
-        
+
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
-        sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
-        for j in range(self.q):
-            Diag_fj, tmp = 0, 0
-            for i in range(self.p):
-                Diag_fj += muW[i, j, :] * muW[i, j, :] + varW[i, j, :]
-                Sum_nj = np.zeros(self.N)
-                for k in range(self.q):
-                    if k != j:
-                        muF = muF.T.reshape(1, self.q, self.N )
-                        Sum_nj += muW[i, k, :] * muF[:, k,:].reshape(self.N)
-                tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
-            CovF = np.diag(error_term / Diag_fj) + Kf[j]
-            CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
-            sigma_f.append(CovF)
-            mu_f.append(CovF @ tmp / error_term)
-        sigma_f = np.array(sigma_f)
-        mu_f = np.array(mu_f)
-        
-        sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
-        for i in range(self.p):
+        if self.q == 1:
+            sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
             for j in range(self.q):
-                mu_fj = mu_f[j]
-                var_fj = np.diag(sigma_f[j])
-                Diag_ij = mu_fj * mu_fj + var_fj
-                Kw = np.squeeze(Kw)
-                CovWij = np.diag(error_term / Diag_ij) + Kw
-                CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
-                Sum_nj = 0
-                for k in range(self.q):
-                    if k != j:
-                        Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[i, k, :])
-                tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
-                sigma_w.append(CovWij)
-                mu_w.append(CovWij @ tmp / error_term)
-        sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
-        mu_w = np.array(mu_w)
+                Diag_fj, tmp = 0, 0
+                for i in range(self.p):
+                    Diag_fj += muW[i, j, :] * muW[i, j, :] + varW[i, j, :]
+                    Sum_nj = np.zeros(self.N)
+                    for k in range(self.q):
+                        if k != j:
+                            muF = muF.T.reshape(1, self.q, self.N )
+                            Sum_nj += muW[i, k, :] * muF[:, k,:].reshape(self.N)
+                    tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
+                CovF = np.diag(error_term / Diag_fj) + Kf[j]
+                CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
+                sigma_f.append(CovF)
+                mu_f.append(CovF @ tmp / error_term)
+            sigma_f = np.array(sigma_f)
+            mu_f = np.array(mu_f)
+            sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+            for i in range(self.p):
+                for j in range(self.q):
+                    mu_fj = mu_f[j]
+                    var_fj = np.diag(sigma_f[j])
+                    Diag_ij = mu_fj * mu_fj + var_fj
+                    Kw = np.squeeze(Kw)
+                    CovWij = np.diag(error_term / Diag_ij) + Kw
+                    CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
+                    Sum_nj = 0
+                    for k in range(self.q):
+                        if k != j:
+                            Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[i, k, :])
+                    tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
+                    sigma_w.append(CovWij)
+                    mu_w.append(CovWij @ tmp / error_term)
+            sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
+            mu_w = np.array(mu_w)
+        else:
+            muF = np.squeeze(muF)
+            sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
+            for j in range(self.q):
+                Diag_fj, tmp = 0, 0
+                for i in range(self.p):
+                    Diag_fj += muW[j, i, :] * muW[j, i, :] + varW[j, i, :]
+                    Sum_nj = np.zeros(self.N)
+                    for k in range(self.q):
+                        if k != j:
+                            Sum_nj += muW[k, i, :] * muF[k,:].reshape(self.N)
+                    tmp += (new_y[i][:] - Sum_nj) * muW[j, i, :]
+                CovF = np.diag(error_term / Diag_fj) + Kf[j]
+                CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
+                sigma_f.append(CovF)
+                mu_f.append(CovF @ tmp / error_term)
+                muF = np.array(mu_f)
+            sigma_f = np.array(sigma_f)
+            mu_f = np.array(mu_f)
+            sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+            for i in range(self.p):
+                for j in range(self.q):
+                    mu_fj = mu_f[j]
+                    var_fj = np.diag(sigma_f[j])
+                    Diag_ij = mu_fj * mu_fj + var_fj
+                    Kw = np.squeeze(Kw)
+                    CovWij = np.diag(error_term / Diag_ij) + Kw
+                    CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
+                    Sum_nj = 0
+                    for k in range(self.q):
+                        if k != j:
+                            Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[k, i, :])
+                    tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
+                    sigma_w.append(CovWij)
+                    mu_w.append(CovWij @ tmp / error_term)
+                    muW[j,i,:] = np.array(CovWij @ tmp / error_term)
+            sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
+            mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
 
 
@@ -497,38 +535,67 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-        
+#        print(new_y.shape)
 #        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
 #        for i in range(self.p):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
 #        error_term = error_term
         error_term = 1
 
-        Wblk = np.array([])
-        for n in range(self.N):
-            for p in range(self.p):
-                Wblk = np.append(Wblk, mu_w[p,:,n])
-        Fblk = np.array([])
-        for n in range(self.N):
-            for q in range(self.q):
+        if self.q == 1:
+            Wblk = np.array([])
+            for n in range(self.N):
                 for p in range(self.p):
-                    Fblk = np.append(Fblk, mu_f[:, q, n])
-        Ymean = (Wblk * Fblk)
-        yy = np.array([])                           ###Start of sketchy part
-        for i in range(self.q):
-            yy = np.append(yy, new_y)
-        new_y = yy                                  ###End of sketchy part
-        Ydiff = (new_y - Ymean) * (new_y - Ymean)
-        logl = -0.5 * np.sum(Ydiff) / error_term
-        
-        value = 0
-        for i in range(self.p):
-            for j in range(self.q):
-                value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
-                    np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[j] * mu_f[j]) +\
-                    np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
-        logl += -0.5* value / error_term
-        
+                    Wblk = np.append(Wblk, mu_w[p,:,n])
+            Fblk = np.array([])
+            for n in range(self.N):
+                for q in range(self.q):
+                    for p in range(self.p):
+                        Fblk = np.append(Fblk, mu_f[:, q, n])
+            Ymean = Wblk * Fblk
+            Ymean = Ymean.reshape(self.N,self.p)
+#            yy = np.array([])                           ###Start of sketchy part
+#            for i in range(self.q):
+#                yy = np.append(yy, new_y)
+#            new_y = yy                                  ###End of sketchy part
+            Ydiff = (new_y - Ymean) * (new_y - Ymean)
+            logl = -0.5 * np.sum(Ydiff) / error_term
+            
+            value = 0
+            for i in range(self.p):
+                for j in range(self.q):
+                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
+                        np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
+                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
+            logl += -0.5* value / error_term
+
+        else:
+            Wblk = []
+            for p in range(self.p):
+                Wblk.append([])
+            for n in range(self.N):
+                for p in range(self.p):
+                    Wblk[p].append(mu_w[:, p, n])
+            Wblk = np.array(Wblk).reshape(self.p, self.N * self.p)
+            Fblk = []
+            for p in range(self.p):
+                Fblk.append([])
+            for n in range(self.N):
+                for q in range(self.q):
+                    for p in range(self.p):
+                        Fblk[q].append(mu_f[:, q, n])
+            Fblk = np.array(Fblk).reshape(self.p, self.N * self.p)
+            Ymean = np.sum((Wblk * Fblk).T, axis=1)
+            Ymean = Ymean.reshape(self.N,self.p)
+            Ydiff = (new_y - Ymean) * (new_y - Ymean)
+            logl = -0.5 * np.sum(Ydiff) / error_term
+            value = 0
+            for i in range(self.p):
+                for j in range(self.q):
+                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
+                        np.sum(np.diag(sigma_w[i,j,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
+                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[i,j,:,:]))
+            logl += -0.5* value / error_term
         return logl
 
 
