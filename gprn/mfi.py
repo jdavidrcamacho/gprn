@@ -131,7 +131,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -320,6 +320,8 @@ class inference(object):
                 for i in range(self.p):
                     varW.append(np.diag(sigmaW[j, i, :]))
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
+
+            print(muF, muW)
             #Entropy
             Entropy = self._entropy(sigmaF, sigmaW)
             #Expected log prior
@@ -389,7 +391,6 @@ class inference(object):
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
                 alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:,:]).T
-                print(alphaLf.shape, Lf.shape, muF.shape)
                 fstar[q] = alphaLf @ (inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
                 idx_f += self.N
                 for p in range(self.p):
@@ -427,10 +428,10 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(new_y, self.p)
         
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-        for i in range(self.p):
-            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = error_term
+#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+#        for i in range(self.p):
+#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+#        error_term = error_term
         error_term = 1
         
         #kernel matrix for the nodes
@@ -497,10 +498,10 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
         
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-        for i in range(self.p):
-            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = error_term
+#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+#        for i in range(self.p):
+#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+#        error_term = error_term
         error_term = 1
 
         Wblk = np.array([])
@@ -519,6 +520,15 @@ class inference(object):
         new_y = yy                                  ###End of sketchy part
         Ydiff = (new_y - Ymean) * (new_y - Ymean)
         logl = -0.5 * np.sum(Ydiff) / error_term
+        
+        value = 0
+        for i in range(self.p):
+            for j in range(self.q):
+                value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
+                    np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[j] * mu_f[j]) +\
+                    np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
+        logl += -0.5* value / error_term
+        
         return logl
 
 
