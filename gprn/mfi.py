@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pylab as plt
-from scipy.linalg import inv, cholesky, cho_factor, cho_solve, LinAlgError
+from scipy.linalg import inv, cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from copy import copy
 
@@ -291,16 +291,15 @@ class inference(object):
         var = np.random.rand(D,1)
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
-
-        #experiment
-        D = self.time.size * self.q *(self.p+1)
-        np.random.seed(100)
-        mu = np.random.rand(D,1);
-        np.random.seed(200)
-        var = np.random.rand(D,1);
-        muF, muW = self._fhat_and_w(mu)
-        varF, varW = self._fhat_and_w(var)
-#        print('before \n', muF, '\n break \n', muW)
+        
+#        #experiment
+#        D = self.time.size * self.q *(self.p+1)
+#        np.random.seed(100)
+#        mu = np.random.rand(D,1);
+#        np.random.seed(200)
+#        var = np.random.rand(D,1);
+#        muF, muW = self._fhat_and_w(mu)
+#        varF, varW = self._fhat_and_w(var)
         
         iterNumber = 0
         ELB = [0]
@@ -428,11 +427,11 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(new_y, self.p)
         
-#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-#        for i in range(self.p):
-#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-#        error_term = error_term
-        error_term = 1
+        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+        for i in range(self.p):
+            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+        error_term = error_term
+#        error_term = 1
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
@@ -496,8 +495,8 @@ class inference(object):
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
             sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
-            for i in range(self.p):
-                for j in range(self.q):
+            for j in range(self.q):
+                for i in range(self.p):
                     mu_fj = mu_f[j]
                     var_fj = np.diag(sigma_f[j])
                     Diag_ij = mu_fj * mu_fj + var_fj
@@ -535,12 +534,12 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-#        print(new_y.shape)
-#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-#        for i in range(self.p):
-#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-#        error_term = error_term
-        error_term = 1
+        
+        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+        for i in range(self.p):
+            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+        error_term = error_term
+#        error_term = 1
 
         if self.q == 1:
             Wblk = np.array([])
@@ -554,10 +553,6 @@ class inference(object):
                         Fblk = np.append(Fblk, mu_f[:, q, n])
             Ymean = Wblk * Fblk
             Ymean = Ymean.reshape(self.N,self.p)
-#            yy = np.array([])                           ###Start of sketchy part
-#            for i in range(self.q):
-#                yy = np.append(yy, new_y)
-#            new_y = yy                                  ###End of sketchy part
             Ydiff = (new_y - Ymean) * (new_y - Ymean)
             logl = -0.5 * np.sum(Ydiff) / error_term
             
@@ -575,7 +570,7 @@ class inference(object):
                 Wblk.append([])
             for n in range(self.N):
                 for p in range(self.p):
-                    Wblk[p].append(mu_w[:, p, n])
+                    Wblk[p].append(mu_w[p, :, n])
             Wblk = np.array(Wblk).reshape(self.p, self.N * self.p)
             Fblk = []
             for p in range(self.p):
@@ -592,9 +587,9 @@ class inference(object):
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
-                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
-                        np.sum(np.diag(sigma_w[i,j,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
-                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[i,j,:,:]))
+                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[j,i,:] * mu_w[j,i,:]) +\
+                        np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
+                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
             logl += -0.5* value / error_term
         return logl
 
