@@ -286,7 +286,7 @@ class inference(object):
         print(mu[0:5])
         res = minimize(self._ELBO_updadeMean, x0 = mu, 
                        args = (nodes, weight, means, jitters), method='COBYLA', 
-                       options={'disp': True, 'maxiter': 20})
+                       options={'disp': True, 'maxiter': 100})
         mu  = res.x
         
         muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
@@ -462,8 +462,8 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogJoint/self.k, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
-            if criteria < 1e-5 and criteria != 0 :
+            criteria = np.abs(np.mean(ELB[-10:]) - sum_ELB)
+            if criteria < 1e-10 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \
@@ -513,7 +513,7 @@ class inference(object):
             ystar.append(Ksum / self.k)
         ystar = np.array(ystar).reshape(tstar.size) #final mean
         ystar += self._mean(means, tstar) #adding the mean function
-
+        return ystar
 
     def _plots(self, ELB, ELJ, ENT):
         """
