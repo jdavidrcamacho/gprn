@@ -131,7 +131,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predictKernelMatrix(self, kernel, time):
