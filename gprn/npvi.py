@@ -285,7 +285,7 @@ class inference(object):
         mu = np.hstack((muF.flatten(), muW.flatten()))
         res = minimize(self._ELBO_updadeMean, x0 = mu, 
                        args = (nodes, weight, means, jitters), method='COBYLA', 
-                       options={'disp': True, 'maxiter': 100})
+                       options={'disp': True, 'maxiter': self.N})
         mu  = res.x
         
         muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
@@ -368,9 +368,9 @@ class inference(object):
             Ydiff = (new_y - Ymean) * (new_y - Ymean)
             logl = -0.5 * np.sum(Ydiff) / error_term
             
-            logl += -0.5 *self.p *sigma[k] *np.sum(mu_f[k,:,q,n]*mu_f[k,:,q,n] )/error_term +\
-                    -0.5 *sigma[k] *np.sum(mu_w[k,p,:,n]*mu_w[k,p,:,n]) /error_term +\
-                    -0.5 *self.N *self.p *self.q *sigma[k]**2 / error_term
+            logl += -0.5*self.p*sigma[k]*np.sum(mu_f[k,:,q,n]*mu_f[k,:,q,n])/error_term+\
+                    -0.5*sigma[k]*np.sum(mu_w[k,p,:,n]*mu_w[k,p,:,n])/error_term+\
+                    -0.5*self.N*self.p*self.q*sigma[k]**2/error_term
             
             final_log = np.append(final_log, logl)
         return np.sum(final_log) / self.k
@@ -379,7 +379,33 @@ class inference(object):
 
 
     def _expectedLogPrior(self, nodes, weights, means, jitters, mu_f, mu_w, sigma):
-        return 0
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        invKf = np.array([inv(i) for i in Kf])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+        invKw = np.array([inv(j) for j in Kw])
+        Lw = np.array([self._cholNugget(j)[0] for j in Kw])
+        
+        final_prior = np.array([])
+        for k in range(self.k):
+            Lf = [] #the way this is made it will only work for one node
+            for j in range(self.q):
+                Lf.append(self._cholNugget(Kf[j])[0])
+                logprior = -self.q * np.sum(np.log(np.diag(np.array(Lf)[j,:,:])))
+                logprior += -0.5*self.q*sigma[k] * np.trace(invKf[j])
+            print(logprior)
+            for j in range(self.q):
+                alpha = inv(self._cholNugget(Kf[j])[0]) @ mu_f[k,:,j,:].T
+#                print(logprior.shape, alpha.shape)
+                logprior += -0.5 * (alpha.T @ alpha)[j,:]
+                for i in range(self.p):
+                    alpha = inv(Lw[0]) @ mu_w[k, i, j, :].T
+                    logprior += -0.5 * (alpha.T @ alpha)
+            print(logprior)
+            logprior += -self.q * np.sum(np.log(np.diag(np.array(Lw)[0]))) +\
+                        -0.5*self.q * sigma[k] * np.trace(invKw[0])
+                
+            final_prior = np.append(final_prior, logprior)
+        return np.sum(final_prior) / self.k
     
     
     
