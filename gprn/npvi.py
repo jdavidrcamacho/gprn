@@ -284,8 +284,8 @@ class inference(object):
     def _updadeMean(self, nodes, weight, means, jitters, muF, muW):
         mu = np.hstack((muF.flatten(), muW.flatten()))
         res = minimize(self._ELBO_updadeMean, x0 = mu, 
-                       args = (nodes, weight, means, jitters), method='COBYLA', 
-                       options={'disp': True, 'maxiter': self.N})
+                       args = (nodes, weight, means, jitters), method='Nelder-Mead', 
+                       options={'disp': True, 'maxiter': self.N**2})
         mu  = res.x
         
         muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
@@ -376,9 +376,35 @@ class inference(object):
         return np.sum(final_log) / self.k
 
 
-
-
     def _expectedLogPrior(self, nodes, weights, means, jitters, mu_f, mu_w, sigma):
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+        invKf = np.array([inv(i) for i in Kf])
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+        invKw = np.array([inv(j) for j in Kw])
+        Lw = np.array([self._cholNugget(j)[0] for j in Kw])
+        
+        final_prior = 0
+        for k in range(self.k):
+            Lf = [] #the way this is made it will only work for one node
+            for j in range(self.q):
+                Lf = self._cholNugget(Kf[j])[0]
+                logprior = -self.q * np.sum(np.log(np.diag(Lf)))-0.5*self.q*sigma[k] * np.trace(invKf[j])
+#                print(logprior)
+                alpha = inv(Lf) @ mu_f[k,:,j,:].T
+#                print(-0.5 * (alpha.T @ alpha))
+                logprior += -0.5 * (alpha.T @ alpha)
+                for i in range(self.p):
+                    alpha = inv(Lw[0]) @ mu_w[k, i, j, :].T
+#                    print(-0.5 * (alpha.T @ alpha))
+                    logprior += -0.5 * (alpha.T @ alpha)
+            logprior += -self.q * np.sum(np.log(np.diag(Lw[0]))) -0.5*self.q * sigma[k] * np.trace(invKw[0])
+                
+            final_prior += logprior
+        return np.sum(final_prior) / self.k
+    
+
+
+    def _expectedLogPrior_old(self, nodes, weights, means, jitters, mu_f, mu_w, sigma):
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         invKf = np.array([inv(i) for i in Kf])
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
