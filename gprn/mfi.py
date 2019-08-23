@@ -12,10 +12,10 @@ from gprn.covFunction import WhiteNoise as covWN
 
 class inference(object):
     """ 
-        Class to perform variational inference for GPRNs. 
+        Class to perform mean field variational inference for GPRNs. 
         See Nguyen & Bonilla (2013) for more information.
         Parameters:
-            nodes = latent noide functions f(x), called f hat in the article
+            nodes = latent node functions f(x), called f hat in the article
             weight = latent weight funtion w(x)
             means = array of means functions being used, set it to None if a 
                     model doesn't use it
