@@ -285,7 +285,7 @@ class inference(object):
         mu = np.hstack((muF.flatten(), muW.flatten()))
         res = minimize(self._ELBO_updadeMean, x0 = mu, 
                        args = (nodes, weight, means, jitters), method='Nelder-Mead', 
-                       options={'disp': True, 'maxiter': self.N**2})
+                       options={'disp': False, 'maxiter': self.N, 'maxfev': self.N})
         mu  = res.x
         
         muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
