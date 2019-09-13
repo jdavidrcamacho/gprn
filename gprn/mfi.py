@@ -341,7 +341,7 @@ class inference(object):
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
             criteria = np.abs(np.mean(ELB[-10:]) - sum_ELB)
-            if criteria < 1e-10 and criteria != 0 :
+            if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
                           + '; algorithm stopped at iteration ' \

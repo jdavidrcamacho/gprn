@@ -286,8 +286,8 @@ class inference(object):
         res = minimize(self._ELBO_updadeMean, x0 = mu, 
                        args = (nodes, weight, means, jitters), method='Nelder-Mead', 
                        options={'disp': False, 
-                                'maxiter': 200*self.N, 
-                                'maxfev': 200*self.N})
+                                'maxiter': self.N, 
+                                'maxfev': self.N})
         mu  = res.x
         
         muF = mu[0 : self.k*self.q*self.N].reshape(self.k, 1, self.q, self.N)
@@ -346,16 +346,15 @@ class inference(object):
     def _expectedLogLike(self, nodes, weights, means, jitters, mu_f, mu_w, sigma):
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-        
-#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-#        for i in range(self.p):
-#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+#        print(new_y.shape)
+        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+        for i in range(self.p):
+            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
 #        error_term = error_term
-        error_term = 1
+#        error_term = 1
         
         final_log = np.array([])
         for k in range(self.k):
-#            if self.q == 1:
             Wblk = np.array([])
             for n in range(self.N):
                 for p in range(self.p):
@@ -366,9 +365,12 @@ class inference(object):
                     for p in range(self.p):
                         Fblk = np.append(Fblk, mu_f[k, :, q, n])
             Ymean = Wblk * Fblk
-            Ymean = Ymean.reshape(self.N,self.p)
-            Ydiff = (new_y - Ymean) * (new_y - Ymean)
-            logl = -0.5 * np.sum(Ydiff) / error_term
+            Ymean = Ymean.reshape(self.N, self.p, self.q)
+#            print(new_y.shape, Ymean.shape)
+            logl = 0
+            for q in range(self.q):
+                Ydiff = (new_y - Ymean[:, :, q]) * (new_y - Ymean[:, :, q])
+                logl += -0.5 * np.sum(Ydiff) / error_term
             
             logl += -0.5*self.p*sigma[k]*np.sum(mu_f[k,:,q,n]*mu_f[k,:,q,n])/error_term+\
                     -0.5*sigma[k]*np.sum(mu_w[k,p,:,n]*mu_w[k,p,:,n])/error_term+\
