@@ -385,11 +385,13 @@ class inference(object):
         for i in range(tstar.size):
             Kf_s = np.array([self._predictKernelMatrix(i1, tstar[i]) for i1 in nodes])
             Kw_s = np.array([self._predictKernelMatrix(i2, tstar[i]) for i2 in weights])
-            alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
+#            alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
+            alphaLw = inv(np.squeeze(Lw)) @ Kw_s.T
             idx_f, idx_w = 1, 1
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
-                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:,:]).T
+#                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:,:]).T
+                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ Kf_s[q,:,:].T
                 fstar[q] = alphaLf @ (inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
                 idx_f += self.N
                 for p in range(self.p):
@@ -431,7 +433,7 @@ class inference(object):
         for i in range(self.p):
             error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
         error_term = error_term
-#        error_term = 1
+        #print(error_term)
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
@@ -452,6 +454,7 @@ class inference(object):
                             Sum_nj += muW[i, k, :] * muF[:, k,:].reshape(self.N)
                     tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
                 CovF = np.diag(error_term / Diag_fj) + Kf[j]
+                #print(CovF)
                 CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
                 sigma_f.append(CovF)
                 mu_f.append(CovF @ tmp / error_term)

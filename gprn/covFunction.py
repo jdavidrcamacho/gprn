@@ -154,8 +154,10 @@ class dWhiteNoise_dwn(WhiteNoise):
         self.wn = wn
 
     def __call__(self, r):
-        return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        
+        try:
+            return 2 * self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        except ValueError:
+            return np.zeros_like(r)        
         
 ##### Squared exponential ######################################################
 class SquaredExponential(covFunction):
