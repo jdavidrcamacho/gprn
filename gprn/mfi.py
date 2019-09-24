@@ -268,7 +268,7 @@ class inference(object):
 
 ##### Mean-Field Inference functions ###########################################
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
-                               iterations = 100, prints = False, plots = False):
+                               iterations = 1000, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -340,7 +340,7 @@ class inference(object):
             if prints:
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-10:]) - sum_ELB)
+            criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
             if criteria < 1e-5 and criteria != 0 :
                 if prints:
                     print('\nELB converged to ' +str(sum_ELB) \
@@ -385,17 +385,19 @@ class inference(object):
         for i in range(tstar.size):
             Kf_s = np.array([self._predictKernelMatrix(i1, tstar[i]) for i1 in nodes])
             Kw_s = np.array([self._predictKernelMatrix(i2, tstar[i]) for i2 in weights])
-#            alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
-            alphaLw = inv(np.squeeze(Lw)) @ Kw_s.T
+            alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
+#            alphaLw = inv(np.squeeze(Lw)) @ Kw_s.T
             idx_f, idx_w = 1, 1
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
-#                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:,:]).T
-                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ Kf_s[q,:,:].T
+#                print(Lf[q,:,:].shape, Kf_s[q,:,:].shape)
+                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:]).T
+#                alphaLf = inv(np.squeeze(Lf[q,:,:])) @ Kf_s[q,:].T
                 fstar[q] = alphaLf @ (inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
                 idx_f += self.N
                 for p in range(self.p):
-                    Wstar[p, q] = alphaLw @ (inv(np.squeeze(Lw[0])) @ muW[p][q].T)
+                    print(alphaLw.T.shape, inv(np.squeeze(Lw[0])).shape, muW[p][q].T.shape)
+                    Wstar[p, q] = alphaLw.T @ (inv(np.squeeze(Lw[0])) @ muW[p][q].T)
                     idx_w += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
                     
