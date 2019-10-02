@@ -4,48 +4,36 @@ import numpy as np
 import matplotlib.pylab as plt
 from scipy.linalg import inv, cholesky, LinAlgError
 from scipy.stats import multivariate_normal
-from copy import copy
 
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-
 
 class inference(object):
     """ 
         Class to perform mean field variational inference for GPRNs. 
         See Nguyen & Bonilla (2013) for more information.
         Parameters:
-            nodes = latent node functions f(x), called f hat in the article
-            weight = latent weight funtion w(x)
-            means = array of means functions being used, set it to None if a 
-                    model doesn't use it
-            jitters = jitter value of each dataset
-            time = time
+            num_nodes = number of latent node functions f(x), called f hat in 
+                        the article
+            time = array with the x/time coordinates
             *args = the data (or components), it needs be given in order of
-                data1, data1_error, data2, data2_error, etc...
+                data1, data1error, data2, data2error, etc...
     """ 
-    def  __init__(self, nodes, weight, means, jitters, time, *args):
-        #node functions; f(x) in Wilson et al. (2012)
-        self.nodes = np.array(nodes)
-        #weight function; w(x) in Wilson et al. (2012)
-        self.weight = weight
-        #mean functions
-        self.means = np.array(means)
-        #jitters
-        self.jitters = np.array(jitters)
-        #time
+    def  __init__(self, num_nodes, time, *args):
+        #number of node functions; f(x) in Wilson et al. (2012)
+        self.num_nodes = num_nodes
+        self.q = num_nodes
+        #array of the time
         self.time = time 
-        #the data, it should be given as data1, data1_error, data2, ...
+        #number of observations, N in Wilson et al. (2012)
+        self.N = self.time.size
+        #the data, it should be given as data1, data1error, data2, ...
         self.args = args 
         
-        #number of nodes being used; q in Wilson et al. (2012)
-        self.q = len(self.nodes)
         #number of outputs y(x); p in Wilson et al. (2012)
         self.p = int(len(self.args)/2)
         #total number of weights, we will have q*p weights in total
         self.qp =  self.q * self.p
-        #number of observations, N in Wilson et al. (2012)
-        self.N = self.time.size
         
         #to organize the data we now join everything
         self.tt = np.tile(time, self.p) #"extended" time because why not?
@@ -58,43 +46,12 @@ class inference(object):
                 yerrs.append(j)
         self.y = np.array(ys).reshape(self.p, self.N) #matrix p*N of outputs
         self.yerr = np.array(yerrs).reshape(self.p, self.N) #matrix p*N of errors
-
         #check if the input was correct
-        assert self.means.size == self.p, \
-        'The numbers of means should be equal to the number of components'
-        assert (i+1)/2 == self.p, \
+        assert int((i+1)/2) == self.p, \
         'Given data and number of components dont match'
-
-
-##### mean functions definition ################################################
-    @property
-    def mean_pars_size(self):
-        return self._mean_pars_size
-
-    @mean_pars_size.getter
-    def mean_pars_size(self):
-        self._mean_pars_size = 0
-        for m in self.means:
-            if m is None: self._mean_pars_size += 0
-            else: self._mean_pars_size += m._parsize
-        return self._mean_pars_size
-
-    @property
-    def mean_pars(self):
-        return self._mean_pars
-
-    @mean_pars.setter
-    def mean_pars(self, pars):
-        pars = list(pars)
-        assert len(pars) == self.mean_pars_size
-        self._mean_pars = copy(pars)
-        for _, m in enumerate(self.means):
-            if m is None: 
-                continue
-            j = 0
-            for j in range(m._parsize):
-                m.pars[j] = pars.pop(0)
-
+        
+        
+##### mean functions definition ###############################################
     def _mean(self, means, time=None):
         """
             Returns the values of the mean functions
@@ -117,8 +74,8 @@ class inference(object):
                 else:
                     m[i*N : (i+1)*N] = meanfun(time)
         return m
-
-
+    
+    
 ##### To create matrices and samples ###########################################
     def _kernelMatrix(self, kernel, time = None):
         """
@@ -140,9 +97,6 @@ class inference(object):
         """
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time, self.time[None, :])
-#        if isinstance(kernel, covWN):
-#            print(kernel.pars[0])
-#            K = kernel.pars[0]**2*np.ones_like(self.time) 
         else:
             if time.size == 1:
                 r = time - self.time[None, :]
@@ -265,9 +219,9 @@ class inference(object):
                 finally:
                     n += 1
             raise LinAlgError("Still not positive definite, even with nugget.")
-
-
-##### Mean-Field Inference functions ###########################################
+            
+            
+##### Mean-Field Inference functions ##########################################
     def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
                                iterations = 1000, prints = False, plots = False):
         """
@@ -422,7 +376,6 @@ class inference(object):
 #        for i in range(self.p):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
         error_term = 1
-#        #print(error_term)
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
@@ -678,49 +631,3 @@ class inference(object):
         print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
-
-##### OUTDATED
-#    def Predict(self, nodes, weights, means, jitters, tstar, muF, muW):
-#        """
-#            Prediction for mean-field inference
-#            Parameters:
-#                nodes = array of node functions 
-#                weight = weight function
-#                means = array with the mean functions
-#                jitters = jitters array
-#                tstar = predictions time
-#                muF = array with the initial means for each node
-#                varF = array with the initial variance for each node
-#                muW = array with the initial means for each weight
-#            Returns:
-#                ystar = predicted means
-#        """
-#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-#        invKf = np.array([inv(i) for i in Kf])
-#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
-#        invKw = np.array([inv(j) for j in Kw])
-#
-#        #mean functions
-#        means = self._mean(means, tstar)
-#        means = np.array_split(means, self.p)
-#
-#        ystar = []
-#        for n in range(tstar.size):
-#            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
-#            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
-#            Efstar, Ewstar = 0, 0
-#            for j in range(self.q):
-##                print(Kfstar.shape, invKf.shape, muF.shape)
-#                Efstar += Kfstar[j,:,:] @(invKf[j,:,:] @muF[:,j,:].T) 
-#                for i in range(self.p):
-#                    Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
-#            ystar.append(Ewstar * Efstar)
-#        ystar = np.array(ystar).reshape(tstar.size) #final mean
-#
-##        ystar += self._mean(means, tstar) #adding the mean function
-#
-#        combined_ystar = []
-#        for i in range(self.p):
-#            combined_ystar.append(ystar + means[i])
-#        combined_ystar = np.array(combined_ystar)
-#        return combined_ystar

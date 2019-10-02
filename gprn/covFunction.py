@@ -87,6 +87,7 @@ class Constant(covFunction):
     """
     def __init__(self, c, wn):
         super(Constant, self).__init__(c, wn)
+        self.tag = 'C'
         self.c = c
         self.wn = wn
         self.type = 'non-stationary and anisotropic'
@@ -137,6 +138,7 @@ class WhiteNoise(covFunction):
     """
     def __init__(self, wn):
         super(WhiteNoise, self).__init__(wn)
+        self.tag = 'WN'
         self.wn = wn
         self.type = 'stationary'
         self.derivatives = 1    #number of derivatives in this kernel
@@ -174,6 +176,7 @@ class SquaredExponential(covFunction):
     """
     def __init__(self, theta, ell, wn):
         super(SquaredExponential, self).__init__(theta, ell, wn)
+        self.tag = 'SE'
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -243,6 +246,7 @@ class Periodic(covFunction):
     """
     def __init__(self, theta, ell, P, wn):
         super(Periodic, self).__init__(theta, ell, P, wn)
+        self.tag = 'P'
         self.theta = theta
         self.ell = ell
         self.P = P
@@ -337,6 +341,7 @@ class QuasiPeriodic(covFunction):
     """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(QuasiPeriodic, self).__init__(theta, ell_e, P, ell_p, wn)
+        self.tag = 'QP'
         self.theta = theta
         self.ell_e = ell_e
         self.P = P
@@ -454,6 +459,7 @@ class RationalQuadratic(covFunction):
     """
     def __init__(self, theta, alpha, ell, wn):
         super(RationalQuadratic, self).__init__(theta, alpha, ell, wn)
+        self.tag = 'RQ'
         self.theta = theta
         self.alpha = alpha
         self.ell = ell
@@ -550,6 +556,7 @@ class RQP(covFunction):
     """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(RQP, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
+        self.tag = 'RQP'
         self.theta = theta
         self.alpha = alpha
         self.ell_e = ell_e
@@ -691,6 +698,7 @@ class Cosine(covFunction):
     """
     def __init__(self, theta, P, wn):
         super(Cosine, self).__init__(theta, P, wn)
+        self.tag = 'COS'
         self.theta = theta
         self.P = P
         self.wn = wn
@@ -759,6 +767,7 @@ class Laplacian(covFunction):
     """
     def __init__(self, theta, ell, wn):
         super(Laplacian, self).__init__(theta, ell, wn)
+        self.tag = 'LAP'
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -827,6 +836,7 @@ class Exponential(covFunction):
     """
     def __init__(self, theta, ell, wn):
         super(Exponential, self).__init__(theta, ell, wn)
+        self.tag = 'EXP'
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -896,6 +906,7 @@ class Matern32(covFunction):
     """
     def __init__(self, theta, ell, wn):
         super(Matern32, self).__init__(theta, ell, wn)
+        self.tag = 'M32'
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -970,6 +981,7 @@ class Matern52(covFunction):
     """
     def __init__(self, theta, ell, wn):
         super(Matern52, self).__init__(theta, ell, wn)
+        self.tag = 'M52'
         self.theta = theta
         self.ell = ell
         self.wn = wn
@@ -1048,6 +1060,7 @@ class Linear(covFunction):
     """
     def __init__(self, theta, c, wn):
         super(Linear, self).__init__(theta, c, wn)
+        self.tag = 'LIN'
         self.theta = theta
         self.c = c
         self.wn = wn
@@ -1116,6 +1129,7 @@ class GammaExp(covFunction):
     """
     def __init__(self, theta, gamma, ell, wn):
         super(GammaExp, self).__init__(theta, gamma, ell, wn)
+        self.tag = 'GEXP'
         self.theta = theta
         self.gamma = gamma
         self.ell = ell
@@ -1205,6 +1219,7 @@ class Polynomial(covFunction):
     """
     def __init__(self, theta, a, b, c, wn):
         super(Polynomial, self).__init__(theta, a, b, c, wn)
+        self.tag = 'POLY'
         self.theta = theta
         self.a = a
         self.b = b
