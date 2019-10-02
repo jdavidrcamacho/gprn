@@ -140,8 +140,6 @@ class inference(object):
         """
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time, self.time[None, :])
-        if isinstance(kernel, covWN):
-            K = 0*np.ones_like(self.time) 
         else:
             if time.size == 1:
                 r = time - self.time[None, :]
@@ -300,7 +298,7 @@ class inference(object):
 #        var = np.random.rand(D,1);
 #        muF, muW = self._fhat_and_w(mu)
 #        varF, varW = self._fhat_and_w(var)
-        
+#        
         iterNumber = 0
         ELB = [0]
         if plots:
@@ -347,7 +345,7 @@ class inference(object):
                           + '; algorithm stopped at iteration ' \
                           +str(iterNumber) +'\n')
                 if plots:
-                    self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
+                    self._plots(ELB[1:], ELL[0:-1], ELP[0:-1], ENT[0:-1])
                 print(' it took ' +str(iterNumber) + ' iterations')
                 return sum_ELB, muF, muW
             iterNumber += 1
@@ -396,7 +394,6 @@ class inference(object):
                     Wstar[p, q] = alphaLw.T @ (inv(np.squeeze(Lw[0])) @ muW[p][q].T)
                     idx_w += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
-                    
         combined_ystar = []
         for i in range(self.p):
             combined_ystar.append(ystar[i] + means[i])
@@ -427,11 +424,11 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array_split(new_y, self.p)
         
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-        for i in range(self.p):
-            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = error_term
-        #print(error_term)
+#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+#        for i in range(self.p):
+#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+        error_term = 1
+#        #print(error_term)
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
@@ -536,11 +533,11 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
         
-        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-        for i in range(self.p):
-            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = error_term
-#        error_term = 1
+#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
+#        for i in range(self.p):
+#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
+#        error_term = error_term
+        error_term = 1
 
         if self.q == 1:
             Wblk = np.array([])
@@ -688,4 +685,48 @@ class inference(object):
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
 
-
+##### OUTDATED
+#    def Predict(self, nodes, weights, means, jitters, tstar, muF, muW):
+#        """
+#            Prediction for mean-field inference
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                means = array with the mean functions
+#                jitters = jitters array
+#                tstar = predictions time
+#                muF = array with the initial means for each node
+#                varF = array with the initial variance for each node
+#                muW = array with the initial means for each weight
+#            Returns:
+#                ystar = predicted means
+#        """
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        invKf = np.array([inv(i) for i in Kf])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+#        invKw = np.array([inv(j) for j in Kw])
+#
+#        #mean functions
+#        means = self._mean(means, tstar)
+#        means = np.array_split(means, self.p)
+#
+#        ystar = []
+#        for n in range(tstar.size):
+#            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+#            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+#            Efstar, Ewstar = 0, 0
+#            for j in range(self.q):
+##                print(Kfstar.shape, invKf.shape, muF.shape)
+#                Efstar += Kfstar[j,:,:] @(invKf[j,:,:] @muF[:,j,:].T) 
+#                for i in range(self.p):
+#                    Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
+#            ystar.append(Ewstar * Efstar)
+#        ystar = np.array(ystar).reshape(tstar.size) #final mean
+#
+##        ystar += self._mean(means, tstar) #adding the mean function
+#
+#        combined_ystar = []
+#        for i in range(self.p):
+#            combined_ystar.append(ystar + means[i])
+#        combined_ystar = np.array(combined_ystar)
+#        return combined_ystar

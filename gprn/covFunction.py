@@ -143,7 +143,10 @@ class WhiteNoise(covFunction):
         self.params_size = 1    #number of hyperparameters
 
     def __call__(self, r):
-        return self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        if r[0,:].shape == r[:,0].shape:
+            return self.wn**2 * np.diag(np.diag(np.ones_like(r)))
+        else:
+            return self.wn**2 * np.ones_like(r)
 
 class dWhiteNoise_dwn(WhiteNoise):
     """
