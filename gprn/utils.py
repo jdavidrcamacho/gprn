@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import  numpy as np
 
-##### Semi amplitude calculation ###############################################
+##### Semi amplitude calculation ##############################################
 def semi_amplitude(period, Mplanet, Mstar, ecc):
     """
         Calculates the semi-amplitude (K) caused by a planet with a given
@@ -23,7 +23,7 @@ def semi_amplitude(period, Mplanet, Mstar, ecc):
     return 28.435 * per * Pmass* Smass * Ecc
 
 
-##### Keplerian function #######################################################
+##### Keplerian function ######################################################
 def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
     """
         keplerian() simulates the radial velocity signal of a planet in a 
@@ -74,7 +74,7 @@ def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
     return t, RV
 
 
-##### Phase-folding function ###################################################
+##### Phase-folding function ##################################################
 def phase_folding(t, y, yerr, period):
     """
         phase_folding() allows the phase folding (duh...) of a given data
@@ -102,16 +102,15 @@ def phase_folding(t, y, yerr, period):
     return phase, folded_y, folded_yerr
 
 
-##### MCMC with dynesty or emcee ###############################################
+##### MCMC with dynesty or emcee ##############################################
 import dynesty, emcee
 from multiprocessing import Pool
-
-def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
+def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     """
         run_mcmc() allow the user to run emcee or dynesty automatically
         Parameters:
             prior_func = function that return an array with the priors
-            loglike_func = function that calculates the log-likelihood 
+            elbo_func = function that calculates the ELBO 
             iterations = number of iterations; in emcee half of it will be used
                         as burn-in
             sampler = 'emcee' or 'dynesty'
@@ -124,7 +123,7 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         #defining emcee properties
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
-                                        loglike_func, threads= 4)
+                                        elbo_func, threads= 4)
         
         #Initialize the walkers
         p0=[prior_func() for i in range(nwalkers)]
@@ -144,13 +143,43 @@ def run_mcmc(prior_func, loglike_func, iterations = 1000, sampler = 'emcee'):
         #results = samples
     if sampler == 'dynesty':
         ndim = prior_func(0).size
-        dsampler = dynesty.DynamicNestedSampler(loglike_func, prior_func, ndim=ndim, 
+        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
                                         nlive = 5, sample='rwalk',
                                         queue_size=4, pool=Pool(4))
         print("Running dynesty...")
         dsampler.run_nested(nlive_init = 20, maxiter = iterations)
         results = dsampler.results
     return results
+
+
+##### scipy minimization ######################################################
+from scipy.optimize import minimize
+def run_minimization(elbo_func, init_x, constraints, iterations=1000):
+    """
+        run_mcmc() allow the user to run the COBYLA minimization method
+        Parameters:
+            elbo_func = function that calculates the ELBO 
+            init_x = initial values
+            constraints = constraints for ‘trust-constr’ 
+            iterations = number of iterations;
+    """
+    #defining the constraints
+    cons = []
+    for factor in range(len(constraints)):
+        lower, upper = constraints[factor]
+        l = {'type': 'ineq',
+             'fun': lambda x, lb=lower, i=factor: x[i] - lb}
+        u = {'type': 'ineq',
+             'fun': lambda x, ub=upper, i=factor: ub - x[i]}
+        cons.append(l)
+        cons.append(u)
+    #initial values of the parameters
+    x0 = np.array(init_x)
+    #running minimization
+    res = minimize(elbo_func, x0, constraints=cons, method='COBYLA',
+               options={'disp': True, 'maxiter': iterations})
+    return res
+
 
 
 ### END

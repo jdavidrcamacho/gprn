@@ -184,10 +184,10 @@ class inference(object):
         w = u[self.q * time.size:].reshape((self.p, self.q, time.size))
         return fhat, w
 
-    def get_y(self, n, w, time, means = None):
+    def get_y(self, n, w, means = None):
         # obscure way to do it
-        y = np.einsum('ij...,jk...->ik...', w, n).reshape(self.p, time.size)
-        y = (y + self._mean(means, time)) if means else time
+        y = np.einsum('ij...,jk...->ik...', w, n).reshape(self.p, self.time.size)
+        y = (y + self._mean(means, self.time)) if means else y
         return y
 
     def _cholNugget(self, matrix, maximum=10):
@@ -222,8 +222,8 @@ class inference(object):
             
             
 ##### Mean-Field Inference functions ##########################################
-    def EvidenceLowerBound(self, nodes, weight, means, jitters, time, 
-                               iterations = 1000, prints = False, plots = False):
+    def EvidenceLowerBound(self, nodes, weight, means, jitters, 
+                           iterations = 1000, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -253,8 +253,9 @@ class inference(object):
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(nodes, weight, 
-                                                               means, jitters, time,
-                                                               muF, varF, muW, varW)
+                                                               means, jitters, 
+                                                               muF, varF, 
+                                                               muW, varW)
             muF = muF.reshape(1, self.q, self.N) #new mean for the nodes
             varF =  []
             for i in range(self.q):
@@ -266,7 +267,7 @@ class inference(object):
                 for i in range(self.p):
                     varW.append(np.diag(sigmaW[j, i, :]))
             varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
-
+            
             #Entropy
             Entropy = self._entropy(sigmaF, sigmaW)
             #Expected log prior
@@ -322,11 +323,11 @@ class inference(object):
         Lf = np.array([self._cholNugget(i)[0] for i in Kf])
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
         Lw = np.array([self._cholNugget(j)[0] for j in Kw])
-
+        
         #mean functions
         means = self._mean(means, tstar)
         means = np.array_split(means, self.p)
-
+        
         ystar = np.zeros((self.p, tstar.size))
         for i in range(tstar.size):
             Kf_s = np.array([self._predictKernelMatrix(i1, tstar[i]) for i1 in nodes])
@@ -349,7 +350,7 @@ class inference(object):
         return combined_ystar
 
 
-    def _updateSigmaMu(self, nodes, weight, means, jitters, time,
+    def _updateSigmaMu(self, nodes, weight, means, jitters, 
                            muF, varF, muW, varW):
         """
             Efficient closed-form updates fot variational parameters. This
@@ -378,9 +379,9 @@ class inference(object):
         error_term = 1
         
         #kernel matrix for the nodes
-        Kf = np.array([self._kernelMatrix(i, time) for i in nodes])
+        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         #kernel matrix for the weights
-        Kw = np.array([self._kernelMatrix(j, time) for j in weight]) 
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weight]) 
 
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         if self.q == 1:
