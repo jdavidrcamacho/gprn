@@ -103,8 +103,6 @@ def phase_folding(t, y, yerr, period):
 
 
 ##### MCMC with dynesty or emcee ##############################################
-import dynesty, emcee
-from multiprocessing import Pool
 def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     """
         run_mcmc() allow the user to run emcee or dynesty automatically
@@ -117,6 +115,8 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         Returns:
             result = return the sampler's results accordingly to the sampler
     """
+    import dynesty, emcee
+    from multiprocessing import Pool
     if sampler == 'emcee':
         ndim = prior_func().size
         burns, runs = int(iterations/2), int(iterations/2)
@@ -153,7 +153,6 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
 
 
 ##### scipy minimization ######################################################
-from scipy.optimize import minimize
 def run_minimization(elbo_func, init_x, constraints, iterations=1000):
     """
         run_mcmc() allow the user to run the COBYLA minimization method
@@ -163,6 +162,7 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
             constraints = constraints for ‘trust-constr’ 
             iterations = number of iterations;
     """
+    from scipy.optimize import minimize
     #defining the constraints
     cons = []
     for factor in range(len(constraints)):
@@ -181,5 +181,39 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
     return res
 
 
+# ##### One function to run them all ###########################################
+#def runThemAll(num_nodes, time, val1, val1err, val2, val2err,
+#               nodes, weights, jitter, iterations, x0):
+#    from gprn.mf import inference
+#    #Our GPRN object
+#    GPRN = inference(num_nodes, time, val1, val1err, val2, val2err)
+#    
+#    nodeParsSize = []
+#    for i in range(num_nodes):
+#        nodeParsSize.append(len(nodes[i].pars))
+#    weightParsSize = [len(weights[0].pars)]
+#    
+#    def ELBO(x):
+#        #x <- parameters to optimize
+#        z = 0
+#        for i in range(num_nodes):
+#            for j in range(nodeParsSize[i]):
+#                nodes[i].pars[j] = x
+#                
+#                
+#        nodes = [SquaredExponential(1,ell1,j1)]
+#     #   nodes = [WhiteNoise(j1)]
+#        weight = [SquaredExponential(1,ell2, j2)]
+#        means = [Constant(m1), Constant(m2)]
+#        jitter = [1]
+#            
+#        ELB, _, _ = GPRN.EvidenceLowerBound(nodes, weight, means, jitter, 
+#                                            iterations = 50000,
+#                                            prints = False, plots = False)
+#        return -ELB
+#
+#    
+#    
+#    return GPRN
 
 ### END

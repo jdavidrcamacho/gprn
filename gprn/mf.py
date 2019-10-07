@@ -222,7 +222,7 @@ class inference(object):
             
             
 ##### Mean-Field Inference functions ##########################################
-    def EvidenceLowerBound(self, nodes, weight, means, jitters, 
+    def EvidenceLowerBound(self, nodes, weight, means, jitter, 
                            iterations = 1000, prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
@@ -230,7 +230,7 @@ class inference(object):
                 nodes = array of node functions 
                 weight = weight function
                 means = array with the mean functions
-                jitters = jitters array
+                jitter = jitter value
                 time = time array
                 iterations = number of iterations
                 prints = True to print ELB value at each iteration
@@ -253,7 +253,7 @@ class inference(object):
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(nodes, weight, 
-                                                               means, jitters, 
+                                                               means, jitter, 
                                                                muF, varF, 
                                                                muW, varW)
             muF = muF.reshape(1, self.q, self.N) #new mean for the nodes
@@ -274,7 +274,7 @@ class inference(object):
             ExpLogPrior = self._expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
-            ExpLogLike = self._expectedLogLike(nodes, weight, means, jitters,
+            ExpLogLike = self._expectedLogLike(nodes, weight, means, jitter,
                                                    sigmaF, muF, sigmaW, muW)
             if plots:
                 ELL.append(ExpLogLike)
@@ -295,23 +295,22 @@ class inference(object):
                           +str(iterNumber) +'\n')
                 if plots:
                     self._plots(ELB[1:], ELL[0:-1], ELP[0:-1], ENT[0:-1])
-                print(' it took ' +str(iterNumber) + ' iterations')
+                print('Convergence took ' +str(iterNumber) + ' iterations')
                 return sum_ELB, muF, muW
             iterNumber += 1
         if plots:
             self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
-        print(' it took ' +str(iterNumber) + ' iterations')
+        print('Convergence took ' +str(iterNumber) + ' iterations')
         return sum_ELB, muF, muW
 
 
-    def Prediction(self, nodes, weights, means, jitters, tstar, muF, muW):
+    def Prediction(self, nodes, weights, means, tstar, muF, muW):
         """
             Prediction for mean-field inference
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
                 means = array with the mean functions
-                jitters = jitters array
                 tstar = predictions time
                 muF = array with the initial means for each node
                 varF = array with the initial variance for each node
@@ -350,7 +349,7 @@ class inference(object):
         return combined_ystar
 
 
-    def _updateSigmaMu(self, nodes, weight, means, jitters, 
+    def _updateSigmaMu(self, nodes, weight, means, jitter, 
                            muF, varF, muW, varW):
         """
             Efficient closed-form updates fot variational parameters. This
@@ -376,7 +375,7 @@ class inference(object):
 #        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
 #        for i in range(self.p):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = 1
+        error_term = np.array(jitter)**2
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
@@ -462,7 +461,7 @@ class inference(object):
         return sigma_f, mu_f, sigma_w, mu_w
 
 
-    def _expectedLogLike(self, nodes, weight, means, jitters, 
+    def _expectedLogLike(self, nodes, weight, means, jitter, 
                              sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
@@ -485,7 +484,7 @@ class inference(object):
 #        for i in range(self.p):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
 #        error_term = error_term
-        error_term = 1
+        error_term = np.array(jitter)**2
 
         if self.q == 1:
             Wblk = np.array([])
