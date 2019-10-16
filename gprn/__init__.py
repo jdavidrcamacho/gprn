@@ -8,8 +8,8 @@
 from gprn import covFunction
 #mean functions
 from gprn import meanFunction
-#old mean-field inference
-from gprn import mfi 
+##old mean-field inference
+#from gprn import mfi 
 #new mean-field inference
 from gprn import mf 
 #nonparametric variational inference

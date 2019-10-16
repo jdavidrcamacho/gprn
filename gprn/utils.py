@@ -109,8 +109,9 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         Parameters:
             prior_func = function that return an array with the priors
             elbo_func = function that calculates the ELBO 
-            iterations = number of iterations; in emcee half of it will be used
-                        as burn-in
+            iterations = number of iterations; in emcee the same number of 
+                        iterations will be used as mcmc burn-in followed by the 
+                        same number of iterations as mcmc run
             sampler = 'emcee' or 'dynesty'
         Returns:
             result = return the sampler's results accordingly to the sampler
@@ -119,7 +120,7 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     from multiprocessing import Pool
     if sampler == 'emcee':
         ndim = prior_func().size
-        burns, runs = int(iterations/2), int(iterations/2)
+        burns, runs = int(iterations), int(iterations)
         #defining emcee properties
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
@@ -130,13 +131,15 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         #running burns and runs
         print("Running burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
-        print("Running production chain...")
+        print("\nRunning production chain...")
+        sampler.reset()
         sampler.run_mcmc(p0, runs)
+        
         #preparing samples to return
-        samples = sampler.chain[:, burns:, :].reshape((-1, ndim))
+        samples = sampler.chain[:, :, :].reshape((-1, ndim))
         #print('samples old=',sampler.chain[:, burns:, :].shape,
         #        'samples new=', samples.shape)
-        lnprob = sampler.lnprobability[:, burns:].reshape(nwalkers*burns, 1)
+        lnprob = sampler.lnprobability[:, :].reshape(nwalkers*runs, 1)
         #print('lnprob old=',sampler.lnprobability[:, burns:].shape,
         #                        'lnprob new=', lnprob.shape)
         results = np.vstack([samples.T,np.array(lnprob).T]).T

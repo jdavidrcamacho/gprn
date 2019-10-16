@@ -288,9 +288,9 @@ class inference(object):
                 self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
             criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
-            if criteria < 1e-5 and criteria != 0 :
+            if criteria < 1e-3 and criteria != 0 :
                 if prints:
-                    print('\nELB converged to ' +str(sum_ELB) \
+                    print('\nELB converged to ' +str(float(sum_ELB)) \
                           + '; algorithm stopped at iteration ' \
                           +str(iterNumber) +'\n')
                 if plots:
@@ -627,7 +627,7 @@ class inference(object):
             Prints the evidence lower bound, expected log likelihood, expected
         log prior, and entropy
         """
-        print('ELB: ' + str(sum_ELB))
-        print(' loglike: ' + str(ExpLogLike) + ' \n logprior: ' \
+        print('ELB: ' + str(float(sum_ELB)))
+        print(' loglike: ' + str(float(ExpLogLike)) + ' \n logprior: ' \
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
