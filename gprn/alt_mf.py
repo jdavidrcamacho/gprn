@@ -347,7 +347,8 @@ class inference(object):
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
         combined_ystar = []
         for i in range(self.p):
-            combined_ystar.append(ystar[i]*self.ystd[i] + means[i])
+            combined_ystar.append(ystar[i] + means[i])
+#            combined_ystar.append(ystar[i]*self.ystd[i] + means[i]) #this is new
         combined_ystar = np.array(combined_ystar)
         return combined_ystar
 
@@ -382,7 +383,7 @@ class inference(object):
 #        for i in range(self.p):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
         error_term = np.sqrt(np.sum(np.array(jitter)**2))
-#        error_term = np.array(jitter**2)
+#        error_term = np.array(jitter)**2
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
@@ -396,7 +397,7 @@ class inference(object):
                 Diag_fj, tmp = 0, 0
                 for i in range(self.p):
                     Diag_fj += muW[i, j, :] * muW[i, j, :] + varW[i, j, :]
-                    Sum_nj = np.zeros(self.N)
+                    Sum_nj = np.zeros(self.N) 
                     for k in range(self.q):
                         if k != j:
                             muF = muF.T.reshape(1, self.q, self.N )
@@ -434,7 +435,7 @@ class inference(object):
                 Diag_fj, tmp = 0, 0
                 for i in range(self.p):
                     Diag_fj += muW[j, i, :] * muW[j, i, :] + varW[j, i, :]
-                    Sum_nj = np.zeros(self.N)
+                    Sum_nj = np.zeros(self.N) 
                     for k in range(self.q):
                         if k != j:
                             Sum_nj += muW[k, i, :] * muF[k,:].reshape(self.N)
@@ -495,7 +496,7 @@ class inference(object):
 #            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
 #        error_term = error_term
         error_term = np.sqrt(np.sum(np.array(jitter)**2))
- #       error_term = np.array(jitter**2)
+#        error_term = np.array(jitter)**2
         
         if self.q == 1:
             Wblk = np.array([])
