@@ -137,13 +137,8 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         
         #preparing samples to return
         samples = sampler.chain[:, :, :].reshape((-1, ndim))
-        #print('samples old=',sampler.chain[:, burns:, :].shape,
-        #        'samples new=', samples.shape)
         lnprob = sampler.lnprobability[:, :].reshape(nwalkers*runs, 1)
-        #print('lnprob old=',sampler.lnprobability[:, burns:].shape,
-        #                        'lnprob new=', lnprob.shape)
         results = np.vstack([samples.T,np.array(lnprob).T]).T
-        #results = samples
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 

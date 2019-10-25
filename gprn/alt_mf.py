@@ -49,6 +49,7 @@ class inference(object):
         self.ystd = np.array(ystd).reshape(self.p, 1)
         self.y = np.array(ys).reshape(self.p, self.N) #matrix p*N of outputs
         self.yerr = np.array(yerrs).reshape(self.p, self.N) #matrix p*N of errors
+        self.yerr2 = self.yerr**2
         #check if the input was correct
         assert int((i+1)/2) == self.p, \
         'Given data and number of components dont match'
@@ -221,19 +222,18 @@ class inference(object):
                     nugget *= 10.0
                 finally:
                     n += 1
-            raise LinAlgError("Still not positive definite, even with nugget.")
+            raise LinAlgError("Not positive definite, even with nugget.")
             
             
 ##### Mean-Field Inference functions ##########################################
-    def EvidenceLowerBound(self, nodes, weight, means, jitter, 
-                           iterations = 1000, prints = False, plots = False):
+    def EvidenceLowerBound(self, nodes, weight, means, iterations = 1000, 
+                           prints = False, plots = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
                 means = array with the mean functions
-                jitter = jitter value
                 time = time array
                 iterations = number of iterations
                 prints = True to print ELB value at each iteration
@@ -256,20 +256,23 @@ class inference(object):
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(nodes, weight, 
-                                                               means, jitter, 
-                                                               muF, varF, 
-                                                               muW, varW)
-            muF = muF.reshape(1, self.q, self.N) #new mean for the nodes
+                                                           means, muF, varF, 
+                                                           muW, varW)
+            #new mean for the nodes
+            muF = muF.reshape(1, self.q, self.N)
             varF =  []
             for i in range(self.q):
                 varF.append(np.diag(sigmaF[i]))
-            varF = np.array(varF).reshape(1, self.q, self.N) #new variance for the nodes
-            muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
+            #new variance for the nodes
+            varF = np.array(varF).reshape(1, self.q, self.N)
+            #new mean for the weights
+            muW = muW.reshape(self.p, self.q, self.N)
             varW =  []
             for j in range(self.q):
                 for i in range(self.p):
                     varW.append(np.diag(sigmaW[j, i, :]))
-            varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
+            #new variance for the weights
+            varW = np.array(varW).reshape(self.p, self.q, self.N)
             
             #Entropy
             Entropy = self._entropy(sigmaF, sigmaW)
@@ -277,8 +280,8 @@ class inference(object):
             ExpLogPrior = self._expectedLogPrior(nodes, weight, 
                                                 sigmaF, muF,  sigmaW, muW)
             #Expected log-likelihood
-            ExpLogLike = self._expectedLogLike(nodes, weight, means, jitter,
-                                                   sigmaF, muF, sigmaW, muW)
+            ExpLogLike = self._expectedLogLike(nodes, weight, means, sigmaF, 
+                                               muF, sigmaW, muW)
             if plots:
                 ELL.append(ExpLogLike)
                 ELP.append(ExpLogPrior)
@@ -293,7 +296,7 @@ class inference(object):
             criteria = np.abs(np.mean(ELB[-5:]) - sum_ELB)
             if criteria < 1e-3 and criteria != 0 :
                 if prints:
-                    print('\nELB converged to ' +str(float(sum_ELB)) \
+                    print('\nELBO converged to ' +str(float(sum_ELB)) \
                           + '; algorithm stopped at iteration ' \
                           +str(iterNumber) +'\n')
                 if plots:
@@ -339,29 +342,27 @@ class inference(object):
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
                 alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:]).T
-                fstar[q] = alphaLf @ (inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
+                fstar[q] = alphaLf@(inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
                 idx_f += self.N
                 for p in range(self.p):
-                    Wstar[p, q] = alphaLw.T @ (inv(np.squeeze(Lw[0])) @ muW[p][q].T)
+                    Wstar[p, q] = alphaLw.T@(inv(np.squeeze(Lw[0]))@muW[p][q].T)
                     idx_w += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
         combined_ystar = []
         for i in range(self.p):
+            #combined_ystar.append(ystar[i]*self.ystd[i] + means[i])
             combined_ystar.append(ystar[i] + means[i])
-#            combined_ystar.append(ystar[i]*self.ystd[i] + means[i]) #this is new
         combined_ystar = np.array(combined_ystar)
         return combined_ystar
 
 
-    def _updateSigmaMu(self, nodes, weight, means, jitter, 
-                           muF, varF, muW, varW):
+    def _updateSigmaMu(self, nodes, weight, means, muF, varF, muW, varW):
         """
             Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013) 
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
-                jitters = jitters array
                 time = array containing the time
                 muF = array with the initial means for each node
                 varF = array with the initial variance for each node
@@ -375,15 +376,9 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(means)
         new_y = np.array(np.array_split(new_y, self.p))
-#        #To standardize the ys
+        #To standardize the ys
 #        for i in range(self.p):
 #            new_y[i,:] = new_y[i,:]/self.ystd[i]
-            
-#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-#        for i in range(self.p):
-#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-        error_term = np.sqrt(np.sum(np.array(jitter)**2))
-#        error_term = np.array(jitter)**2
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
@@ -396,18 +391,17 @@ class inference(object):
             for j in range(self.q):
                 Diag_fj, tmp = 0, 0
                 for i in range(self.p):
-                    Diag_fj += muW[i, j, :] * muW[i, j, :] + varW[i, j, :]
-                    Sum_nj = np.zeros(self.N) 
+                    Diag_fj += (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])/self.yerr2[i,:]
+                    Sum_nj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
                             muF = muF.T.reshape(1, self.q, self.N )
-                            Sum_nj += muW[i, k, :] * muF[:, k,:].reshape(self.N)
-                    tmp += (new_y[i][:] - Sum_nj) * muW[i, j, :]
-                CovF = np.diag(error_term / Diag_fj) + Kf[j]
-                #print(CovF)
+                            Sum_nj += muW[i,k,:]*muF[:,k,:].reshape(self.N)
+                    tmp += ((new_y[i,:]-Sum_nj)*muW[i,j,:]) / self.yerr2[i,:]
+                CovF = np.diag(1/ Diag_fj) + Kf[j]
                 CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
                 sigma_f.append(CovF)
-                mu_f.append(CovF @ tmp / error_term)
+                mu_f.append(CovF @ tmp)
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
             sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
@@ -415,17 +409,17 @@ class inference(object):
                 for j in range(self.q):
                     mu_fj = mu_f[j]
                     var_fj = np.diag(sigma_f[j])
-                    Diag_ij = mu_fj * mu_fj + var_fj
+                    Diag_ij = (mu_fj * mu_fj + var_fj) / self.yerr2[i,:]
                     Kw = np.squeeze(Kw)
-                    CovWij = np.diag(error_term / Diag_ij) + Kw
+                    CovWij = np.diag(1 / Diag_ij) + Kw
                     CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
                     Sum_nj = 0
                     for k in range(self.q):
                         if k != j:
-                            Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[i, k, :])
-                    tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
+                            Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
+                    tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) / self.yerr2[i,:]
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ tmp / error_term)
+                    mu_w.append(CovWij @ tmp)
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         else:
@@ -434,16 +428,16 @@ class inference(object):
             for j in range(self.q):
                 Diag_fj, tmp = 0, 0
                 for i in range(self.p):
-                    Diag_fj += muW[j, i, :] * muW[j, i, :] + varW[j, i, :]
-                    Sum_nj = np.zeros(self.N) 
+                    Diag_fj += (muW[j,i,:]*muW[j,i,:]+varW[j,i,:]) / self.yerr2[i,:]
+                    Sum_nj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
-                            Sum_nj += muW[k, i, :] * muF[k,:].reshape(self.N)
-                    tmp += (new_y[i][:] - Sum_nj) * muW[j, i, :]
-                CovF = np.diag(error_term / Diag_fj) + Kf[j]
+                            Sum_nj += muW[k,i,:]*muF[k,:].reshape(self.N)
+                    tmp += ((new_y[i,:]-Sum_nj)*muW[j,i,:]) / self.yerr2[i,:]
+                CovF = np.diag(1 / Diag_fj) + Kf[j]
                 CovF = Kf[j] - Kf[j] @ (inv(CovF) @ Kf[j])
                 sigma_f.append(CovF)
-                mu_f.append(CovF @ tmp / error_term)
+                mu_f.append(CovF @ tmp )
                 muF = np.array(mu_f)
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
@@ -452,32 +446,30 @@ class inference(object):
                 for i in range(self.p):
                     mu_fj = mu_f[j]
                     var_fj = np.diag(sigma_f[j])
-                    Diag_ij = mu_fj * mu_fj + var_fj
+                    Diag_ij = (mu_fj*mu_fj+var_fj) / self.yerr2[i,:]
                     Kw = np.squeeze(Kw)
-                    CovWij = np.diag(error_term / Diag_ij) + Kw
+                    CovWij = np.diag(1 / Diag_ij) + Kw
                     CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
                     Sum_nj = 0
                     for k in range(self.q):
                         if k != j:
-                            Sum_nj += mu_f[k].reshape(self.N) * np.array(muW[k, i, :])
-                    tmp = (new_y[i][:] - Sum_nj) * mu_f[j,:]
+                            Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[k,i,:])
+                    tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) / self.yerr2[i,:]
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ tmp / error_term)
-                    muW[j,i,:] = np.array(CovWij @ tmp / error_term)
+                    mu_w.append(CovWij @ tmp)
+                    muW[j,i,:] = np.array(CovWij @ tmp)
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
 
 
-    def _expectedLogLike(self, nodes, weight, means, jitter, 
-                             sigma_f, mu_f, sigma_w, mu_w):
+    def _expectedLogLike(self, nodes, weight, means, sigma_f, mu_f, sigma_w, mu_w):
         """
             Calculates the expected log-likelihood in mean-field inference, 
         corresponds to eq.14 in Nguyen & Bonilla (2013)
             Parameters:
                 nodes = array of node functions 
                 weight = weight function
-                jitters = jitters array
                 sigma_f = array with the covariance for each node
                 mu_f = array with the means for each node
                 sigma_w = array with the covariance for each weight
@@ -486,17 +478,11 @@ class inference(object):
                 expected log-likelihood
         """
         new_y = np.concatenate(self.y) - self._mean(means, self.time)
-        new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
+        #NxP dimensional vector
+        new_y = np.array(np.array_split(new_y, self.p)).T
 #        #To standardize the ys
 #        for i in range(self.p):
 #            new_y[i,:] = new_y[i,:]/self.ystd[i]
-        
-#        error_term = np.sqrt(np.sum(np.array(jitters)**2)) / self.p
-#        for i in range(self.p):
-#            error_term += np.sqrt(np.sum(self.yerr[i,:]**2)) / (self.N)
-#        error_term = error_term
-        error_term = np.sqrt(np.sum(np.array(jitter)**2))
-#        error_term = np.array(jitter)**2
         
         if self.q == 1:
             Wblk = np.array([])
@@ -510,16 +496,16 @@ class inference(object):
                         Fblk = np.append(Fblk, mu_f[:, q, n])
             Ymean = Wblk * Fblk
             Ymean = Ymean.reshape(self.N,self.p)
-            Ydiff = (new_y - Ymean) * (new_y - Ymean)
-            logl = -0.5 * np.sum(Ydiff) / error_term
+            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) / self.yerr2.T
+            logl = -0.5 * np.sum(Ydiff)
             
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
-                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[i,j,:] * mu_w[i,j,:]) +\
-                        np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
-                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
-            logl += -0.5* value / error_term
+                    value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+                                    np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))/self.yerr2[i,:])
+            logl += -0.5* value
 
         else:
             Wblk = []
@@ -539,15 +525,15 @@ class inference(object):
             Fblk = np.array(Fblk).reshape(self.p, self.N * self.p)
             Ymean = np.sum((Wblk * Fblk).T, axis=1)
             Ymean = Ymean.reshape(self.N,self.p)
-            Ydiff = (new_y - Ymean) * (new_y - Ymean)
-            logl = -0.5 * np.sum(Ydiff) / error_term
+            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) / self.yerr2.T
+            logl = -0.5 * np.sum(Ydiff)
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
-                    value += np.sum(np.diag(sigma_f[j,:,:]) * mu_w[j,i,:] * mu_w[j,i,:]) +\
-                        np.sum(np.diag(sigma_w[j,i,:,:]) * mu_f[:,j,:] * mu_f[:,j,:]) +\
-                        np.sum(np.diag(sigma_f[j,:,:]) * np.diag(sigma_w[j,i,:,:]))
-            logl += -0.5* value / error_term
+                    value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+                                    np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))/self.yerr2[i,:])
+            logl += -0.5* value
         return logl
 
 
@@ -639,7 +625,7 @@ class inference(object):
             Prints the evidence lower bound, expected log likelihood, expected
         log prior, and entropy
         """
-        print('ELB: ' + str(float(sum_ELB)))
+        print('ELBO: ' + str(float(sum_ELB)))
         print(' loglike: ' + str(float(ExpLogLike)) + ' \n logprior: ' \
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
