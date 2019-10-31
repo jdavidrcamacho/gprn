@@ -149,6 +149,11 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         results = dsampler.results
     return results
 
+def elbo_mcmc():
+    
+    
+    return 0
+
 
 ##### scipy minimization ######################################################
 def run_minimization(elbo_func, init_x, constraints, iterations=1000):
