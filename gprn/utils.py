@@ -150,8 +150,6 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     return results
 
 def elbo_mcmc():
-    
-    
     return 0
 
 
@@ -164,6 +162,8 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
             init_x = initial values
             constraints = constraints for ‘trust-constr’ 
             iterations = number of iterations;
+        Returns:
+            results = return the minimization results 
     """
     from scipy.optimize import minimize
     #defining the constraints
@@ -178,45 +178,36 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
         cons.append(u)
     #initial values of the parameters
     x0 = np.array(init_x)
-    #running minimization
-    res = minimize(elbo_func, x0, constraints=cons, method='COBYLA',
+
+#    #running minimization for the sigma_f
+#    sigma_f = minimize(elbo_func, x0[-1], constraints=cons, method='COBYLA',
+#               options={'disp': True, 'maxiter': iterations})
+#    #running minimization for the hyperparameters
+#    hyperparams = minimize(elbo_func, x0[0:-2], constraints=cons, method='COBYLA',
+#               options={'disp': True, 'maxiter': iterations})
+    
+    #running minimization for the hyperparameters
+    results = minimize(elbo_func, x0, constraints=cons, method='COBYLA',
                options={'disp': True, 'maxiter': iterations})
-    return res
+    
+    return results
 
 
-# ##### One function to run them all ###########################################
-#def runThemAll(num_nodes, time, val1, val1err, val2, val2err,
-#               nodes, weights, jitter, iterations, x0):
-#    from gprn.mf import inference
-#    #Our GPRN object
-#    GPRN = inference(num_nodes, time, val1, val1err, val2, val2err)
-#    
-#    nodeParsSize = []
-#    for i in range(num_nodes):
-#        nodeParsSize.append(len(nodes[i].pars))
-#    weightParsSize = [len(weights[0].pars)]
-#    
-#    def ELBO(x):
-#        #x <- parameters to optimize
-#        z = 0
-#        for i in range(num_nodes):
-#            for j in range(nodeParsSize[i]):
-#                nodes[i].pars[j] = x
-#                
-#                
-#        nodes = [SquaredExponential(1,ell1,j1)]
-#     #   nodes = [WhiteNoise(j1)]
-#        weight = [SquaredExponential(1,ell2, j2)]
-#        means = [Constant(m1), Constant(m2)]
-#        jitter = [1]
-#            
-#        ELB, _, _ = GPRN.EvidenceLowerBound(nodes, weight, means, jitter, 
-#                                            iterations = 50000,
-#                                            prints = False, plots = False)
-#        return -ELB
-#
-#    
-#    
-#    return GPRN
+##### truncated cauchy distribution ###########################################
+def truncCauchy_rvs(loc=0, scale=1, a=-1, b=1, size=None):
+    """
+        Generate random samples from a truncated Cauchy distribution.
+        Parameters:
+            loc = location parameter of the distribution
+            scale = scale parameter of the distribution
+            a, b = interval [a, b] to which the distribution is to be limited
+        Returns:
+            rvs = rvs of the truncated Cauchy
+    """
+    ua = np.arctan((a - loc)/scale)/np.pi + 0.5
+    ub = np.arctan((b - loc)/scale)/np.pi + 0.5
+    U = np.random.uniform(ua, ub, size=size)
+    rvs =  loc + scale * np.tan(np.pi*(U - 0.5))
+    return rvs
 
 ### END

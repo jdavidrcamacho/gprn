@@ -229,7 +229,7 @@ class inference(object):
 ##### Mean-Field Inference functions ##########################################
     def EvidenceLowerBound(self, node, weight, mean, jitter, iterations = 1000, 
                            prints = False, plots = False, standardize=False, 
-                           seed = True):
+                           seed = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -238,12 +238,12 @@ class inference(object):
                 mean = array with the mean functions
                 jitter = array of jitter terms
                 iterations = number of iterations
-                prints = True to print ELB value at each iteration
-                plots = True to plot ELB evolution 
+                prints = True to print ELBO value at each iteration
+                plots = True to plot ELBO evolution 
                 standardize = True to standardize the data
                 seed = True to be able to repeat results
             Returns:
-                sum_ELB = Evidence lower bound
+                sumELBO = Evidence lower bound
                 muF = array with the new means for each node
                 muW = array with the new means for each weight
         """ 
@@ -256,17 +256,10 @@ class inference(object):
         muF, muW = self._fhat_and_w(mu)
         varF, varW = self._fhat_and_w(var)
         
-#        D = self.time.size * self.q *(self.p+1)
-#        np.random.seed(seed)
-#        mu = np.random.rand(D,1);
-#        var = np.random.rand(D,1);
-#        muF, muW = self._fhat_and_w(mu)
-#        varF, varW = self._fhat_and_w(var)
-        
         jitter = np.array(jitter)
         
         iterNumber = 0
-        ELB = [0]
+        ELBO = [0]
         if plots:
             ELP, ELL, ENT = [0], [0], [0]
         while iterNumber < iterations:
@@ -294,7 +287,7 @@ class inference(object):
             Entropy = self._entropy(sigmaF, sigmaW)
             #Expected log prior
             ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                                sigmaF, muF,  sigmaW, muW)
+                                                sigmaF, muF, sigmaW, muW)
             #Expected log-likelihood
             ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                                sigmaF, muF, sigmaW, muW, 
@@ -305,26 +298,26 @@ class inference(object):
                 ENT.append(Entropy)
             
             #Evidence Lower Bound
-            sum_ELB = (ExpLogLike + ExpLogPrior + Entropy)
-            ELB.append(sum_ELB)
+            sumELBO = (ExpLogLike + ExpLogPrior + Entropy)
+            ELBO.append(sumELBO)
             if prints:
-                self._prints(sum_ELB, ExpLogLike, ExpLogPrior, Entropy)
+                self._prints(sumELBO, ExpLogLike, ExpLogPrior, Entropy)
             #Stoping criteria
-            criteria = np.abs(np.mean(ELB[-2:]) - sum_ELB)
+            criteria = np.abs(np.mean(ELBO[-2:]) - sumELBO)
             if criteria < 1e-1 and criteria != 0 :
                 if prints:
-                    print('\nELBO converged to ' +str(float(sum_ELB)) \
+                    print('\nELBO converged to ' +str(float(sumELBO)) \
                           + '; algorithm stopped at iteration ' \
                           +str(iterNumber) +'\n')
                 if plots:
-                    self._plots(ELB[1:], ELL[0:-1], ELP[0:-1], ENT[0:-1])
+                    self._plots(ELBO[1:], ELL[0:-1], ELP[0:-1], ENT[0:-1])
                 #print('Convergence took ' +str(iterNumber) + ' iterations')
-                return sum_ELB, muF, muW
+                return sumELBO, muF, muW
             iterNumber += 1
         if plots:
-            self._plots(ELB[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
+            self._plots(ELBO[1:], ELL[1:-1], ELP[1:-1], ENT[1:-1])
         #print('Convergence took ' +str(iterNumber) + ' iterations')
-        return sum_ELB, muF, muW
+        return sumELBO, muF, muW
 
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
@@ -401,6 +394,7 @@ class inference(object):
         new_y = np.array(np.array_split(new_y, self.p))
         #To standardize the ys
         if standardize:
+            print("We've entered the standardization realm")
             for i in range(self.p):
                 new_y[i,:] = new_y[i,:]/self.ystd[i]
         
@@ -489,7 +483,6 @@ class inference(object):
                                             / (self.yerr2[i,:] + jitter[i]**2)
                     sigma_w.append(CovWij)
                     mu_w.append(CovWij @ tmp)
-                    muW[j,i,:] = np.array(CovWij @ tmp)
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
