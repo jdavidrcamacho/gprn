@@ -4,10 +4,10 @@ import numpy as np
 import matplotlib.pylab as plt
 
 from scipy.linalg import inv, cholesky, LinAlgError
-from scipy.stats import multivariate_normal
+from scipy.optimize import minimize
 
-from .covFunction import Linear as covL
-from .covFunction import Polynomial as covP
+from gprn.covFunction import Linear as covL
+from gprn.covFunction import Polynomial as covP
 
 class inference(object):
     """ 
@@ -162,9 +162,8 @@ class inference(object):
             
             
 ##### Mean-Field Inference functions ##########################################
-    def EvidenceLowerBound(self, node, weight, mean, jitter, 
-                           mu = None, var = None, standardize = False, 
-                           optimization_step = 1):
+    def EvidenceLowerBound(self, node, weight, mean, jitter, mu = None, 
+                           var = None, opt_step = 1):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -175,25 +174,33 @@ class inference(object):
                 mu = variational means
                 var = variational variances
                 standardize = True to standardize the data
-                optimization_step = 1 to optimize mu and var
-                                  = 2 to optimize jitter
-                                  = 3 to optimize the hyperparametes 
+                opt_step = 1 to optimize mu and var
+                         = 2 to optimize jitter
+                         = 3 to optimize the hyperparametes 
             Returns:
                 ELBO = Evidence lower bound
                 new_mu = array with the new variational means
                 new_muW = array with the new variational variances
         """ 
-        #to separate the means between the nodes and weights
-        muF, muW = self._u_to_fhatW(mu)
-        varF, varW = self._u_to_fhatW(var)
+        #to separate the variational parameters between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        varF, varW = self._u_to_fhatW(var.flatten())
+        sigmaF, sigmaW = [], []
+        for q in range(self.q):
+            #print(np.diag(varF[0, q,:]).shape)
+            sigmaF.append(np.diag(varF[0, q, :]))
+            #print(np.array(sigmaF).shape)
+            for p in range(self.p):
+                sigmaW.append(np.diag(varW[p, q, :]))
+        sigmaF = np.array(sigmaF).reshape(self.q, self.N, self.N)
+        sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
         
         jitter = np.array(jitter)
         #updating mu and var
-        if optimization_step == 0:
+        if opt_step == 0:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
                                                            jitter, muF, varF, 
-                                                           muW, varW,
-                                                           standardize)
+                                                           muW, varW)
             #new mean for the nodes
             muF = muF.reshape(1, self.q, self.N)
             varF =  []
@@ -217,16 +224,74 @@ class inference(object):
                                             sigmaF, muF, sigmaW, muW)
         #Expected log-likelihood
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
-                                           sigmaF, muF, sigmaW, muW, 
-                                           standardize)
+                                           sigmaF, muF, sigmaW, muW)
         
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
         #new variational means and variances 
         new_mu = np.concatenate((muF, muW))
         new_var = np.concatenate((varF, varW))
-        return ELBO, new_mu, new_var
+        return ELBO, new_mu, new_var, sigmaF, sigmaW
 
+    def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
+        #to separate the means between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        
+        #Expected log-likelihood, the only thing needed in the jitter
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
+                                           sigF, muF, sigW, muW)
+        return -ExpLogLike
+
+    def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
+        paramNodes = 0
+        for q in range(self.q):
+            paramNodes += node[q].params_size
+        #number of parameters that come from the nodes
+        paramNodes -= self.q 
+        #number for parameters that come from the weight
+        paramWeight = weight[0].params_size -1
+        #parameters array of our nodes and weight
+        paramGP = params[0: paramNodes+paramWeight] 
+        
+        #Updating the nodes
+        paramUsed = 0 
+        for q in range(self.q):
+            paramArray = np.array([1]) #the amplitude of the node is 1
+            paramNumber = paramUsed + node[q].params_size - 1
+            node[q].pars = np.concatenate((paramArray, paramGP[paramUsed:paramNumber]))
+            paramUsed += paramNumber
+        #Updating the weights
+        paramToUse = weight[0].params_size-1
+        #print('weight', paramGP[-paramsToUse+1:])
+        weight[0].pars = np.concatenate((paramGP[paramUsed:paramUsed+paramToUse], np.array([0])))
+        
+        #parameters array of our means
+        paramMean = params[paramNodes+paramWeight:]
+        
+        #Updating the means
+        paramUsed = 0
+        for p in range(self.p):
+            if mean[p] is None:
+                pass
+            else:
+                paramNumber = paramUsed + mean[p]._parsize
+                mean[p].pars = paramMean[paramUsed:paramNumber]
+                paramUsed += paramNumber
+            
+        #to separate the variational parameters between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        varF, varW = self._u_to_fhatW(var.flatten())
+        #Now lets calculate the ELBO
+        Entropy = self._entropy(sigF, sigW)
+        #Expected log prior
+        ExpLogPrior = self._expectedLogPrior(node, weight, 
+                                            sigF, muF, sigW, muW)
+        #Expected log-likelihood
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
+                                           sigF, muF, sigW, muW)
+        #Evidence Lower Bound
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
+        return -ELBO
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
                    standardize=False):
@@ -286,33 +351,75 @@ class inference(object):
                 mean = array with the mean functions
                 jitter = array of jitter terms
                 iterations = number of iterations 
+            Returns:
+                initParams = optimized parameters of the node, weight, and mean
+                jittParams = optimized jitter value
         """
-        #lets prepare the nodes, weights and jitter first
+        print('\t', nodes, '\n \t', weight, '\n \t', mean, '\n \t', jitter)
+        #lets prepare the nodes, weights, means, and jitter
         nodesParams = np.array([])
         #we put the nodes parameters all in one array
-        for i in range(self.num_nodes):
-            nodesParams = np.append(nodesParams, nodes[i].pars)
+        for q in range(self.q):
+            nodesParams = np.append(nodesParams, nodes[q].pars[1:])
         #same for the weight
-        weightParams = weight.pars
-        #and we finish putting everything in one giant array
-        initialParams = np.concatenate((nodesParams, weightParams))
+        weightParams = weight[0].pars[:-1]
+        #same for the means
+        meanParams = np.array([])
+        for p in range(self.p):
+            if mean[p] is None:
+                pass
+            else:
+                meanParams = np.append(meanParams, mean[p].pars)
         
-        #initial variational parameters (they are random)
+        #and we finish putting everything in one giant array
+        initParams = np.concatenate((nodesParams, weightParams, meanParams))
+        #the jitter also become an array
+        jittParams = np.array(jitter)
+        
+        #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         mu = np.random.randn(D, 1)
-        var = np.random.rand(D, 1)         
+        var = np.random.rand(D, 1)
         
-        elboArray = np.array([0]) #To add new elbo values inside
+        elboArray = np.array([]) #To add new elbo values inside
         iterNumber = 0
-        while iterNumber < iterations:        
-            #First step - optimize mu and var     
-            _, mu, var = self.EvidenceLowerBound(nodes, weight, mean, jitter, 
-                                                 mu, var, optimization_step=1)
-            
         
-
-        
-        return 0
+        while iterNumber < iterations:
+            print('Iteration {0}'.format(iterNumber+1))
+            #1st step - optimize mu and var
+            _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
+                                                             mean, jitter, 
+                                                             mu, var, 
+                                                             opt_step=0)
+            #2nd step - optimize the jitters
+            jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            res = minimize(fun = self._jittELBO, x0 = jittParams, 
+                           args = (nodes, weight, mean, mu, sigF, sigW), 
+                           method = 'COBYLA', constraints = jittConsts,
+                           options={'maxiter': 250})
+            jittParams = res.x #updated jitters array
+            #3rdstep - optimize nodes, weights, and means
+            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            res = minimize(fun = self._paramsELBO, x0 = initParams,
+                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
+                           method = 'COBYLA', constraints = parsConsts,
+                           options={'maxiter': 250})
+            initParams = res.x
+            jitter = list(jittParams) #updated jitter values
+            ELBO  = self.EvidenceLowerBound(nodes, weight, mean, jitter, mu, var, 
+                                    opt_step=1)[0]
+            elboArray = np.append(elboArray, ELBO)
+            print('\t', nodes, '\n \t', weight, '\n \t', mean, '\n \t', jitter)
+            print('\tELBO value: {0}'.format(ELBO))
+            iterNumber += 1
+            print(initParams)
+            #Stoping criteria
+            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
+            if criteria < 1e-5 and criteria != 0:
+                print('\nELBO converged to ' + str(round(ELBO,5)) +\
+                      ' at iteration ' + str(iterNumber))
+                return initParams, jittParams, elboArray
+        return initParams, jittParams, elboArray
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW,

@@ -6,8 +6,8 @@ import matplotlib.pylab as plt
 from scipy.linalg import inv, cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 
-from .covFunction import Linear as covL
-from .covFunction import Polynomial as covP
+from gprn.covFunction import Linear as covL
+from gprn.covFunction import Polynomial as covP
 
 class inference(object):
     """ 
