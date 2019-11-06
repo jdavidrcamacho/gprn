@@ -265,18 +265,18 @@ class inference(object):
         while iterNumber < iterations:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
                                                            jitter, muF, varF, 
-                                                           muW, varW,
+                                                           muW, varW, 
                                                            standardize)
             #new mean for the nodes
             muF = muF.reshape(1, self.q, self.N)
-            varF =  []
+            varF = []
             for i in range(self.q):
                 varF.append(np.diag(sigmaF[i]))
             #new variance for the nodes
             varF = np.array(varF).reshape(1, self.q, self.N)
             #new mean for the weights
             muW = muW.reshape(self.p, self.q, self.N)
-            varW =  []
+            varW = []
             for j in range(self.q):
                 for i in range(self.p):
                     varW.append(np.diag(sigmaW[j, i, :]))

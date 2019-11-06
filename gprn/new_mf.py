@@ -93,7 +93,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -182,6 +182,8 @@ class inference(object):
                 new_mu = array with the new variational means
                 new_muW = array with the new variational variances
         """ 
+        jitter = np.exp(2*jitter)
+        
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
@@ -234,15 +236,20 @@ class inference(object):
         return ELBO, new_mu, new_var, sigmaF, sigmaW
 
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
+        jitter = np.exp(2*jitter)
+        
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         
         #Expected log-likelihood, the only thing needed in the jitter
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigF, muF, sigW, muW)
+        print('the value for elbo is {0}'.format(-ExpLogLike))
         return -ExpLogLike
 
     def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
+        jitter = np.exp(2*jitter)
+        
         paramNodes = 0
         for q in range(self.q):
             paramNodes += node[q].params_size
@@ -268,11 +275,15 @@ class inference(object):
         #parameters array of our means
         paramMean = params[paramNodes+paramWeight:]
         
+#        ##############33
+#        print('GP', paramGP)
+#        print('MEAN', paramMean)
+        
         #Updating the means
-        paramUsed = 0
+        paramUsed, noneMean = 0, 0
         for p in range(self.p):
             if mean[p] is None:
-                pass
+                noneMean += 1
             else:
                 paramNumber = paramUsed + mean[p]._parsize
                 mean[p].pars = paramMean[paramUsed:paramNumber]
@@ -365,9 +376,11 @@ class inference(object):
         weightParams = weight[0].pars[:-1]
         #same for the means
         meanParams = np.array([])
+        
+        noneMean = 0
         for p in range(self.p):
             if mean[p] is None:
-                pass
+                noneMean += 1
             else:
                 meanParams = np.append(meanParams, mean[p].pars)
         
@@ -378,7 +391,9 @@ class inference(object):
         
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
-        mu = np.random.randn(D, 1)
+        np.random.seed(100)
+        mu = np.random.rand(D, 1)
+        np.random.seed(200)
         var = np.random.rand(D, 1)
         
         elboArray = np.array([]) #To add new elbo values inside
@@ -391,35 +406,40 @@ class inference(object):
                                                              mean, jitter, 
                                                              mu, var, 
                                                              opt_step=0)
+            
             #2nd step - optimize the jitters
+            print('jitt value', jittParams)
             jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
             res = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'COBYLA', constraints = jittConsts,
-                           options={'maxiter': 250})
+                           method = 'Nelder-Mead', constraints = jittConsts, 
+                           tol=1e-5, options={'maxiter': 1})
             jittParams = res.x #updated jitters array
+            print('jitt value', jittParams)
+            
             #3rdstep - optimize nodes, weights, and means
             parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
             res = minimize(fun = self._paramsELBO, x0 = initParams,
                            args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-                           method = 'COBYLA', constraints = parsConsts,
-                           options={'maxiter': 250})
+                           method = 'Nelder-Mead', constraints = parsConsts, 
+                           tol=1e-5, options={'maxiter': 1})
             initParams = res.x
             jitter = list(jittParams) #updated jitter values
             ELBO  = self.EvidenceLowerBound(nodes, weight, mean, jitter, mu, var, 
                                     opt_step=1)[0]
             elboArray = np.append(elboArray, ELBO)
             print('\t', nodes, '\n \t', weight, '\n \t', mean, '\n \t', jitter)
+            
             print('\tELBO value: {0}'.format(ELBO))
             iterNumber += 1
-            print(initParams)
+            
             #Stoping criteria
             criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
             if criteria < 1e-5 and criteria != 0:
                 print('\nELBO converged to ' + str(round(ELBO,5)) +\
                       ' at iteration ' + str(iterNumber))
                 return initParams, jittParams, elboArray
-        return initParams, jittParams, elboArray
+        return initParams, np.exp(jittParams), elboArray
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW,
@@ -560,9 +580,9 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
         #NxP dimensional vector
         new_y = np.array(np.array_split(new_y, self.p)).T
-        if standardize:
-            for i in range(self.p):
-                new_y[i,:] = new_y[i,:]/self.ystd[i]
+#        if standardize:
+#            for i in range(self.p):
+#                new_y[i,:] = new_y[i,:]/self.ystd[i]
         
         Ydiffyerr = np.zeros_like(self.yerr2)
         for i in range(self.p):
@@ -578,10 +598,13 @@ class inference(object):
                 for q in range(self.q):
                     for p in range(self.p):
                         Fblk = np.append(Fblk, mu_f[:, q, n])
+#            print(Fblk[0:10])
             Ymean = Wblk * Fblk
             Ymean = Ymean.reshape(self.N,self.p)
             Ydiff = ((new_y - Ymean) * (new_y - Ymean)) / Ydiffyerr.T
+            #print('sy2', Ydiffyerr.T)
             logl = -0.5 * np.sum(Ydiff)
+            #print('logl', logl)
             
             value = 0
             for i in range(self.p):
