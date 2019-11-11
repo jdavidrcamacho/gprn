@@ -93,7 +93,8 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
+        K[K<1e-15] = 0.
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -222,7 +223,9 @@ class inference(object):
                     varW.append(np.diag(sigmaW[j, i, :]))
             #new variance for the weights
             varW = np.array(varW).reshape(self.p, self.q, self.N)
-        
+            new_mu = np.concatenate((muF, muW))
+            new_var = np.concatenate((varF, varW))
+            return 0, new_mu, new_var, sigmaF, sigmaW
         #Entropy
         Entropy = self._entropy(sigmaF, sigmaW)
         #Expected log prior
@@ -232,6 +235,7 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         
+        print('elbo:', Entropy, ExpLogPrior, ExpLogLike)
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
         #new variational means and variances
@@ -447,8 +451,8 @@ class inference(object):
             parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
             res = minimize(fun = self._paramsELBO, x0 = initParams,
                            args = (nodes,weight,mean, jitter,mu,var,sigF,sigW), 
-                           method = 'COBYLA', constraints = parsConsts, 
-                           options={'maxiter': 1})
+                           method = 'Nelder-Mead', constraints = parsConsts, 
+                           options={'maxiter': 250})
             initParams = res.x
             
 #            #3rdstep - optimize nodes, weights, and means
@@ -501,7 +505,8 @@ class inference(object):
         #kernel matrix for the weights
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weight]) 
 
-        ### print(muF) CORRECT
+        #print(varF) #CORRECT
+        #print(varW)
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         if self.q == 1:
             sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
@@ -509,7 +514,7 @@ class inference(object):
                 Diag_fj = np.zeros_like(self.N)
                 tmp = np.zeros_like(self.N)
                 for i in range(self.p):
-                    Diag_fj = Diag_fj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:]) \
+                    Diag_fj = Diag_fj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])
 #                                            / (self.yerr2[i,:] + jitt2[i])
                     ### print(Diag_fj) CORRECT
                     Sum_nj = np.zeros(self.N)
@@ -517,24 +522,29 @@ class inference(object):
                         if k != j:
                             muF = muF.T.reshape(1, self.q, self.N )
                             Sum_nj += muW[i,k,:]*muF[:,k,:].reshape(self.N)
-                    ### print(Sum_nj) CORRECT
-                    tmp = (tmp + ((new_y[i,:]-Sum_nj)*muW[i,j,:])) \
+                           #print(Sum_nj) #CORRECT
+                    tmp = (tmp + ((new_y[i,:]-Sum_nj)*muW[i,j,:]))
+                    
+                    #print(muW[i,j,:])
 #                                            / (self.yerr2[i,:] + jitt2[i])
+                ###    print(Sum_nj)# CORRECT
                 ### print(new_y[i,:]) CORRECT
-                ### print(Sum_nj) CORRECT
+                ### print(Sum_nj)# CORRECT
                 ### print(Kf[j]) CORRECT
                 ### print(muW[i,j,:]) CORRECT
-                ### print(tmp) CORRECT
+                
                 CovF0 = np.diag(jitt2[0] / Diag_fj) + Kf[j]                
-                CovF = Kf[j] - Kf[j] @ (inv(CovF0) @ Kf[j])
+                CovF = Kf[j] - Kf[j] @ (np.linalg.solve(CovF0, Kf[j]))
                 #CovF =  Kf[j] - np.matmul(Kf[j], np.matmul(inv(CovF), Kf[j]))
-#                print(np.diag(CovF))
+                #print('this is the diag of covF\n', np.diag(CovF))
             sigma_f.append(CovF)
-            mu_f.append(CovF @ (tmp/ jitt2[0]))
+            mu_f.append(CovF @ (tmp/ jitt2))
+            #print('this is the jitter', jitt2)
             #mu_f.append(np.matmul(CovF, (tmp/jitt2[0])))
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
-            #print('this is muF', mu_f)
+            print(mu_f)
+            #print('\nthis is muF\n', mu_f)
             sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
             for i in range(self.p):
                 for j in range(self.q):
@@ -544,7 +554,8 @@ class inference(object):
 #                                            / (self.yerr2[i,:] + jitt2[i])
                     Kw = np.squeeze(Kw)
                     CovWij = np.diag(jitt2[0] / Diag_ij) + Kw
-                    CovWij = Kw - Kw @ (inv(CovWij) @ Kw)
+                    CovWij = Kw - Kw @ (np.linalg.solve(CovWij, Kw))
+
                     #CovWij = Kw - np.matmul(Kw, np.matmul(inv(CovWij), Kw))
                     Sum_nj = 0
                     for k in range(self.q):
@@ -552,8 +563,10 @@ class inference(object):
                             Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
                     tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) \
 #                                            / (self.yerr2[i,:] + jitt2[i])
+
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ (tmp /jitt2[0]))
+                    mu_w.append(CovWij @ (tmp /jitt2))
+                    print(mu_w)
                     #mu_w.append(np.matmul(CovWij, tmp /jitt2[0]))
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
@@ -599,7 +612,7 @@ class inference(object):
                     mu_w.append(CovWij @ tmp / jitt2)
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
-        print(mu_f)#, mu_w)
+        #print(mu_f)#, mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
 
 
