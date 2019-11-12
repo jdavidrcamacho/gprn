@@ -93,7 +93,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[K<1e-15] = 0.
         return K
 
@@ -241,15 +241,12 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        print('loglike', ExpLogLike)
-        print('logprior', ExpLogPrior)
-        print('entropy', Entropy)
-        return ELBO
+        return -ELBO
 
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
-
+        
 #        #Entropy
 #        Entropy = self._entropy(sigF, sigW)
 #        #Expected log prior
@@ -260,11 +257,10 @@ class inference(object):
                                            sigF, muF, sigW, muW)
         #print('LOGLIKE', -ExpLogLike)
         #Evidence Lower Bound
-        ELBO = ExpLogLike# + ExpLogPrior + Entropy)
-        return -ELBO
+        ELBO = -ExpLogLike# + ExpLogPrior + Entropy)
+        return ELBO
 
-    def _paramsELBO(self, params, node, weight, mean, jitter, 
-                    mu, var, sigF, sigW):
+    def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
         paramNodes = 0
         for q in range(self.q):
             paramNodes += node[q].params_size
@@ -303,9 +299,17 @@ class inference(object):
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
+        #Entropy
+        Entropy = self._entropy(sigF, sigW)
         #Expected log prior
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                             sigF, muF, sigW, muW)
+        #Expected log-likelihood
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
+                                           sigF, muF, sigW, muW)
+        #print('LOGLIKE', -ExpLogLike)
+        #Evidence Lower Bound
+        ELBO = ExpLogLike + ExpLogPrior + Entropy
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
@@ -383,7 +387,6 @@ class inference(object):
         weightParams = weight[0].pars[:-1]
         #same for the means
         meanParams = np.array([])
-        
         noneMean = 0
         for p in range(self.p):
             if mean[p] is None:
@@ -395,7 +398,7 @@ class inference(object):
         initParams = np.concatenate((nodesParams, weightParams, meanParams))
         
         #the jitter also become an array
-        jittParams = np.array(jitter)**2
+        jittParams = np.array(jitter)
         
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
@@ -420,28 +423,29 @@ class inference(object):
 #                          {'type': 'ineq', 'fun': lambda x: 1-x}]
             res = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'Nelder-Mead', options = {'maxiter':1, 
+                           method = 'Nelder-Mead', options = {'maxiter':250, 
                                                               'adaptive':False})
             jittParams = res.x #updated jitters array
             jitter = np.array(res.x) #updated jitter values
             print(jitter)
-            
-            #3rdstep - optimize nodes, weights, and means
-            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-            res = minimize(fun = self._paramsELBO, x0 = initParams,
-                           args = (nodes,weight,mean, jitter,mu,var,sigF,sigW), 
-                           method = 'COBYLA', constraints = parsConsts, 
-                           options={'maxiter': 250})
-            initParams = res.x
-            
+
+#            #3rdstep - optimize nodes, weights, and means
+#            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+#            res = minimize(fun = self._paramsELBO, x0 = initParams,
+#                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
+#                           method = 'COBYLA', constraints = parsConsts,
+#                           options={'maxiter': 250})
+#            initParams = res.x
+
             #4th step - ELBO to check stopping criteria
-            ELBO  = self.EvidenceLowerBound(nodes, weight, mean, jitter, mu, 
+            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jitter, mu, 
                                             var, sigF, sigW, opt_step=1)
+            #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria
-            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-            if criteria < 1e-5 and criteria != 0:
+            criteria = np.abs(np.mean(elboArray[-10:]) - ELBO)
+            if criteria < 1e-10 and criteria != 0:
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 return initParams, jittParams, elboArray
@@ -471,7 +475,7 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(mean)
         new_y = np.array(np.array_split(new_y, self.p))
-        jitt2 = jitter
+        jitt2 = np.array(jitter)**2
         
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
@@ -586,8 +590,8 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
         #NxP dimensional vector
         new_y = np.array(np.array_split(new_y, self.p)).T
-        
-        jitt2 = jitter
+        #jitters
+        jitt2 = np.array(jitter)**2
         
         Ydiffyerr = np.zeros_like(self.yerr2)
         for i in range(self.p):
@@ -615,6 +619,10 @@ class inference(object):
                     value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
                                     np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
                                     np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:])))
+#                                            / (self.yerr2[i,:] + jitt2[i]))
+#                    value += np.sum((var_f[:,j]*mu_w[i,j,:]*mu_w[i,j,:] +\
+#                                     var_w[i,j]*mu_f[:,j,:]*mu_f[:,j,:] +\
+#                                     var_f[:,j]*var_w[i,j]))
 #                                            / (self.yerr2[i,:] + jitt2[i]))
             logl += -0.5* value /jitt2[0]
             
