@@ -246,7 +246,7 @@ class inference(object):
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
-        
+
 #        #Entropy
 #        Entropy = self._entropy(sigF, sigW)
 #        #Expected log prior
@@ -407,7 +407,7 @@ class inference(object):
         np.random.seed(200)
         var = np.random.rand(D, 1)
         
-        elboArray = np.array([]) #To add new elbo values inside
+        elboArray = np.array([0]) #To add new elbo values inside
         iterNumber = 0
         
         while iterNumber < iterations:
@@ -417,23 +417,22 @@ class inference(object):
                                                              mean, jitter, 
                                                              mu, var, 
                                                              opt_step=0)
-            
+
             #2nd step - optimize the jitters
-#            jittConsts = [{'type': 'ineq', 'fun': lambda x: x},
-#                          {'type': 'ineq', 'fun': lambda x: 1-x}]
+            print(jittParams)
             res = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'Nelder-Mead', options = {'maxiter':250, 
-                                                              'adaptive':False})
+                           method = 'Nelder-Mead',
+                           options = {'maxiter':1, 'adaptive':False})
             jittParams = res.x #updated jitters array
-            jitter = np.array(res.x) #updated jitter values
-            print(jitter)
+            jitter = np.array(jittParams) #updated jitter values
+            print(jittParams)
 
 #            #3rdstep - optimize nodes, weights, and means
 #            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
 #            res = minimize(fun = self._paramsELBO, x0 = initParams,
 #                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-#                           method = 'COBYLA', constraints = parsConsts,
+#                           method = 'Nelder-Mead', constraints = parsConsts,
 #                           options={'maxiter': 250})
 #            initParams = res.x
 
@@ -444,12 +443,14 @@ class inference(object):
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria
-            criteria = np.abs(np.mean(elboArray[-10:]) - ELBO)
-            if criteria < 1e-10 and criteria != 0:
+            criteria = np.abs(elboArray[-1] - elboArray[-2])
+            if iterNumber >1 and criteria < 1e-15:
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 return initParams, jittParams, elboArray
-            print('ELBO:',ELBO, '\n')
+            print('ELBO:',ELBO,)
+            print('nodes and weights:', nodes, weight)
+            print('jitter:', jitter, '\n')
         return initParams, jittParams, elboArray
 
 
@@ -597,6 +598,9 @@ class inference(object):
         for i in range(self.p):
             Ydiffyerr[i,:] = self.yerr2[i,:] + jitt2[i]
             
+        #logl = -0.5*self.N*self.p*np.log(2*np.pi*jitt2)
+        logl = 0
+        
         if self.q == 1:
             Wblk = np.array([])
             for n in range(self.N):
@@ -611,7 +615,7 @@ class inference(object):
             Ymean = Ymean.reshape(self.N,self.p)
             Ydiff = ((new_y - Ymean) * (new_y - Ymean)) #/Ydiffyerr.T
             #print('this is ydiff shape', Ydiff.shape, (Ydiff/Ydiffyerr.T).shape)
-            logl = -0.5 * np.sum(Ydiff/Ydiffyerr.T) /jitt2[0]
+            logl += -0.5 * np.sum(Ydiff/Ydiffyerr.T) /jitt2[0]
             
             value = 0
             for i in range(self.p):
