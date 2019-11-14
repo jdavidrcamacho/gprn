@@ -515,6 +515,12 @@ class inference(object):
         for i in range(self.p):
             Ydiffyerr[i,:] = self.yerr2[i,:] + jitter[i]**2
 
+        logl = 0
+        for n in range(self.N):
+            for p in range(self.p):
+                logl += np.log(self.yerr2[i,n] + jitter[i]**2)
+        logl = -0.5*logl
+
         if self.q == 1:
             Wblk = np.array([])
             for n in range(self.N):
@@ -528,7 +534,7 @@ class inference(object):
             Ymean = Wblk * Fblk
             Ymean = Ymean.reshape(self.N,self.p)
             Ydiff = ((new_y - Ymean) * (new_y - Ymean)) / Ydiffyerr.T
-            logl = -0.5 * np.sum(Ydiff)
+            logl += -0.5 * np.sum(Ydiff)
             
             value = 0
             for i in range(self.p):

@@ -261,6 +261,8 @@ class inference(object):
         return ELBO
 
     def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
+        params = np.exp(params)
+        
         paramNodes = 0
         for q in range(self.q):
             paramNodes += node[q].params_size
@@ -396,6 +398,8 @@ class inference(object):
         
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams, meanParams))
+        print(initParams)
+        initParams = np.array(initParams)
         
         #the jitter also become an array in log space
         jittParams = np.log(np.array(jitter))
@@ -426,15 +430,16 @@ class inference(object):
             jittParams = res.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
 
-
 #            #3rdstep - optimize nodes, weights, and means
 #            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
 #            res = minimize(fun = self._paramsELBO, x0 = initParams,
 #                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-#                           method = 'Nelder-Mead', constraints = parsConsts,
+#                           method = 'Nelder-Mead', 
 #                           options={'maxiter': 250})
 #            initParams = res.x
-
+            
+            hyperparameters = np.array(initParams)
+            
             #4th step - ELBO to check stopping criteria
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
                                             var, sigF, sigW, opt_step=1)
@@ -446,11 +451,11 @@ class inference(object):
             if iterNumber >1 and criteria < 1e-5:
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
-                return initParams, jitter, elboArray
+                return hyperparameters, jitter, elboArray
             print('ELBO:',ELBO,)
             print('nodes and weights:', nodes, weight)
             print('jitter:', jitter, '\n')
-        return initParams, jitter, elboArray
+        return hyperparameters, jitter, elboArray
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
