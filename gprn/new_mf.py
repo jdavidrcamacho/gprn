@@ -397,8 +397,8 @@ class inference(object):
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams, meanParams))
         
-        #the jitter also become an array
-        jittParams = np.array(jitter)
+        #the jitter also become an array in log space
+        jittParams = np.log(np.array(jitter))
         
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
@@ -414,19 +414,18 @@ class inference(object):
             print('Iteration {0}'.format(iterNumber+1))
             #1st step - optimize mu and var
             _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
-                                                             mean, jitter, 
+                                                             mean, jittParams, 
                                                              mu, var, 
                                                              opt_step=0)
 
             #2nd step - optimize the jitters
-            print(jittParams)
             res = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
                            method = 'Nelder-Mead',
-                           options = {'maxiter':1, 'adaptive':False})
+                           options = {'maxiter':250, 'adaptive':True})
             jittParams = res.x #updated jitters array
-            jitter = np.array(jittParams) #updated jitter values
-            print(jittParams)
+            jitter = np.exp(np.array(jittParams)) #updated jitter values
+
 
 #            #3rdstep - optimize nodes, weights, and means
 #            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
@@ -437,21 +436,21 @@ class inference(object):
 #            initParams = res.x
 
             #4th step - ELBO to check stopping criteria
-            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jitter, mu, 
+            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
                                             var, sigF, sigW, opt_step=1)
             #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria
             criteria = np.abs(elboArray[-1] - elboArray[-2])
-            if iterNumber >1 and criteria < 1e-15:
+            if iterNumber >1 and criteria < 1e-5:
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
-                return initParams, jittParams, elboArray
+                return initParams, jitter, elboArray
             print('ELBO:',ELBO,)
             print('nodes and weights:', nodes, weight)
             print('jitter:', jitter, '\n')
-        return initParams, jittParams, elboArray
+        return initParams, jitter, elboArray
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
@@ -476,8 +475,8 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(mean)
         new_y = np.array(np.array_split(new_y, self.p))
-        jitt2 = np.array(jitter)**2
-        
+        jitt2 = np.exp(2*np.array(jitter))
+
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         #kernel matrix for the weights
@@ -592,14 +591,14 @@ class inference(object):
         #NxP dimensional vector
         new_y = np.array(np.array_split(new_y, self.p)).T
         #jitters
-        jitt2 = np.array(jitter)**2
-        
+        jitt2 = np.exp(2*np.array(jitter))
+
+
         Ydiffyerr = np.zeros_like(self.yerr2)
         for i in range(self.p):
             Ydiffyerr[i,:] = self.yerr2[i,:] + jitt2[i]
             
-        #logl = -0.5*self.N*self.p*np.log(2*np.pi*jitt2)
-        logl = 0
+        logl = -0.5*self.N*self.p*np.log(jitt2)
         
         if self.q == 1:
             Wblk = np.array([])
@@ -615,7 +614,7 @@ class inference(object):
             Ymean = Ymean.reshape(self.N,self.p)
             Ydiff = ((new_y - Ymean) * (new_y - Ymean)) #/Ydiffyerr.T
             #print('this is ydiff shape', Ydiff.shape, (Ydiff/Ydiffyerr.T).shape)
-            logl += -0.5 * np.sum(Ydiff/Ydiffyerr.T) /jitt2[0]
+            logl += -0.5 * np.sum(Ydiff) /jitt2[0]
             
             value = 0
             for i in range(self.p):
