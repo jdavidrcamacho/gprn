@@ -8,6 +8,7 @@ from scipy.optimize import minimize
 
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
+from gprn.covFix import fixIt
 
 class inference(object):
     """ 
@@ -184,6 +185,8 @@ class inference(object):
                 new_mu = array with the new variational means
                 new_muW = array with the new variational variances
         """ 
+        #print('ELBOOOOOOOOOO', node, weight)
+        
         D = self.time.size * self.q *(self.p+1)
         if mu is None:
             np.random.seed(100)
@@ -247,71 +250,57 @@ class inference(object):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
 
-#        #Entropy
-#        Entropy = self._entropy(sigF, sigW)
-#        #Expected log prior
-#        ExpLogPrior = self._expectedLogPrior(node, weight, 
-#                                            sigF, muF, sigW, muW)
-#        #Expected log-likelihood
-        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
+        #Expected log-likelihood
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter,
                                            sigF, muF, sigW, muW)
-        #print('LOGLIKE', -ExpLogLike)
-        #Evidence Lower Bound
-        ELBO = -ExpLogLike# + ExpLogPrior + Entropy)
-        return ELBO
+        return -ExpLogLike
 
     def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
-        params = np.exp(params)
+        params = np.exp(np.array(params))
+        node, weight = fixIt(node, weight, params, self.q)
         
-        paramNodes = 0
-        for q in range(self.q):
-            paramNodes += node[q].params_size
-        #number of parameters that come from the nodes
-        paramNodes -= self.q 
-        #number for parameters that come from the weight
-        paramWeight = weight[0].params_size -1
-        #parameters array of our nodes and weight
-        paramGP = params[0: paramNodes+paramWeight] 
-        
-        #Updating the nodes
-        paramUsed = 0 
-        for q in range(self.q):
-            paramArray = np.array([1]) #the amplitude of the node is 1
-            paramNumber = paramUsed + node[q].params_size - 1
-            node[q].pars = np.concatenate((paramArray, 
-                                            paramGP[paramUsed:paramNumber]))
-            paramUsed += paramNumber
-        #Updating the weights
-        paramToUse = weight[0].params_size-1
-        weight[0].pars = np.concatenate((paramGP[paramUsed:paramUsed+paramToUse], np.array([0])))
-
-        #parameters array of our means
-        paramMean = params[paramNodes+paramWeight:]
-        #Updating the means
-        paramUsed, noneMean = 0, 0
-        for p in range(self.p):
-            if mean[p] is None:
-                noneMean += 1
-            else:
-                paramNumber = paramUsed + mean[p]._parsize
-                mean[p].pars = paramMean[paramUsed:paramNumber]
-                paramUsed += paramNumber
+#        paramNodes = 0
+#        for q in range(self.q):
+#            paramNodes += node[q].params_size
+#        #number of parameters that come from the nodes
+#        paramNodes -= self.q 
+#        #number for parameters that come from the weight
+#        paramWeight = weight[0].params_size -1
+#        #parameters array of our nodes and weight
+#        paramGP = params[0: paramNodes+paramWeight] 
+#        
+#        #Updating the nodes
+#        paramUsed = 0 
+#        for q in range(self.q):
+#            paramArray = np.array([1]) #the amplitude of the node is 1
+#            paramNumber = paramUsed + node[q].params_size - 1
+#            node[q].pars = np.concatenate((paramArray, 
+#                                            paramGP[paramUsed:paramNumber]))
+#            paramUsed += paramNumber
+#        #Updating the weights
+#        paramToUse = weight[0].params_size-1
+#        weight[0].pars = np.concatenate((paramGP[paramUsed:paramUsed+paramToUse], np.array([0])))
+#
+#        #parameters array of our means
+#        paramMean = params[paramNodes+paramWeight:]
+#        #Updating the means
+#        paramUsed, noneMean = 0, 0
+#        for p in range(self.p):
+#            if mean[p] is None:
+#                noneMean += 1
+#            else:
+#                paramNumber = paramUsed + mean[p]._parsize
+#                mean[p].pars = paramMean[paramUsed:paramNumber]
+#                paramUsed += paramNumber
         
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
-        #Entropy
-        Entropy = self._entropy(sigF, sigW)
-        #Expected log prior
+        print('inside we have', node, weight)
         ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                            sigF, muF, sigW, muW)
-        #Expected log-likelihood
-        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
-                                           sigF, muF, sigW, muW)
-        #print('LOGLIKE', -ExpLogLike)
-        #Evidence Lower Bound
-        ELBO = ExpLogLike + ExpLogPrior + Entropy
+                                             sigF, muF, sigW, muW)
+        #print(ExpLogPrior)
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
@@ -398,8 +387,7 @@ class inference(object):
         
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams, meanParams))
-        print(initParams)
-        initParams = np.array(initParams)
+        initParams = np.log(np.array(initParams))
         
         #the jitter also become an array in log space
         jittParams = np.log(np.array(jitter))
@@ -413,34 +401,35 @@ class inference(object):
         
         elboArray = np.array([0]) #To add new elbo values inside
         iterNumber = 0
-        
         while iterNumber < iterations:
             print('Iteration {0}'.format(iterNumber+1))
-            #1st step - optimize mu and var
+            #################################### 1st step - optimize mu and var
             _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                              mean, jittParams, 
                                                              mu, var, 
                                                              opt_step=0)
 
-            #2nd step - optimize the jitters
-            res = minimize(fun = self._jittELBO, x0 = jittParams, 
+            ################################### 2nd step - optimize the jitters
+            jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'Nelder-Mead',
-                           options = {'maxiter':250, 'adaptive':True})
-            jittParams = res.x #updated jitters array
+                           method = 'COBYLA', constraints=jittConsts,
+                           options = {'maxiter':200})
+            jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
 
-#            #3rdstep - optimize nodes, weights, and means
-#            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-#            res = minimize(fun = self._paramsELBO, x0 = initParams,
-#                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-#                           method = 'Nelder-Mead', 
-#                           options={'maxiter': 250})
-#            initParams = res.x
+            ###################### 3rdstep - optimize nodes, weights, and means
+            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            res2 = minimize(fun = self._paramsELBO, x0 = initParams,
+                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
+                           method = 'Nelder-Mead', constraints=parsConsts,
+                           options={'maxiter': 200})
+            initParams = res2.x
+            hyperparameters = np.exp(np.array(initParams))
             
-            hyperparameters = np.array(initParams)
-            
-            #4th step - ELBO to check stopping criteria
+#            nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
+            ######################## 4th step - ELBO to check stopping criteria
+
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
                                             var, sigF, sigW, opt_step=1)
             #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
@@ -454,6 +443,7 @@ class inference(object):
                 return hyperparameters, jitter, elboArray
             print('ELBO:',ELBO,)
             print('nodes and weights:', nodes, weight)
+            print('mean:', mean)
             print('jitter:', jitter, '\n')
         return hyperparameters, jitter, elboArray
 

@@ -6,14 +6,18 @@
 """
 #covariance functions
 from gprn import covFunction
+
 #mean functions
 from gprn import meanFunction
+
 #mean-field inference
 from gprn import mf 
 from gprn import alt_mf
 from gprn import new_mf
+
 #nonparametric variational inference
 from gprn import npvi
-#util functions
-from gprn import utils
 
+#useful functions
+from gprn import utils
+from gprn import covFix
