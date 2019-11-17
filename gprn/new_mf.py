@@ -413,18 +413,18 @@ class inference(object):
             jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
             res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                            args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'COBYLA', constraints=jittConsts,
+                           method = 'Nelder-Mead', constraints=jittConsts,
                            options = {'maxiter':200})
             jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
 
-            ###################### 3rdstep - optimize nodes, weights, and means
-            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-            res2 = minimize(fun = self._paramsELBO, x0 = initParams,
-                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-                           method = 'Nelder-Mead', constraints=parsConsts,
-                           options={'maxiter': 200})
-            initParams = res2.x
+#            ###################### 3rdstep - optimize nodes, weights, and means
+#            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+#            res2 = minimize(fun = self._paramsELBO, x0 = initParams,
+#                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
+#                           method = 'Nelder-Mead', constraints=parsConsts,
+#                           options={'maxiter': 200})
+#            initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             
 #            nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
