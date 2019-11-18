@@ -246,6 +246,89 @@ class inference(object):
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
         return -ELBO
 
+    def EvidenceLowerBound2(self, node, weight, mean, jitter, mu = None, 
+                           var = None, sigmaF=None, sigmaW=None, opt_step = 1):
+        """
+            Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
+            Parameters:
+                node = array of node functions 
+                weight = weight function
+                mean = array with the mean functions
+                jitter = array of jitter terms
+                mu = variational means
+                var = variational variances
+                standardize = True to standardize the data
+                opt_step = 1 to optimize mu and var
+                         = 2 to optimize jitter
+                         = 3 to optimize the hyperparametes 
+            Returns:
+                ELBO = Evidence lower bound
+                new_mu = array with the new variational means
+                new_muW = array with the new variational variances
+        """ 
+        #print('ELBOOOOOOOOOO', node, weight)
+        
+        D = self.time.size * self.q *(self.p+1)
+        if mu is None:
+            np.random.seed(100)
+            mu = np.random.rand(D, 1)
+        if var is None:
+            np.random.seed(200)
+            var = np.random.rand(D, 1)
+        #to separate the variational parameters between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        varF, varW = self._u_to_fhatW(var.flatten())
+        
+        if sigmaF is None:
+            sigmaF = []
+            for q in range(self.q):
+                sigmaF.append(np.diag(varF[0, q, :]))
+                for p in range(self.p):
+                    sigmaF = np.array(sigmaF).reshape(self.q, self.N, self.N)
+        if sigmaW is None:
+            sigmaW = []
+            for q in range(self.q):
+                for p in range(self.p):
+                    sigmaW.append(np.diag(varW[p, q, :]))
+                    sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
+                    
+        #updating mu and var
+        if opt_step == 0:
+            sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
+                                                           jitter, muF, varF, 
+                                                           muW, varW)
+            #new mean for the nodes
+            muF = muF.reshape(1, self.q, self.N)
+            varF =  []
+            for i in range(self.q):
+                varF.append(np.diag(sigmaF[i]))
+            #new variance for the nodes
+            varF = np.array(varF).reshape(1, self.q, self.N)
+            #new mean for the weights
+            muW = muW.reshape(self.p, self.q, self.N)
+            varW =  []
+            for j in range(self.q):
+                for i in range(self.p):
+                    varW.append(np.diag(sigmaW[j, i, :]))
+            #new variance for the weights
+            varW = np.array(varW).reshape(self.p, self.q, self.N)
+            new_mu = np.concatenate((muF, muW))
+            new_var = np.concatenate((varF, varW))
+            return 0, new_mu, new_var, sigmaF, sigmaW
+        #Entropy
+        Entropy = self._entropy(sigmaF, sigmaW)
+        #Expected log prior
+        ExpLogPrior = self._expectedLogPrior(node, weight, 
+                                            sigmaF, muF, sigmaW, muW)
+        #Expected log-likelihood
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
+                                           sigmaF, muF, sigmaW, muW)
+        #Evidence Lower Bound
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
+        return -ELBO, muF, muW
+
+
+
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
@@ -255,19 +338,19 @@ class inference(object):
                                            sigF, muF, sigW, muW)
         return -ExpLogLike
 
-    def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
-        params[0]=0
+    def _paramsELBO(self, params, node, weight, mean, mu, var, sigF, sigW):
         params = np.exp(np.array(params))
         
         node, weight = fixIt(node, weight, params, self.q)
+        print('inside we have', node, weight)
         
-        #to separate the variational parameters between the nodes and weights
+              #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                              sigF, muF, sigW, muW)
-        print('inside we have', node, weight)
+        print('ELL', -ExpLogPrior, '\n##### #####')
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
@@ -323,7 +406,8 @@ class inference(object):
         return combined_ystar
 
 
-    def optimizeGPRN(self, nodes, weight, mean, jitter, iterations = 1000):
+    def optimizeGPRN(self, nodes, weight, mean, jitter, iterations = 1000,
+                     updateVarParams=True, updateJitt=False, updateHyperParams=False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -369,36 +453,36 @@ class inference(object):
         elboArray = np.array([0]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
-            print('Iteration {0}'.format(iterNumber+1))
+            print('\n*** ITERATION {0} ***'.format(iterNumber+1))
 
-            #################################### 1st step - optimize mu and var
-            _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
-                                                             mean, jittParams, 
-                                                             mu, var, 
-                                                             opt_step=0)
-
-            ################################### 2nd step - optimize the jitters
-            jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-            res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
-                           args = (nodes, weight, mean, mu, sigF, sigW), 
-                           method = 'Nelder-Mead', constraints=jittConsts,
-                           options = {'maxiter':1})
-            jittParams = res1.x #updated jitters array
+            #1st step - optimize mu and var
+            if updateVarParams:
+                _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
+                                                                 mean, jittParams, 
+                                                                 mu, var, 
+                                                                 opt_step=0)
+            print(mu)
+            #2nd step - optimize the jitters
+            if updateJitt:
+                jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+                res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
+                               args = (nodes, weight, mean, mu, sigF, sigW), 
+                               method = 'Nelder-Mead', constraints=jittConsts,
+                               options = {'maxiter':1})
+                jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
 
-            ###################### 3rdstep - optimize nodes, weights, and means
-            parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-            res2 = minimize(fun = self._paramsELBO, x0 = initParams,
-                           args = (nodes,weight,mean,jitter,mu,var,sigF,sigW), 
-                           method = 'Nelder-Mead', constraints=parsConsts,
-                           options={'maxiter': 1, 'adaptive': True})
-            initParams = res2.x
-            print(res2)
-            
-            
+            #3rdstep - optimize nodes, weights, and means
+            if updateHyperParams:
+                parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+                res2 = minimize(fun = self._paramsELBO, x0 = initParams,
+                               args = (nodes, weight, mean, mu, var, sigF, sigW), 
+                               method = 'Nelder-Mead', constraints=parsConsts,
+                               options={'maxiter': 1, 'adaptive': True})
+                initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
+            
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
-            #print('to go to next step', nodes, weight)
             ######################## 4th step - ELBO to check stopping criteria
 
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
@@ -411,6 +495,9 @@ class inference(object):
             if iterNumber >1 and criteria < 1e-5:
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
+                print('nodes and weights:', nodes, weight)
+                print('mean:', mean)
+                print('jitter:', jitter, '\n')
                 return hyperparameters, jitter, elboArray
             print('ELBO:',ELBO,)
             print('nodes and weights:', nodes, weight)

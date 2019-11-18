@@ -9,8 +9,6 @@ def fixIt(nodes, weight, newPars, q):
     better comes to mind
     """
 #    parsUsed = 0
-    nodes[0] = new_kernel(nodes[0], newPars[0:2], node=True)
-    weight[0] = new_kernel(weight[0], newPars[2:4], node=False)
 #    for qq in range(q):
 #            howBig = nodes[qq].params_size - 1
 #            parsToUse = newPars[parsUsed:parsUsed+howBig]
@@ -22,6 +20,11 @@ def fixIt(nodes, weight, newPars, q):
 #    parsToUse = newPars[parsUsed:parsUsed+howBig]
 #    print('weight', parsToUse)
 #    weight[0] = new_kernel(weight[0], parsToUse, node=False)
+    
+    newPars = np.round(newPars, 15)
+    nodes[0] = new_kernel(nodes[0], newPars[0:2], node=True)
+    weight[0] = new_kernel(weight[0], newPars[2:4], node=False)
+    
     return nodes, weight
 
 def new_kernel(originalCov,newPars, node=True):
