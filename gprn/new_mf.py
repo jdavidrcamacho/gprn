@@ -461,7 +461,7 @@ class inference(object):
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
-            print(mu)
+                
             #2nd step - optimize the jitters
             if updateJitt:
                 jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
@@ -471,7 +471,7 @@ class inference(object):
                                options = {'maxiter':1})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
-
+            
             #3rdstep - optimize nodes, weights, and means
             if updateHyperParams:
                 parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
