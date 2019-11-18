@@ -256,17 +256,18 @@ class inference(object):
         return -ExpLogLike
 
     def _paramsELBO(self, params, node, weight, mean, jitter, mu, var, sigF, sigW):
+        params[0]=0
         params = np.exp(np.array(params))
+        
         node, weight = fixIt(node, weight, params, self.q)
         
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
-        print('inside we have', params, node, weight)
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                              sigF, muF, sigW, muW)
-        print('inside calc', -ExpLogPrior, '\n')
+        print('inside we have', node, weight)
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, muF, muW, 
@@ -339,7 +340,7 @@ class inference(object):
         nodesParams = np.array([])
         #we put the nodes parameters all in one array
         for q in range(self.q):
-            nodesParams = np.append(nodesParams, nodes[q].pars[1:])
+            nodesParams = np.append(nodesParams, nodes[q].pars[0:-1])
         #same for the weight
         weightParams = weight[0].pars[:-1]
         #same for the means
@@ -369,20 +370,21 @@ class inference(object):
         iterNumber = 0
         while iterNumber < iterations:
             print('Iteration {0}'.format(iterNumber+1))
+
             #################################### 1st step - optimize mu and var
             _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                              mean, jittParams, 
                                                              mu, var, 
                                                              opt_step=0)
 
-#            ################################### 2nd step - optimize the jitters
-#            jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
-#            res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
-#                           args = (nodes, weight, mean, mu, sigF, sigW), 
-#                           method = 'Nelder-Mead', constraints=jittConsts,
-#                           options = {'maxiter':200})
-#            jittParams = res1.x #updated jitters array
-#            jitter = np.exp(np.array(jittParams)) #updated jitter values
+            ################################### 2nd step - optimize the jitters
+            jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
+                           args = (nodes, weight, mean, mu, sigF, sigW), 
+                           method = 'Nelder-Mead', constraints=jittConsts,
+                           options = {'maxiter':1})
+            jittParams = res1.x #updated jitters array
+            jitter = np.exp(np.array(jittParams)) #updated jitter values
 
             ###################### 3rdstep - optimize nodes, weights, and means
             parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
@@ -392,11 +394,11 @@ class inference(object):
                            options={'maxiter': 1, 'adaptive': True})
             initParams = res2.x
             print(res2)
-            hyperparameters = np.exp(np.array(initParams))
-
-
             
+            
+            hyperparameters = np.exp(np.array(initParams))
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
+            #print('to go to next step', nodes, weight)
             ######################## 4th step - ELBO to check stopping criteria
 
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 

@@ -8,16 +8,20 @@ def fixIt(nodes, weight, newPars, q):
         To fix the update of the nodes and weight until something smarter and
     better comes to mind
     """
-    parsUsed = 0
-    for qq in range(q):
-            howBig = nodes[qq].params_size - 1
-            parsToUse = newPars[parsUsed:parsUsed+howBig]
-            nodes[qq] = new_kernel(nodes[qq], parsToUse, node=True)
-            parsUsed += howBig
-    
-    howBig = weight[0].params_size - 1
-    parsToUse = newPars[parsUsed:parsUsed+howBig]
-    weight[0] = new_kernel(weight[0], parsToUse, node=False)
+#    parsUsed = 0
+    nodes[0] = new_kernel(nodes[0], newPars[0:2], node=True)
+    weight[0] = new_kernel(weight[0], newPars[2:4], node=False)
+#    for qq in range(q):
+#            howBig = nodes[qq].params_size - 1
+#            parsToUse = newPars[parsUsed:parsUsed+howBig]
+#            print('node', parsToUse)
+#            nodes[qq] = new_kernel(nodes[qq], parsToUse, node=True)
+#            parsUsed += howBig
+#    
+#    howBig = weight[0].params_size - 1
+#    parsToUse = newPars[parsUsed:parsUsed+howBig]
+#    print('weight', parsToUse)
+#    weight[0] = new_kernel(weight[0], parsToUse, node=False)
     return nodes, weight
 
 def new_kernel(originalCov,newPars, node=True):
@@ -35,8 +39,8 @@ def new_kernel(originalCov,newPars, node=True):
         if isinstance(originalCov, covFunction.WhiteNoise):
             return covFunction.WhiteNoise(newPars[0])
         elif isinstance(originalCov, covFunction.SquaredExponential):
-            ######################### WN TO BE SOLVED 
-            return covFunction.SquaredExponential(1, newPars[0], 0)
+            ######################### TO BE SOLVED 
+            return covFunction.SquaredExponential(1, newPars[1], 0)
         elif isinstance(originalCov, covFunction.Periodic):
             return covFunction.Periodic(1, newPars[0], newPars[1], newPars[2])
         elif isinstance(originalCov, covFunction.QuasiPeriodic):
