@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 
-from scipy.linalg import cholesky, LinAlgError
+from scipy.linalg import cholesky, LinAlgError, inv
 from scipy.optimize import minimize
 
 from gprn.covFunction import Linear as covL
@@ -95,7 +95,22 @@ class inference(object):
             K = kernel(None, time[:, None], time[None, :])
         else:
             K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
-        K[K<1e-15] = 0.
+        K[np.abs(K)<1e-15] = 0.
+        return K
+
+    def _kernelMatrix2(self, kernel, time = None):
+        """
+            Returns the covariance matrix created by evaluating a given kernel 
+        at inputs time.
+        """
+        r = time[:, None] - time[None, :]
+        
+        #to deal with the non-stationary kernels problem
+        if isinstance(kernel, (covL, covP)):
+            K = kernel(None, time[:, None], time[None, :])
+        else:
+            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+        #K[K<1e-15] = 0.
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -243,92 +258,10 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        return -ELBO
-
-    def EvidenceLowerBound2(self, node, weight, mean, jitter, mu = None, 
-                           var = None, sigmaF=None, sigmaW=None, opt_step = 1):
-        """
-            Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
-            Parameters:
-                node = array of node functions 
-                weight = weight function
-                mean = array with the mean functions
-                jitter = array of jitter terms
-                mu = variational means
-                var = variational variances
-                standardize = True to standardize the data
-                opt_step = 1 to optimize mu and var
-                         = 2 to optimize jitter
-                         = 3 to optimize the hyperparametes 
-            Returns:
-                ELBO = Evidence lower bound
-                new_mu = array with the new variational means
-                new_muW = array with the new variational variances
-        """ 
-        #print('ELBOOOOOOOOOO', node, weight)
-        
-        D = self.time.size * self.q *(self.p+1)
-        if mu is None:
-            np.random.seed(100)
-            mu = np.random.rand(D, 1)
-        if var is None:
-            np.random.seed(200)
-            var = np.random.rand(D, 1)
-        #to separate the variational parameters between the nodes and weights
-        muF, muW = self._u_to_fhatW(mu.flatten())
-        varF, varW = self._u_to_fhatW(var.flatten())
-        
-        if sigmaF is None:
-            sigmaF = []
-            for q in range(self.q):
-                sigmaF.append(np.diag(varF[0, q, :]))
-                for p in range(self.p):
-                    sigmaF = np.array(sigmaF).reshape(self.q, self.N, self.N)
-        if sigmaW is None:
-            sigmaW = []
-            for q in range(self.q):
-                for p in range(self.p):
-                    sigmaW.append(np.diag(varW[p, q, :]))
-                    sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
-                    
-        #updating mu and var
-        if opt_step == 0:
-            sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
-                                                           jitter, muF, varF, 
-                                                           muW, varW)
-            #new mean for the nodes
-            muF = muF.reshape(1, self.q, self.N)
-            varF =  []
-            for i in range(self.q):
-                varF.append(np.diag(sigmaF[i]))
-            #new variance for the nodes
-            varF = np.array(varF).reshape(1, self.q, self.N)
-            #new mean for the weights
-            muW = muW.reshape(self.p, self.q, self.N)
-            varW =  []
-            for j in range(self.q):
-                for i in range(self.p):
-                    varW.append(np.diag(sigmaW[j, i, :]))
-            #new variance for the weights
-            varW = np.array(varW).reshape(self.p, self.q, self.N)
-            new_mu = np.concatenate((muF, muW))
-            new_var = np.concatenate((varF, varW))
-            return 0, new_mu, new_var, sigmaF, sigmaW
-        #Entropy
-        Entropy = self._entropy(sigmaF, sigmaW)
-        #Expected log prior
-        ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                            sigmaF, muF, sigmaW, muW)
-        #Expected log-likelihood
-        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
-                                           sigmaF, muF, sigmaW, muW)
-        #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        return -ELBO, muF, muW
-
-
-
+        ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
+        return ELBO
+    
+    
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
@@ -340,21 +273,17 @@ class inference(object):
 
     def _paramsELBO(self, params, node, weight, mean, mu, var, sigF, sigW):
         params = np.exp(np.array(params))
-        
         node, weight = fixIt(node, weight, params, self.q)
-        print('inside we have', node, weight)
         
-              #to separate the variational parameters between the nodes and weights
+        #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                              sigF, muF, sigW, muW)
-        print('ELL', -ExpLogPrior, '\n##### #####')
         return -ExpLogPrior
 
-    def Prediction(self, node, weights, means, tstar, muF, muW, 
-                   standardize=False):
+    def Prediction(self, node, weights, means, tstar, mu):
         """
             Prediction for mean-field inference
             Parameters:
@@ -362,9 +291,7 @@ class inference(object):
                 weight = weight function
                 means = array with the mean functions
                 tstar = predictions time
-                muF = array with the initial means for each node
-                varF = array with the initial variance for each node
-                muW = array with the initial means for each weight
+                mu = array with the variational means 
             Returns:
                 ystar = predicted means
         """
@@ -376,32 +303,37 @@ class inference(object):
         #mean functions
         means = self._mean(means, tstar)
         means = np.array_split(means, self.p)
+        muF, muW = self._u_to_fhatW(mu.flatten())
         
         ystar = np.zeros((self.p, tstar.size))
         for i in range(tstar.size):
             Kf_s = np.array([self._predictKernelMatrix(i1, tstar[i]) for i1 in node])
+#            print(Kf_s, '\n')
             Kw_s = np.array([self._predictKernelMatrix(i2, tstar[i]) for i2 in weights])
             #alphaLw = inv(np.squeeze(Lw)) @ np.squeeze(Kw_s).T
             alphaLw = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kw_s).T)
+            alphaLw[np.abs(alphaLw) < 1e-15] = 0
+#            print(alphaLw[-1])
             idx_f, idx_w = 1, 1
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
                 #alphaLf = inv(np.squeeze(Lf[q,:,:])) @ np.squeeze(Kf_s[q,:]).T
                 alphaLf = np.linalg.solve(np.squeeze(Lf[q,:,:]), np.squeeze(Kf_s[q,:]).T)
+                alphaLf[np.abs(alphaLf) < 1e-15] = 0
                 #fstar[q] = alphaLf @(inv(np.squeeze(Lf[q,:,:])) @ muF[:,q,:].T)
                 fstar[q] = alphaLf @ np.linalg.solve(np.squeeze(Lf[q,:,:]), muF[:,q,:].T)
+#                print(Lf[q,:,:])
                 idx_f += self.N
                 for p in range(self.p):
                     #Wstar[p, q] = alphaLw.T@(inv(np.squeeze(Lw[0]))@muW[p][q].T)
-                    Wstar[p, q] = alphaLw.T @ np.linalg.solve(np.squeeze(Lw[0]), muW[p][q].T)
+                    Wstar[p, q] = alphaLw @ np.linalg.solve(np.squeeze(Lw[0]), muW[p][q].T)
+                    #print(Wstar[p,q])
+                    #print(muW[p][q].T)
                     idx_w += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
         combined_ystar = []
         for i in range(self.p):
-            if standardize:
-                combined_ystar.append(ystar[i]*self.ystd[i] + means[i])
-            else:
-                combined_ystar.append(ystar[i] + means[i])
+            combined_ystar.append(ystar[i] + means[i])
         combined_ystar = np.array(combined_ystar)
         return combined_ystar
 
@@ -478,7 +410,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead', constraints=parsConsts,
-                               options={'maxiter': 1, 'adaptive': True})
+                               options={'maxiter': 1, 'adaptive': False})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             
@@ -493,17 +425,19 @@ class inference(object):
             #Stoping criteria
             criteria = np.abs(elboArray[-1] - elboArray[-2])
             if iterNumber >1 and criteria < 1e-5:
+#            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
+#            if criteria < 1e-5 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes and weights:', nodes, weight)
                 print('mean:', mean)
                 print('jitter:', jitter, '\n')
-                return hyperparameters, jitter, elboArray
+                return hyperparameters, jitter, elboArray, mu, var
             print('ELBO:',ELBO,)
             print('nodes and weights:', nodes, weight)
             print('mean:', mean)
             print('jitter:', jitter, '\n')
-        return hyperparameters, jitter, elboArray
+        return hyperparameters, jitter, elboArray, mu, var
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
@@ -715,7 +649,8 @@ class inference(object):
                 expected log prior
         """
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights]) 
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+        
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
@@ -796,3 +731,47 @@ class inference(object):
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
 
+#    def Prediction2(self, nodes, weights, means, tstar, muF, muW):
+#        """
+#            Prediction for mean-field inference
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                means = array with the mean functions
+#                jitters = jitters array
+#                tstar = predictions time
+#                muF = array with the initial means for each node
+#                varF = array with the initial variance for each node
+#                muW = array with the initial means for each weight
+#            Returns:
+#                ystar = predicted means
+#        """
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        invKf = np.array([inv(i) for i in Kf])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+#        invKw = np.array([inv(j) for j in Kw])
+#
+#        #mean functions
+#        means = self._mean(means, tstar)
+#        means = np.array_split(means, self.p)
+#
+#        ystar = []
+#        for n in range(tstar.size):
+#            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+#            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+#            Efstar, Ewstar = 0, 0
+#            for j in range(self.q):
+##                print(Kfstar.shape, invKf.shape, muF.shape)
+#                Efstar += Kfstar[j,:,:] @(invKf[j,:,:] @muF[:,j,:].T) 
+#                for i in range(self.p):
+#                    Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
+#            ystar.append(Ewstar@ Efstar)
+#        ystar = np.array(ystar).reshape(tstar.size) #final mean
+#
+##        ystar += self._mean(means, tstar) #adding the mean function
+#
+#        combined_ystar = []
+#        for i in range(self.p):
+#            combined_ystar.append(ystar + means[i])
+#        combined_ystar = np.array(combined_ystar)
+#        return combined_ystar
