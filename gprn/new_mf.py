@@ -281,6 +281,8 @@ class inference(object):
 
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                              sigF, muF, sigW, muW)
+        print('#####', node,'\n#####',weight)
+        print('##### ExpLogPrior',-ExpLogPrior,'#####')
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, mu):
@@ -412,6 +414,7 @@ class inference(object):
                                method = 'Nelder-Mead', constraints=parsConsts,
                                options={'maxiter': 1, 'adaptive': False})
                 initParams = res2.x
+                print(res2)
             hyperparameters = np.exp(np.array(initParams))
             
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
@@ -434,7 +437,7 @@ class inference(object):
                 print('jitter:', jitter, '\n')
                 return hyperparameters, jitter, elboArray, mu, var
             print('ELBO:',ELBO,)
-            print('nodes and weights:', nodes, weight)
+            print('nodes and weights:\n', nodes, '\n', weight)
             print('mean:', mean)
             print('jitter:', jitter, '\n')
         return hyperparameters, jitter, elboArray, mu, var
@@ -669,6 +672,7 @@ class inference(object):
             #trace = np.trace(sigma_f[j] @Kf_inv)
             trace = np.trace(np.linalg.solve(Kw[0],sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
+            print(trace)
             for i in range(self.p):
                 #muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
                 muKmu = np.linalg.solve(Kw[0], mu_w[j,i]) @mu_w[j,i].T
