@@ -400,7 +400,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead', constraints=jittConsts,
-                               options = {'maxiter':250, 'adaptive': False})
+                               options = {'maxiter':200, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             
@@ -410,7 +410,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead', constraints=parsConsts,
-                               options={'maxiter': 250, 'adaptive': False})
+                               options={'maxiter': 200, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             
