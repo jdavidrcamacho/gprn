@@ -94,23 +94,8 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
-        K[np.abs(K)<1e-15] = 0.
-        return K
-
-    def _kernelMatrix2(self, kernel, time = None):
-        """
-            Returns the covariance matrix created by evaluating a given kernel 
-        at inputs time.
-        """
-        r = time[:, None] - time[None, :]
-        
-        #to deal with the non-stationary kernels problem
-        if isinstance(kernel, (covL, covP)):
-            K = kernel(None, time[:, None], time[None, :])
-        else:
             K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
-        #K[K<1e-15] = 0.
+        K[np.abs(K)<1e-15] = 0.
         return K
 
     def _predictKernelMatrix(self, kernel, time):
@@ -224,7 +209,7 @@ class inference(object):
             for q in range(self.q):
                 for p in range(self.p):
                     sigmaW.append(np.diag(varW[p, q, :]))
-                    sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
+            sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
                     
         #updating mu and var
         if opt_step == 0:
@@ -261,7 +246,6 @@ class inference(object):
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
         return ELBO
     
-    
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
@@ -273,6 +257,7 @@ class inference(object):
 
     def _paramsELBO(self, params, node, weight, mean, mu, var, sigF, sigW):
         params = np.exp(np.array(params))
+        #print(params)
         node, weight = fixIt(node, weight, params, self.q)
         
         #to separate the variational parameters between the nodes and weights
@@ -339,7 +324,8 @@ class inference(object):
 
 
     def optimizeGPRN(self, nodes, weight, mean, jitter, iterations = 1000,
-                     updateVarParams=True, updateJitt=False, updateHyperParams=False):
+                     updateVarParams = True, updateJittParams = False, 
+                     updateHyperParams = False):
         """
             Returns the Evidence Lower bound, eq.10 in Nguyen & Bonilla (2013)
             Parameters:
@@ -393,30 +379,28 @@ class inference(object):
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
-                
+
             #2nd step - optimize the jitters
-            if updateJitt:
-                jittConsts = [{'type': 'ineq', 'fun': lambda x: x}]
+            if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
-                               method = 'Nelder-Mead', constraints=jittConsts,
-                               options = {'maxiter':200, 'adaptive': True})
+                               method = 'Nelder-Mead',
+                               options = {'maxiter':1000, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             
             #3rdstep - optimize nodes, weights, and means
             if updateHyperParams:
-                parsConsts = [{'type': 'ineq', 'fun': lambda x: x}]
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
-                               method = 'Nelder-Mead', constraints=parsConsts,
-                               options={'maxiter': 200, 'adaptive': True})
+                               method = 'Nelder-Mead',
+                               options={'maxiter': 1000, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
             ######################## 4th step - ELBO to check stopping criteria
-
+            print(' ##### ')
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
                                             var, sigF, sigW, opt_step=1)
             #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
@@ -573,9 +557,9 @@ class inference(object):
         jitt2 = np.exp(2*np.array(jitter))
 
 
-        Ydiffyerr = np.zeros_like(self.yerr2)
-        for i in range(self.p):
-            Ydiffyerr[i,:] = self.yerr2[i,:] + jitt2[i]
+#        Ydiffyerr = np.zeros_like(self.yerr2)
+#        for i in range(self.p):
+#            Ydiffyerr[i,:] = self.yerr2[i,:] + jitt2[i]
             
         logl = -0.5*self.N*self.p*np.log(jitt2)
         
@@ -666,14 +650,20 @@ class inference(object):
             #print(logKf)
             #Kf_inv = inv(Kf[j])
             #muKmu = (Kf_inv @mu_f[:,j, :].reshape(self.N)) @mu_f[:,j, :].reshape(self.N)
-            muKmu = np.linalg.solve(Lf, mu_f[:,j, :].reshape(self.N)) @ mu_f[:,j, :].reshape(self.N)
+            #muKmu = np.linalg.solve(Lf, mu_f[:,j, :].reshape(self.N)) @ mu_f[:,j, :].reshape(self.N)
+            alpha =  np.linalg.solve(Lf, mu_f[:,j, :].reshape(self.N))
+            muKmu = alpha @ alpha
+            #print(muKmu)
             #trace = np.trace(sigma_f[j] @Kf_inv)
             trace = np.trace(np.linalg.solve(Kf[j],sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-            #print(trace)
+            #print(first_term)
             for i in range(self.p):
                 #muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
-                muKmu = np.linalg.solve(Kw[0], mu_w[j,i]) @mu_w[j,i].T
+                muKmu = np.linalg.solve(Lw, mu_w[j,i]) @mu_w[j,i].T
+                #print('mu', Lw)
+                alpha = np.linalg.solve(Lw, mu_w[j,i]) 
+                muKmu = alpha @ alpha
                 #trace = np.trace(sigma_w[j, i, :, :] @Kw_inv)
                 trace = np.trace(np.linalg.solve(Kw[0], sigma_w[j, i, :, :]))
                 second_term += logKw -0.5*muKmu -0.5*trace
