@@ -281,8 +281,6 @@ class inference(object):
 
         ExpLogPrior = self._expectedLogPrior(node, weight, 
                                              sigF, muF, sigW, muW)
-        print('#####', node,'\n#####',weight)
-        print('##### ExpLogPrior',-ExpLogPrior,'#####')
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, mu):
@@ -402,7 +400,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead', constraints=jittConsts,
-                               options = {'maxiter':1})
+                               options = {'maxiter':250, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             
@@ -412,9 +410,8 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead', constraints=parsConsts,
-                               options={'maxiter': 1, 'adaptive': False})
+                               options={'maxiter': 250, 'adaptive': False})
                 initParams = res2.x
-                print(res2)
             hyperparameters = np.exp(np.array(initParams))
             
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
@@ -660,19 +657,20 @@ class inference(object):
         Lw = self._cholNugget(Kw[0])[0]
         #Kw_inv = inv(Kw[0])
         #logKw = -self.q * np.sum(np.log(np.diag(L2)))
-        logKw = -np.float(np.sum(np.log(np.diag(Lw))))
+        logKw = -self.q * np.float(np.sum(np.log(np.diag(Lw))))
         mu_w = mu_w.reshape(self.q, self.p, self.N)
         
         for j in range(self.q):
             Lf = self._cholNugget(Kf[j])[0]
-            logKf = -np.float(np.sum(np.log(np.diag(Lf))))
+            logKf = -self.q * np.float(np.sum(np.log(np.diag(Lf))))
+            #print(logKf)
             #Kf_inv = inv(Kf[j])
             #muKmu = (Kf_inv @mu_f[:,j, :].reshape(self.N)) @mu_f[:,j, :].reshape(self.N)
-            muKmu = np.linalg.solve(Kf[j], mu_f[:,j, :].reshape(self.N)) @ mu_f[:,j, :].reshape(self.N)
+            muKmu = np.linalg.solve(Lf, mu_f[:,j, :].reshape(self.N)) @ mu_f[:,j, :].reshape(self.N)
             #trace = np.trace(sigma_f[j] @Kf_inv)
-            trace = np.trace(np.linalg.solve(Kw[0],sigma_f[j]))
+            trace = np.trace(np.linalg.solve(Kf[j],sigma_f[j]))
             first_term += logKf -0.5*muKmu -0.5*trace
-            print(trace)
+            #print(trace)
             for i in range(self.p):
                 #muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
                 muKmu = np.linalg.solve(Kw[0], mu_w[j,i]) @mu_w[j,i].T
