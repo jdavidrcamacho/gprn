@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pylab as plt
-import warnings
 
-from scipy.linalg import cholesky, LinAlgError, inv
+from scipy.linalg import cholesky, LinAlgError
 from scipy.optimize import minimize
 
 from gprn.covFunction import Linear as covL
@@ -95,7 +94,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
 
@@ -265,8 +264,7 @@ class inference(object):
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
-        ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                             sigF, muF, sigW, muW)
+        ExpLogPrior = self._expectedLogPrior(node, weight, sigF, muF, sigW, muW)
         return -ExpLogPrior
 
     def Prediction(self, node, weights, means, tstar, mu):
@@ -370,7 +368,6 @@ class inference(object):
         var = np.random.rand(D, 1)
         
         elboArray = np.array([0]) #To add new elbo values inside
-        jittArray = np.array([])
         iterNumber = 0
         while iterNumber < iterations:
             print('\n*** ITERATION {0} ***'.format(iterNumber+1))
@@ -381,48 +378,49 @@ class inference(object):
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
-            
+
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1000, 'adaptive': True})
+                               options = {'maxiter': 1, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
-            jittArray = np.append(jittArray, jitter)
             
             #3rdstep - optimize nodes, weights, and means
             if updateHyperParams:
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1000, 'adaptive': True})
+                               options={'maxiter': 1, 'adaptive': False})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
-            nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
             
-            #4th step - ELBO to check stopping criteria
-            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, 
-                                             mu, var, sigF, sigW, opt_step=1)
+            nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
+            ######################## 4th step - ELBO to check stopping criteria
+            print(' ##### ')
+            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
+                                            var, sigF, sigW, opt_step=1)
+            #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
-#            #Stoping criteria
-#            criteria = np.abs(elboArray[-1] - elboArray[-2])
-#            if iterNumber >1 and criteria < 1e-5:
-            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-            if criteria < 1e-5 and criteria != 0 :
+            #Stoping criteria
+            criteria = np.abs(elboArray[-1] - elboArray[-2])
+            if iterNumber >1 and criteria < 1e-5:
+#            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
+#            if criteria < 1e-5 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes and weights:', nodes, weight)
                 print('mean:', mean)
                 print('jitter:', jitter, '\n')
-                return hyperparameters, jitter, elboArray, mu, var, jittArray
+                return hyperparameters, jitter, elboArray, mu, var
             print('ELBO:',ELBO,)
             print('nodes and weights:\n', nodes, '\n', weight)
             print('mean:', mean)
             print('jitter:', jitter, '\n')
-        return hyperparameters, jitter, elboArray, mu, var, jittArray
+        return hyperparameters, jitter, elboArray, mu, var
 
 
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
@@ -462,19 +460,17 @@ class inference(object):
                 Diag_fj = np.zeros_like(self.N)
                 tmp = np.zeros_like(self.N)
                 for i in range(self.p):
-                    Diag_fj = Diag_fj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
-                                /(self.yerr2[i,:] + jitt2[i])
+                    Diag_fj = Diag_fj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])#/ (self.yerr2[i,:] + jitt2[i])
                     Sum_nj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
                             muF = muF.T.reshape(1, self.q, self.N )
                             Sum_nj += muW[i,k,:]*muF[:,k,:].reshape(self.N)
-                    tmp = (tmp + ((new_y[i,:]-Sum_nj)*muW[i,j,:]))\
-                            /(self.yerr2[i,:] + jitt2[i])
-                CovF0 = np.diag(1 / Diag_fj) + Kf[j]
+                    tmp = (tmp + ((new_y[i,:]-Sum_nj)*muW[i,j,:]))#/ (self.yerr2[i,:] + jitt2[i])
+                CovF0 = np.diag(jitt2[0] / Diag_fj) + Kf[j]
                 CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF0, Kf[j])
             sigma_f.append(CovF)
-            mu_f.append(CovF @ tmp)
+            mu_f.append(CovF @ (tmp/ jitt2))
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
             sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
@@ -482,19 +478,17 @@ class inference(object):
                 for j in range(self.q):
                     mu_fj = mu_f[j]
                     var_fj = np.diag(sigma_f[j])
-                    Diag_ij = (mu_fj * mu_fj + var_fj) \
-                                / (self.yerr2[i,:] + jitt2[i])
+                    Diag_ij = (mu_fj * mu_fj + var_fj) # / (self.yerr2[i,:] + jitt2[i])
                     Kw = np.squeeze(Kw)
-                    CovWij = np.diag(1 / Diag_ij) + Kw
+                    CovWij = np.diag(jitt2[0] / Diag_ij) + Kw
                     CovWij = Kw - Kw @ np.linalg.solve(CovWij, Kw)
                     Sum_nj = 0
                     for k in range(self.q):
                         if k != j:
                             Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
-                    tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) \
-                            / (self.yerr2[i,:] + jitt2[i])
+                    tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) #/ (self.yerr2[i,:] + jitt2[i])
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ tmp )
+                    mu_w.append(CovWij @ (tmp /jitt2))
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         #for q > 1
@@ -561,19 +555,12 @@ class inference(object):
         #jitters
         jitt2 = np.exp(2*np.array(jitter))
 
-        Ydiffyerr = np.zeros_like(self.yerr2)
-        logl, jittSum = 0, 0
-        for p in range(self.p):
-            Ydiffyerr[p,:] = self.yerr2[p,:] + jitt2[p]
-            logl += np.log(jitt2[p])
-            jittSum += jitt2[p]
-            for n in range(self.N):
-                if self.yerr2[p,n] == 0:
-                    logl += 0
-                else:
-                    logl += np.log(self.yerr2[p,n])
-                jittSum += self.yerr2[p,n]
-        logl = -0.5 * logl
+
+#        Ydiffyerr = np.zeros_like(self.yerr2)
+#        for i in range(self.p):
+#            Ydiffyerr[i,:] = self.yerr2[i,:] + jitt2[i]
+            
+        logl = -0.5*self.N*self.p*np.log(jitt2)
         
         if self.q == 1:
             Wblk = np.array([])
@@ -587,18 +574,17 @@ class inference(object):
                         Fblk = np.append(Fblk, mu_f[:, q, n])
             Ymean = Wblk * Fblk
             Ymean = Ymean.reshape(self.N,self.p)
-            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) /Ydiffyerr.T
+            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) #/Ydiffyerr.T
 
-            logl += -0.5 * np.sum(Ydiff)
+            logl += -0.5 * np.sum(Ydiff) /jitt2[0]
             
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
                     value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
                                     np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
-                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                    / (self.yerr2[i,:] + jitt2[i]))
-            logl += -0.5 * value
+                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))) #/ (self.yerr2[i,:] + jitt2[i]))
+            logl += -0.5* value /jitt2[0]
             
         else:
             Wblk = []
@@ -618,15 +604,15 @@ class inference(object):
             Fblk = np.array(Fblk).reshape(self.p, self.N * self.p)
             Ymean = np.sum((Wblk * Fblk).T, axis=1)
             Ymean = Ymean.reshape(self.N,self.p)
-            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) /Ydiffyerr.T
-            logl = -0.5 * np.sum(Ydiff)
+            Ydiff = ((new_y - Ymean) * (new_y - Ymean)) #/Ydiffyerr.T
+            logl = -0.5 * np.sum(Ydiff/Ydiffyerr.T)
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
                     value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
                                     np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
                                     np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                    / (self.yerr2[i,:] + jitt2[i]))
+                                            / (self.yerr2[i,:] + jitt2[i]))
             logl += -0.5* value
         return logl
 
@@ -673,7 +659,7 @@ class inference(object):
             #print(first_term)
             for i in range(self.p):
                 #muKmu = (Kw_inv @mu_w[j,i])  @mu_w[j,i].T
-                muKmu = np.linalg.solve(Lw, mu_w[j,i]) @mu_w[j,i].T
+                #muKmu = np.linalg.solve(Lw, mu_w[j,i]) @mu_w[j,i].T
                 #print('mu', Lw)
                 alpha = np.linalg.solve(Lw, mu_w[j,i]) 
                 muKmu = alpha @ alpha
@@ -736,3 +722,47 @@ class inference(object):
               + str(ExpLogPrior) + ' \n entropy: ' + str(Entropy) + ' \n')
         return 0
 
+#    def Prediction2(self, nodes, weights, means, tstar, muF, muW):
+#        """
+#            Prediction for mean-field inference
+#            Parameters:
+#                nodes = array of node functions 
+#                weight = weight function
+#                means = array with the mean functions
+#                jitters = jitters array
+#                tstar = predictions time
+#                muF = array with the initial means for each node
+#                varF = array with the initial variance for each node
+#                muW = array with the initial means for each weight
+#            Returns:
+#                ystar = predicted means
+#        """
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        invKf = np.array([inv(i) for i in Kf])
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+#        invKw = np.array([inv(j) for j in Kw])
+#
+#        #mean functions
+#        means = self._mean(means, tstar)
+#        means = np.array_split(means, self.p)
+#
+#        ystar = []
+#        for n in range(tstar.size):
+#            Kfstar = np.array([self._predictKernelMatrix(i1, tstar[n]) for i1 in nodes])
+#            Kwstar = np.array([self._predictKernelMatrix(i2, tstar[n]) for i2 in weights])
+#            Efstar, Ewstar = 0, 0
+#            for j in range(self.q):
+##                print(Kfstar.shape, invKf.shape, muF.shape)
+#                Efstar += Kfstar[j,:,:] @(invKf[j,:,:] @muF[:,j,:].T) 
+#                for i in range(self.p):
+#                    Ewstar += Kwstar[0] @(invKw[0] @muW[i][j].T)
+#            ystar.append(Ewstar@ Efstar)
+#        ystar = np.array(ystar).reshape(tstar.size) #final mean
+#
+##        ystar += self._mean(means, tstar) #adding the mean function
+#
+#        combined_ystar = []
+#        for i in range(self.p):
+#            combined_ystar.append(ystar + means[i])
+#        combined_ystar = np.array(combined_ystar)
+#        return combined_ystar
