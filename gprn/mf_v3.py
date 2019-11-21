@@ -384,7 +384,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1, 'adaptive': False})
+                               options = {'maxiter': 1, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             
@@ -393,23 +393,23 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1, 'adaptive': False})
+                               options={'maxiter': 1, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             
             nodes, weight = fixIt(nodes, weight, hyperparameters, self.q)
             ######################## 4th step - ELBO to check stopping criteria
-            print(' ##### ')
             ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, mu, 
                                             var, sigF, sigW, opt_step=1)
             #The true value of the ELBO is -self.EvidenceLowerBound(...)!!
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
+#            #Stoping criteria
+#            criteria = np.abs(elboArray[-1] - elboArray[-2])
+#            if iterNumber >1 and criteria < 1e-5:
             #Stoping criteria
-            criteria = np.abs(elboArray[-1] - elboArray[-2])
-            if iterNumber >1 and criteria < 1e-5:
-#            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-#            if criteria < 1e-5 and criteria != 0 :
+            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
+            if criteria < 1e-5 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes and weights:', nodes, weight)
@@ -470,7 +470,7 @@ class inference(object):
                 CovF0 = np.diag(jitt2[0] / Diag_fj) + Kf[j]
                 CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF0, Kf[j])
             sigma_f.append(CovF)
-            mu_f.append(CovF @ (tmp/ jitt2))
+            mu_f.append(CovF @ (tmp/ jitt2[0]))
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
             sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
@@ -488,7 +488,7 @@ class inference(object):
                             Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
                     tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) #/ (self.yerr2[i,:] + jitt2[i])
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ (tmp /jitt2))
+                    mu_w.append(CovWij @ (tmp /jitt2[0]))
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         #for q > 1
@@ -527,7 +527,7 @@ class inference(object):
                             Sum_nj += mu_f[k].reshape(self.N)*np.array(muW[k,i,:])
                     tmp = ((new_y[i,:]-Sum_nj)*mu_f[j,:]) #/ (self.yerr2[i,:] + jitt2[i])
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ tmp / jitt2)
+                    mu_w.append(CovWij @ tmp / jitt2[i])
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
