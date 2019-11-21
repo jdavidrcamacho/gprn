@@ -11,9 +11,9 @@ from gprn import covFunction
 from gprn import meanFunction
 
 #mean-field inference
-from gprn import mf 
-from gprn import alt_mf
-from gprn import new_mf
+from gprn import mf_v1
+from gprn import mf_v2
+from gprn import mf_v3
 
 #nonparametric variational inference
 from gprn import npvi
