@@ -6,9 +6,7 @@ from functools import wraps
 __all__ = ['Constant', 'Linear', 'Parabola', 'Cubic', 'Keplerian']
 
 def array_input(f):
-    """
-        decorator to provide the __call__ methods with an array
-    """
+    """ Decorator to provide the __call__ methods with an array """
     @wraps(f)
     def wrapped(self, t):
         t = np.atleast_1d(t)
@@ -40,9 +38,7 @@ class MeanModel(object):
 
 
 class Sum(MeanModel):
-    """
-        Sum of two mean functions
-    """
+    """ Sum of two mean functions """
     def __init__(self, m1, m2):
         self.m1, self.m2 = m1, m2
 
@@ -66,9 +62,7 @@ class Sum(MeanModel):
 
 
 class Constant(MeanModel):
-    """ 
-        A constant offset mean function
-    """
+    """  A constant offset mean function """
     _parsize = 1
     def __init__(self, c):
         super(Constant, self).__init__(c)
@@ -80,8 +74,8 @@ class Constant(MeanModel):
 
 class Linear(MeanModel):
     """ 
-        A linear mean function
-        m(t) = slope * t + intercept 
+    A linear mean function
+    m(t) = slope * t + intercept 
     """
     _parsize = 2
     def __init__(self, slope, intercept):
@@ -95,8 +89,8 @@ class Linear(MeanModel):
 
 class Parabola(MeanModel):
     """ 
-        A 2nd degree polynomial mean function
-        m(t) = quad * t**2 + slope * t + intercept 
+    A 2nd degree polynomial mean function
+    m(t) = quad * t**2 + slope * t + intercept 
     """
     _parsize = 3
     def __init__(self, quad, slope, intercept):
@@ -109,8 +103,8 @@ class Parabola(MeanModel):
 
 class Cubic(MeanModel):
     """ 
-        A 3rd degree polynomial mean function
-        m(t) = cub * t**3 + quad * t**2 + slope * t + intercept 
+    A 3rd degree polynomial mean function
+    m(t) = cub * t**3 + quad * t**2 + slope * t + intercept 
     """
     _parsize = 4
     def __init__(self, cub, quad, slope, intercept):
@@ -123,8 +117,8 @@ class Cubic(MeanModel):
 
 class Sine(MeanModel):
     """ 
-        A sinusoidal mean function
-        m(t) = amplitude * sine(ang_freq * t + phase)
+    A sinusoidal mean function
+    m(t) = amplitude * sine(ang_freq * t + phase)
     """
     _parsize = 3
     def __init__(self, amp, w, phi):
@@ -137,17 +131,17 @@ class Sine(MeanModel):
 
 class oldKeplerian(MeanModel):
     """
-        Keplerian function with T0
-        tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
-        E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
-        M(t) = (2*pi*t/tau) + M0 = Mean anomaly
-        P  = period in days
-        e = eccentricity
-        K = RV amplitude in m/s 
-        w = longitude of the periastron
-        T0 = time of periastron passage
+    Keplerian function with T0
+    tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
+    E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
+    M(t) = (2*pi*t/tau) + M0 = Mean anomaly
+    P  = period in days
+    e = eccentricity
+    K = RV amplitude in m/s 
+    w = longitude of the periastron
+    T0 = time of periastron passage
 
-        RV = K[cos(w+v) + e*cos(w)] + sis_vel
+    RV = K[cos(w+v) + e*cos(w)] + sis_vel
     """
     _parsize = 5
     def __init__(self, P, K, e, w, T0):
@@ -180,17 +174,17 @@ class oldKeplerian(MeanModel):
 
 class Keplerian(MeanModel):
     """
-        Keplerian function with phi
-        tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
-        E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
-        M(t) = (2*pi*t/tau) + M0 = Mean anomaly
-        P  = period in days
-        e = eccentricity
-        K = RV amplitude in m/s 
-        w = longitude of the periastron
-        phi = orbital phase
+    Keplerian function with phi
+    tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
+    E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
+    M(t) = (2*pi*t/tau) + M0 = Mean anomaly
+    P  = period in days
+    e = eccentricity
+    K = RV amplitude in m/s 
+    w = longitude of the periastron
+    phi = orbital phase
 
-        RV = K[cos(w+v) + e*cos(w)]
+    RV = K[cos(w+v) + e*cos(w)]
     """
     _parsize = 5
     def __init__(self, P, K, e, w, phi):
@@ -224,18 +218,18 @@ class Keplerian(MeanModel):
 
 class corot7Keplerian(MeanModel):
     """
-        Keplerian function with phi for two planets (for the CoRoT-7 case)
-        tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
-        E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
-        M(t) = (2*pi*t/tau) + M0 = Mean anomaly
-        P  = period in days
-        e = eccentricity
-        K = RV amplitude in m/s 
-        w = longitude of the periastron
-        phi = orbital phase
-        sis_vel = offset
+    Keplerian function with phi for two planets (for the CoRoT-7 case)
+    tan[phi(t) / 2 ] = sqrt(1+e / 1-e) * tan[E(t) / 2] = true anomaly
+    E(t) - e*sin[E(t)] = M(t) = eccentric anomaly
+    M(t) = (2*pi*t/tau) + M0 = Mean anomaly
+    P  = period in days
+    e = eccentricity
+    K = RV amplitude in m/s 
+    w = longitude of the periastron
+    phi = orbital phase
+    sis_vel = offset
 
-        RV = K[cos(w+v) + e*cos(w)] + K[cos(w+v) + e*cos(w)] + sis_vel
+    RV = K[cos(w+v) + e*cos(w)] + K[cos(w+v) + e*cos(w)] + sis_vel
     """
     _parsize = 11
     def __init__(self, P1, K1, e1, w1, phi1, P2, K2, e2, w2, phi2, sis_vel):

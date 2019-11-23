@@ -4,16 +4,25 @@ import  numpy as np
 ##### Semi amplitude calculation ##############################################
 def semi_amplitude(period, Mplanet, Mstar, ecc):
     """
-        Calculates the semi-amplitude (K) caused by a planet with a given
+    Calculates the semi-amplitude (K) caused by a planet with a given
     period and mass Mplanet, around a star of mass Mstar, with a 
     eccentricity ecc.
-        Parameters:
-            period = period in years
-            Mplanet = planet's mass in Jupiter masses, tecnically is the M.sin i
-            Mstar = star mass in Solar masses
-            ecc = eccentricity
-        Returns:
-            Semi-amplitude K
+    
+    Parameters
+    ----------
+    period: float
+        Period in years
+    Mplanet: float
+        Planet's mass in Jupiter masses, tecnically is the M.sin i
+    Mstar: float
+        Star mass in Solar masses
+    ecc: float
+        Eccentricity between 0 and 1
+    
+    Returns
+    -------
+    float
+        Semi-amplitude K
     """
     per = np.float(np.power(1/period, 1/3))
     Pmass = Mplanet / 1
@@ -26,20 +35,34 @@ def semi_amplitude(period, Mplanet, Mstar, ecc):
 ##### Keplerian function ######################################################
 def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
     """
-        keplerian() simulates the radial velocity signal of a planet in a 
+    keplerian() simulates the radial velocity signal of a planet in a 
     keplerian orbit around a star.
-        Parameters:
-            P = period in days
-            K = RV amplitude
-            e = eccentricity
-            w = longitude of the periastron
-            T = zero phase
-            phi = orbital phase
-            gamma = constant system RV
-            t = time of measurements
-        Returns:
-            t = time of measurements
-            RV = rv signal generated
+    
+    Parameters
+    ----------
+    P: float
+        Period in days
+    K: float
+        RV amplitude
+    e: float
+        Eccentricity
+    w: float 
+        Longitude of the periastron
+    T: float
+        Zero phase
+    phi: float
+        Orbital phase
+    gamma: float
+        Constant system RV
+    t: array
+        Time of measurements
+    
+    Returns
+    -------
+    t: array
+        Time of measurements
+    RV: arrav
+        RV signal generated
     """
     if t is  None:
         print()
@@ -77,17 +100,28 @@ def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
 ##### Phase-folding function ##################################################
 def phase_folding(t, y, yerr, period):
     """
-        phase_folding() allows the phase folding (duh...) of a given data
+    phase_folding() allows the phase folding (duh...) of a given data
     accordingly to a given period
-        Parameters:
-            t = time
-            y = measurements
-            yerr = measurement errors
-            period = period to fold the data
-        Returns:
-            phase = phase
-            folded_y = sorted measurments according to the phase
-            folded_yerr = sorted errors according to the phase
+    
+    Parameters
+    ----------
+    t: array
+        Time
+    y: array
+        Measurements
+    yerr: array
+        Measurement errors
+    period: float
+        Period to fold the data
+    
+    Returns
+    -------
+    phase: array
+        Phase
+    folded_y: array
+        Sorted measurments according to the phase
+    folded_yerr:array
+        Sorted errors according to the phase
     """
     #divide the time by the period to convert to phase
     foldtimes = t / period
@@ -105,16 +139,25 @@ def phase_folding(t, y, yerr, period):
 ##### MCMC with dynesty or emcee ##############################################
 def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     """
-        run_mcmc() allow the user to run emcee or dynesty automatically
-        Parameters:
-            prior_func = function that return an array with the priors
-            elbo_func = function that calculates the ELBO 
-            iterations = number of iterations; in emcee the same number of 
-                        iterations will be used as mcmc burn-in followed by the 
-                        same number of iterations as mcmc run
-            sampler = 'emcee' or 'dynesty'
-        Returns:
-            result = return the sampler's results accordingly to the sampler
+    run_mcmc() allow the user to run emcee or dynesty automatically
+    
+    Parameters
+    ----------
+    prior_func: func
+        Function that return an array with the priors
+    elbo_func: func
+        Function that calculates the ELBO 
+    iterations: int
+        Number of iterations; in emcee the same number of iterations will be 
+        used as mcmc burn-in followed by the same number of iterations as mcmc 
+        run
+    sampler: str
+        'emcee' or 'dynesty'
+        
+    Returns
+    -------
+    result: array?
+        Return the sampler's results accordingly to the sampler
     """
     import dynesty, emcee
     from multiprocessing import Pool
@@ -156,14 +199,23 @@ def elbo_mcmc():
 ##### scipy minimization ######################################################
 def run_minimization(elbo_func, init_x, constraints, iterations=1000):
     """
-        run_mcmc() allow the user to run the COBYLA minimization method
-        Parameters:
-            elbo_func = function that calculates the ELBO 
-            init_x = initial values
-            constraints = constraints for ‘trust-constr’ 
-            iterations = number of iterations;
-        Returns:
-            results = return the minimization results 
+    run_mcmc() allow the user to run the COBYLA minimization method
+    
+    Parameters
+    ----------
+    elbo_func: func
+        Function that calculates the ELBO 
+    init_x: array
+        Initial values
+    constraints: array
+        Constraints for ‘trust-constr’ 
+    iterations: int
+        Number of iterations;
+    
+    Returns
+    -------
+    results: array?
+        Minimization results 
     """
     from scipy.optimize import minimize
     #defining the constraints
@@ -196,13 +248,21 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
 ##### truncated cauchy distribution ###########################################
 def truncCauchy_rvs(loc=0, scale=1, a=-1, b=1, size=None):
     """
-        Generate random samples from a truncated Cauchy distribution.
-        Parameters:
-            loc = location parameter of the distribution
-            scale = scale parameter of the distribution
-            a, b = interval [a, b] to which the distribution is to be limited
-        Returns:
-            rvs = rvs of the truncated Cauchy
+    Generate random samples from a truncated Cauchy distribution.
+    
+    Parameters
+    ----------
+    loc: int
+        Location parameter of the distribution
+    scale: int
+        Scale parameter of the distribution
+    a, b: int
+        Interval [a, b] to which the distribution is to be limited
+    
+    Returns
+    -------
+    rvs: float
+        rvs of the truncated Cauchy
     """
     ua = np.arctan((a - loc)/scale)/np.pi + 0.5
     ub = np.arctan((b - loc)/scale)/np.pi + 0.5

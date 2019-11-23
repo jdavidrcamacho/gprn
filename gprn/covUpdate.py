@@ -1,41 +1,57 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import numpy as np
 from gprn import covFunction
 
-def fixIt(nodes, weight, newPars, q):
+def newCov(nodes, weight, newPars, q):
     """
-        To fix the update of the nodes and weight until something smarter and
+    To fix the update of the nodes and weight until something smarter and
     better comes to mind
+    
+    Parameters
+    ----------
+    nodes: array
+        Old nodes
+    weight: array
+        Old weights
+    newPars: array
+        New hyperparameters values
+    
+    Returns
+    -------
+    nodes: array
+        Updated nodes
+    weight: array
+        Updated weights
     """
-#    parsUsed = 0
-#    for qq in range(q):
-#            howBig = nodes[qq].params_size - 1
-#            parsToUse = newPars[parsUsed:parsUsed+howBig]
-#            print('node', parsToUse)
-#            nodes[qq] = new_kernel(nodes[qq], parsToUse, node=True)
-#            parsUsed += howBig
-#    
-#    howBig = weight[0].params_size - 1
-#    parsToUse = newPars[parsUsed:parsUsed+howBig]
-#    print('weight', parsToUse)
-#    weight[0] = new_kernel(weight[0], parsToUse, node=False)
-    
-    newPars = np.round(newPars, 15)
-    nodes[0] = new_kernel(nodes[0], newPars[0:2], node=True)
-    weight[0] = new_kernel(weight[0], newPars[2:4], node=False)
-    
+    parsUsed = 0
+    for qq in range(q):
+            howBig = nodes[qq].params_size - 1
+            parsToUse = newPars[parsUsed:parsUsed+howBig]
+            nodes[qq] = checkKernel(nodes[qq], parsToUse, node=True)
+            parsUsed += howBig
+    howBig = weight[0].params_size - 1
+    parsToUse = newPars[parsUsed:parsUsed+howBig]
+    weight[0] = checkKernel(weight[0], parsToUse, node=False)
     return nodes, weight
 
-def new_kernel(originalCov,newPars, node=True):
+def checkKernel(originalCov,newPars, node=True):
     """
-        new_kernel() updates the parameters of the covFuntions as the 
+    new_kernel() updates the parameters of the covFuntions as the 
     optimizations advances
-        Parameters:
-            originalCov = original kernel in use
-            newPars = new parameters or new hyperparameters if you prefer using
-            that denomination
-            node = True if its a node False if its a weight
+    
+    Parameters
+    ----------
+    originalCov: kernel
+        Original kernel in use
+    newPars: array
+        New hyperparameters if you prefer using that denomination
+    node: bool
+        True if its a node False if its a weight
+        
+    Returns
+    -------
+    kernel
+        Kernel with updated hyperparameters
     """
     #nodes have a amplitude of 1
     if node:
@@ -43,7 +59,7 @@ def new_kernel(originalCov,newPars, node=True):
             return covFunction.WhiteNoise(newPars[0])
         elif isinstance(originalCov, covFunction.SquaredExponential):
             ######################### TO BE SOLVED 
-            return covFunction.SquaredExponential(1, newPars[1], 0)
+            return covFunction.SquaredExponential(1, newPars[0], newPars[1])
         elif isinstance(originalCov, covFunction.Periodic):
             return covFunction.Periodic(1, newPars[0], newPars[1], newPars[2])
         elif isinstance(originalCov, covFunction.QuasiPeriodic):

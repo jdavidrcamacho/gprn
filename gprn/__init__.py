@@ -11,13 +11,11 @@ from gprn import covFunction
 from gprn import meanFunction
 
 #mean-field inference
-from gprn import mf_v1
-from gprn import mf_v2
-from gprn import mf_v3
+from gprn import mf
 
 #nonparametric variational inference
 from gprn import npvi
 
 #useful functions
 from gprn import utils
-from gprn import covFix
+from gprn import covUpdate

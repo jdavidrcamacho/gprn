@@ -6,27 +6,23 @@ pi, exp, sine, cosine, sqrt = np.pi, np.exp, np.sin, np.cos, np.sqrt
 
 class covFunction(object):
     """
-        Definition the covariance functions (kernels) of our GPRN, by default 
-    and because it simplifies my life, all kernels include a white noise term
+    Definition the covariance functions (kernels) of our GPRN, by default and 
+    because it simplifies my life, all kernels include a white noise term
     """
     def __init__(self, *args):
-        """
-            Puts all kernel arguments in an array pars
-        """
+        """ Puts all kernel arguments in an array pars """
         self.pars = np.array(args, dtype=float)
 
     def __call__(self, r, t1 = None, t2=None):
         """
-            r = t - t' 
-            Not sure if this is a good approach since will make our life harder 
+        r = t - t' 
+        Not sure if this is a good approach since will make our life harder 
         when defining certain non-stationary kernels, e.g linear kernel.
         """
         raise NotImplementedError
 
     def __repr__(self):
-        """
-            Representation of each kernel instance
-        """
+        """ Representation of each kernel instance """
         return "{0}({1})".format(self.__class__.__name__,
                                  ", ".join(map(str, self.pars)))
 
@@ -42,9 +38,7 @@ class covFunction(object):
 
 
 class _operator(covFunction):
-    """ 
-        To allow operations between two kernels 
-    """
+    """ To allow operations between two kernels """
     def __init__(self, k1, k2):
         self.k1 = k1
         self.k2 = k2
@@ -56,9 +50,7 @@ class _operator(covFunction):
 
 
 class Sum(_operator):
-    """ 
-        To allow the sum of kernels
-    """
+    """ To allow the sum of kernels """
     def __repr__(self):
         return "{0} + {1}".format(self.k1, self.k2)
 
@@ -67,9 +59,7 @@ class Sum(_operator):
 
 
 class Multiplication(_operator):
-    """ 
-        To allow the multiplication of kernels 
-    """
+    """ To allow the multiplication of kernels """
     def __repr__(self):
         return "{0} * {1}".format(self.k1, self.k2)
 
@@ -80,10 +70,17 @@ class Multiplication(_operator):
 ##### Constant #################################################################
 class Constant(covFunction):
     """
-        This kernel returns its constant argument c with white noise
-        Parameters:
-            c = constant
-            wn = white noise amplitude
+    This kernel returns its constant argument c with white noise
+    
+    Parameters
+    ----------
+    c: float
+        Constant
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, c, wn):
         super(Constant, self).__init__(c, wn)
@@ -102,9 +99,7 @@ class Constant(covFunction):
             return self.c**2 * np.ones_like(r)
 
 class dConstant_dc(Constant):
-    """
-        Log-derivative in order to c
-    """
+    """ Log-derivative in order to c """
     def __init__(self, c, wn):
         super(dConstant_dc, self).__init__(c, wn)
         self.c = c
@@ -114,9 +109,7 @@ class dConstant_dc(Constant):
         return 2 * self.c**2 * np.ones_like(r)
 
 class dConstant_dwn(Constant):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, c, wn):
         super(dConstant_dwn, self).__init__(c, wn)
         self.c = c
@@ -132,9 +125,15 @@ class dConstant_dwn(Constant):
 ##### White Noise ##############################################################
 class WhiteNoise(covFunction):
     """
-        Definition of the white noise kernel.
-        Parameters
-            wn = white noise amplitude
+    Definition of the white noise kernel.
+    
+    Parameters
+    ----------
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, wn):
         super(WhiteNoise, self).__init__(wn)
@@ -151,9 +150,7 @@ class WhiteNoise(covFunction):
             return self.wn**2 * np.ones_like(r)
 
 class dWhiteNoise_dwn(WhiteNoise):
-    """
-        Log-derivative in order to the amplitude
-    """
+    """ Log-derivative in order to the amplitude """
     def __init__(self, wn):
         super(dWhiteNoise_dwn, self).__init__(wn)
         self.wn = wn
@@ -167,12 +164,20 @@ class dWhiteNoise_dwn(WhiteNoise):
 ##### Squared exponential ######################################################
 class SquaredExponential(covFunction):
     """
-        Squared Exponential kernel, also known as radial basis function or RBF 
+    Squared Exponential kernel, also known as radial basis function or RBF 
     kernel in other works.
-        Parameters:
-            theta = amplitude
-            ell = length-scale
-            wn = white noise
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Length-scale
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell, wn):
         super(SquaredExponential, self).__init__(theta, ell, wn)
@@ -192,9 +197,7 @@ class SquaredExponential(covFunction):
             return self.theta**2 * exp(-0.5 * r**2 / self.ell**2)
 
 class dSquaredExponential_dtheta(SquaredExponential):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, wn):
         super(dSquaredExponential_dtheta, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -205,9 +208,7 @@ class dSquaredExponential_dtheta(SquaredExponential):
         return 2 * self.theta**2 * exp(-0.5 * r**2 / self.ell**2) 
 
 class dSquaredExponential_dell(SquaredExponential):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, wn):
         super(dSquaredExponential_dell, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -218,9 +219,7 @@ class dSquaredExponential_dell(SquaredExponential):
         return self.theta**2 * (r**2 / self.ell**2) * exp(-0.5 * r**2 / self.ell**2)
 
 class dSquaredExponential_dwn(SquaredExponential):
-    """
-        Log-derivative in order to the wn
-    """
+    """ Log-derivative in order to the wn """
     def __init__(self, theta, ell, wn):
         super(dSquaredExponential_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -237,12 +236,21 @@ class dSquaredExponential_dwn(SquaredExponential):
 ##### Periodic #################################################################
 class Periodic(covFunction):
     """
-        Definition of the periodic kernel.
-        Parameters:
-            theta = amplitude
-            ell = lenght scale
-            P = period
-            wn = white noise
+    Definition of the periodic kernel.
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Lenght scale
+    P: float
+        Period
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell, P, wn):
         super(Periodic, self).__init__(theta, ell, P, wn)
@@ -263,9 +271,7 @@ class Periodic(covFunction):
             return self.theta**2 * exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell**2)
 
 class dPeriodic_dtheta(Periodic):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, P, wn):
         super(dPeriodic_dtheta, self).__init__(theta, ell, P, wn)
         self.theta = theta
@@ -277,9 +283,7 @@ class dPeriodic_dtheta(Periodic):
         return 2*self.theta**2 * exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell**2)
 
 class dPeriodic_dell(Periodic):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, P, wn):
         super(dPeriodic_dell, self).__init__(theta, ell, P, wn)
         self.theta = theta
@@ -292,9 +296,7 @@ class dPeriodic_dell(Periodic):
                 * exp(-2*sine(pi*np.abs(r)/self.P)**2/self.ell**2)
 
 class dPeriodic_dP(Periodic):
-    """
-        Log-derivative in order to P
-    """
+    """ Log-derivative in order to P """
     def __init__(self, theta, ell, P, wn):
         super(dPeriodic_dP, self).__init__(theta, ell, P, wn)
         self.theta = theta
@@ -309,9 +311,7 @@ class dPeriodic_dP(Periodic):
                 / (self.ell**2*self.P)
 
 class dPeriodic_dwn(Periodic):
-    """
-        Log-derivative in order to wn
-    """
+    """ Log-derivative in order to wn """
     def __init__(self, theta, ell, P, wn):
         super(dPeriodic_dwn, self).__init__(theta, ell, P, wn)
         self.theta = theta
@@ -329,15 +329,25 @@ class dPeriodic_dwn(Periodic):
 ##### Quasi Periodic ###########################################################
 class QuasiPeriodic(covFunction):
     """
-        This kernel is the product between the exponential sine squared kernel 
+    This kernel is the product between the exponential sine squared kernel 
     and the squared exponential kernel, commonly known as the quasi-periodic 
-    kernel.
-        Parameters:
-            theta = amplitude
-            ell_e = evolutionary time scale
-            P = kernel periodicity
-            ell_p = length scale of the periodic component
-            wn = white noise
+    kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell_e: float
+        Evolutionary time scale
+    P: float
+        Kernel periodicity
+    ell_p: float
+        Length scale of the periodic component
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(QuasiPeriodic, self).__init__(theta, ell_e, P, ell_p, wn)
@@ -361,9 +371,7 @@ class QuasiPeriodic(covFunction):
                        /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
 class dQuasiPeriodic_dtheta(QuasiPeriodic):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(dQuasiPeriodic_dtheta, self).__init__(theta, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -377,9 +385,7 @@ class dQuasiPeriodic_dtheta(QuasiPeriodic):
                 * exp(-2*sine(pi*r/self.P)**2/self.ell_p**2-r**2/(2*self.ell_e**2))
 
 class dQuasiPeriodic_delle(QuasiPeriodic):
-    """
-        Log-derivative in order to ell_e
-    """
+    """ Log-derivative in order to ell_e """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(dQuasiPeriodic_delle, self).__init__(theta, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -394,9 +400,7 @@ class dQuasiPeriodic_delle(QuasiPeriodic):
                            / self.ell_p**2)) / self.ell_e**2
 
 class dQuasiPeriodic_dP(QuasiPeriodic):
-    """
-        Log-derivative in order to P
-    """
+    """ Log-derivative in order to P """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(dQuasiPeriodic_dP, self).__init__(theta, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -412,9 +416,7 @@ class dQuasiPeriodic_dP(QuasiPeriodic):
                 / (self.ell_p**2*self.P)
 
 class dQuasiPeriodic_dellp(QuasiPeriodic):
-    """
-        Log-derivative in order to ell_p
-    """
+    """ Log-derivative in order to ell_p """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(dQuasiPeriodic_dellp, self).__init__(theta, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -429,9 +431,7 @@ class dQuasiPeriodic_dellp(QuasiPeriodic):
                 / self.ell_p**2
 
 class dQuasiPeriodic_dwn(QuasiPeriodic):
-    """
-        Log-derivative in order to wn
-    """
+    """ Log-derivative in order to wn """
     def __init__(self, theta, ell_e, P, ell_p, wn):
         super(dQuasiPeriodic_dwn, self).__init__(theta, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -450,12 +450,22 @@ class dQuasiPeriodic_dwn(QuasiPeriodic):
 ##### Rational Quadratic #######################################################
 class RationalQuadratic(covFunction):
     """
-        Definition of the rational quadratic kernel.
-        Parameters:
-            theta = amplitude
-            alpha = weight of large and small scale variations
-            ell = characteristic lenght scale to define the kernel "smoothness"
-            wn = white noise amplitude
+    Definition of the rational quadratic kernel
+    
+    Parameters
+    ----------
+    
+    theta: float
+        Amplitude
+    alpha: float
+        Weight of large and small scale variations
+    ell: float
+        Characteristic lenght scale to define the kernel "smoothness"
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, alpha, ell, wn):
         super(RationalQuadratic, self).__init__(theta, alpha, ell, wn)
@@ -476,9 +486,7 @@ class RationalQuadratic(covFunction):
             return self.theta**2 /(1+r**2/(2*self.alpha*self.ell**2))**(-self.alpha)
 
 class dRationalQuadratic_dtheta(RationalQuadratic):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, alpha, ell, wn):
         super(dRationalQuadratic_dtheta, self).__init__(theta, alpha, ell, wn)
         self.theta = theta
@@ -490,9 +498,7 @@ class dRationalQuadratic_dtheta(RationalQuadratic):
         return 2*self.theta**2 /(1+r**2/(2*self.alpha*self.ell**2))**(-self.alpha)
 
 class dRationalQuadratic_dalpha(RationalQuadratic):
-    """
-        Log-derivative in order to alpha
-    """
+    """ Log-derivative in order to alpha """
     def __init__(self, theta, alpha, ell, wn):
         super(dRationalQuadratic_dalpha, self).__init__(theta, alpha, ell, wn)
         self.theta = theta
@@ -507,9 +513,7 @@ class dRationalQuadratic_dalpha(RationalQuadratic):
                     /(1+r**2/(2*self.alpha*self.ell**2))**self.alpha
 
 class dRationalQuadratic_dell(RationalQuadratic):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, alpha, ell, wn):
         super(dRationalQuadratic_dell, self).__init__(theta, alpha, ell, wn)
         self.theta = theta
@@ -522,9 +526,7 @@ class dRationalQuadratic_dell(RationalQuadratic):
                 /self.ell**2
 
 class dRationalQuadratic_dwn(RationalQuadratic):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, alpha, ell, wn):
         super(dRationalQuadratic_dwn, self).__init__(theta, alpha, ell, wn)
         self.theta = theta 
@@ -542,17 +544,27 @@ class dRationalQuadratic_dwn(RationalQuadratic):
 ##### RQP kernel ###############################################################
 class RQP(covFunction):
     """
-        Definition of the product between the exponential sine squared kernel 
+    Definition of the product between the exponential sine squared kernel 
     and the rational quadratic kernel that we called RQP kernel.
-        If I am thinking this correctly then this kernel should tend to the
+    If I am thinking this correctly then this kernel should tend to the
     QuasiPeriodic kernel as alpha increases, although I am not sure if we can
     say that it tends to the QuasiPeriodic kernel as alpha tends to infinity.
-        Parameters:
-            theta = amplitude
-            alpha = alpha of the rational quadratic kernel
-            ell_e and ell_p = aperiodic and periodic lenght scales
-            P = periodic repetitions of the kernel
-            wn = white noise amplitude
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    alpha: float
+        Alpha of the rational quadratic kernel
+    ell_e, ell_p: float
+        Aperiodic and periodic lenght scales
+    P: float
+        Periodic repetitions of the kernel
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(RQP, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
@@ -577,9 +589,7 @@ class RQP(covFunction):
                         *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
 
 class dRQP_dtheta(RQP):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_dtheta, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -594,9 +604,7 @@ class dRQP_dtheta(RQP):
                         *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
 
 class dRQP_dalpha(RQP):
-    """
-        Log-derivative in order to alpha
-    """
+    """ Log-derivative in order to alpha """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_dalpha, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -614,9 +622,7 @@ class dRQP_dalpha(RQP):
                  /(1 + r**2/(2*self.alpha*self.ell_e**2))**self.alpha
 
 class dRQP_delle(RQP):
-    """
-        Log-derivative in order to ell_e
-    """
+    """ Log-derivative in order to ell_e """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_delle, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -631,9 +637,7 @@ class dRQP_delle(RQP):
                 * exp(-(2*sine(pi*r/self.P)**2)/self.ell_p**2)/self.ell_e**2
 
 class dRQP_dP(RQP):
-    """
-        Log-derivative in order to P
-    """
+    """ Log-derivative in order to P """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_dP, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -650,9 +654,7 @@ class dRQP_dP(RQP):
                    * (1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha * self.P)
 
 class dRQP_dellp(RQP):
-    """
-        Log-derivative in order to ell_p
-    """
+    """ Log-derivative in order to ell_p """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_dellp, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -668,9 +670,7 @@ class dRQP_dellp(RQP):
                 / (self.ell_p**2 * (1+r**2/(2*self.alpha*self.ell_e**2))**self.alpha)
 
 class dRQP_dwn(RQP):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
         super(dRQP_dwn, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
         self.theta = theta
@@ -690,11 +690,19 @@ class dRQP_dwn(RQP):
 ##### Cosine ###################################################################
 class Cosine(covFunction):
     """
-        Definition of the cosine kernel.
-        Parameters:
-            theta  =amplitude
-            P = period
-            wn = white noise amplitude
+    Definition of the cosine kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    P: float
+        Period
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, P, wn):
         super(Cosine, self).__init__(theta, P, wn)
@@ -714,9 +722,7 @@ class Cosine(covFunction):
             return self.theta**2 *cosine(2*pi*np.abs(r) / self.P)
 
 class dCosine_dtheta(Cosine):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, P, wn):
         super(dCosine_dtheta, self).__init__(theta, P, wn)
         self.theta = theta
@@ -727,9 +733,7 @@ class dCosine_dtheta(Cosine):
         return self.theta**2 * cosine(2*pi*np.abs(r) / self.P)
 
 class dCosine_dP(Cosine):
-    """
-        Log-derivative in order to P
-    """
+    """ Log-derivative in order to P """
     def __init__(self, theta, P, wn):
         super(dCosine_dP, self).__init__(theta, P, wn)
         self.theta = theta
@@ -740,9 +744,7 @@ class dCosine_dP(Cosine):
         return self.theta**2 * r*pi*sine(2*pi*np.abs(r)/self.P)/self.P
 
 class dCosine_dwn(Cosine):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, P, wn):
         super(dCosine_dwn, self).__init__(theta, P, wn)
         self.theta = theta
@@ -759,11 +761,19 @@ class dCosine_dwn(Cosine):
 ##### Laplacian ##############################################################
 class Laplacian(covFunction):
     """
-        Definition of the Laplacian kernel.
-        Parameters:
-            theta = amplitude
-            ell = characteristic lenght scale
-            wn = white noise amplitude
+    Definition of the Laplacian kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Characteristic lenght scale
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell, wn):
         super(Laplacian, self).__init__(theta, ell, wn)
@@ -783,9 +793,7 @@ class Laplacian(covFunction):
             return self.theta**2 * exp(-np.abs(r)/self.ell) 
 
 class dLaplacian_dtheta(Laplacian):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, wn):
         super(dLaplacian_dtheta, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -796,9 +804,7 @@ class dLaplacian_dtheta(Laplacian):
         return 2*self.theta**2 * exp(-np.abs(r)/self.ell) 
 
 class dLaplacian_dell(Laplacian):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, wn):
         super(dLaplacian_dell, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -809,9 +815,7 @@ class dLaplacian_dell(Laplacian):
         return -0.5*self.theta**2 * r * exp(- np.abs(r)/self.ell) / self.ell
 
 class dLaplacian_dwn(Laplacian):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, ell, wn):
         super(dLaplacian_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -828,11 +832,19 @@ class dLaplacian_dwn(Laplacian):
 ##### Exponential ##############################################################
 class Exponential(covFunction):
     """
-        Definition of the exponential kernel.
-        Parameters:
-            theta = amplitude
-            ell = characteristic lenght scale
-            wn = white noise amplitude
+    Definition of the exponential kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Characteristic lenght scale
+    wn: float
+        White noise amplitude
+    
+    Returns
+    -------
     """
     def __init__(self, theta, ell, wn):
         super(Exponential, self).__init__(theta, ell, wn)
@@ -852,9 +864,7 @@ class Exponential(covFunction):
             return self.theta**2 * exp(-np.abs(r)/self.ell) 
 
 class dExpoential_dtheta(Exponential):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, wn):
         super(dExpoential_dtheta, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -865,9 +875,7 @@ class dExpoential_dtheta(Exponential):
         raise 2*self.theta**2 * exp(-np.abs(r)/(2*self.ell**2))
 
 class dExpoential_dell(Exponential):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, wn):
         super(dExpoential_dell, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -878,9 +886,7 @@ class dExpoential_dell(Exponential):
         raise -0.5 * self.theta**2 * r * exp(- np.abs(r)/self.ell) / self.ell
 
 class dExpoential_dwn(Exponential):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, ell, wn):
         super(dExpoential_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -897,12 +903,20 @@ class dExpoential_dwn(Exponential):
 ##### Matern 3/2 ###############################################################
 class Matern32(covFunction):
     """
-        Definition of the Matern 3/2 kernel. This kernel arise when setting 
+    Definition of the Matern 3/2 kernel. This kernel arise when setting 
     v=3/2 in the matern family of kernels
-        Parameters:
-            theta = amplitude
-            ell = characteristic lenght scale
-            wn = white noise amplitude
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Characteristic lenght scale
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell, wn):
         super(Matern32, self).__init__(theta, ell, wn)
@@ -924,9 +938,7 @@ class Matern32(covFunction):
                         *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
 class dMatern32_dtheta(Matern32):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, wn):
         super(dMatern32_dtheta, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -938,9 +950,7 @@ class dMatern32_dtheta(Matern32):
                         *np.exp(-np.sqrt(3.0)*np.abs(r) / self.ell)
 
 class dMatern32_dell(Matern32):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, wn):
         super(dMatern32_dell, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -953,9 +963,7 @@ class dMatern32_dell(Matern32):
                 -(sqrt(3) * r * exp(-(sqrt(3)*r) / self.ell))/self.ell
 
 class dMatern32_dwn(Matern32):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, ell, wn):
         super(dMatern32_dwn, self).__init__(theta, ell, wn)
         self.theta = theta 
@@ -972,12 +980,20 @@ class dMatern32_dwn(Matern32):
 #### Matern 5/2 ################################################################
 class Matern52(covFunction):
     """
-        Definition of the Matern 5/2 kernel. This kernel arise when setting 
-    v=5/2 in the matern family of kernels
-        Parameters:
-            theta = amplitude
-            ell = characteristic lenght scale  
-            wn = white noise amplitude
+    Definition of the Matern 5/2 kernel. This kernel arise when setting v=5/2 
+    in the matern family of kernels
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    ell: float
+        Characteristic lenght scale  
+    wn: float 
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, ell, wn):
         super(Matern52, self).__init__(theta, ell, wn)
@@ -1001,9 +1017,7 @@ class Matern52(covFunction):
                            *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
 
 class dMatern52_dtheta(Matern52):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, ell, wn):
         super(dMatern52_dtheta, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -1016,9 +1030,7 @@ class dMatern52_dtheta(Matern52):
                            *exp(-np.sqrt(5.0)*np.abs(r)/self.ell)
 
 class dMatern52_dell(Matern52):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, ell, wn):
         super(dMatern52_dell, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -1034,9 +1046,7 @@ class dMatern52_dell(Matern52):
                            *exp(-(sqrt(5)*r)/self.ell))
 
 class dMatern52_dwn(Matern52):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, ell, wn):
         super(dMatern52_dwn, self).__init__(theta, ell, wn)
         self.theta = theta
@@ -1053,10 +1063,19 @@ class dMatern52_dwn(Matern52):
 #### Linear ####################################################################
 class Linear(covFunction):
     """
-        Definition of the Linear kernel.
-            theta = amplitude (should we even have an amplitude???)
-            c = constant
-            wn = white noise amplitude
+    Definition of the Linear kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude (should we even have an amplitude???)
+    c: float
+        Constant
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, c, wn):
         super(Linear, self).__init__(theta, c, wn)
@@ -1076,9 +1095,7 @@ class Linear(covFunction):
             return  (t1 - self.c) * (t2 - self.c)
 
 class dLinear_dtheta(Linear):
-    """
-        Log-derivative in order to theta???
-    """
+    """ Log-derivative in order to theta??? """
     def __init__(self, theta, c, wn):
         super(dLinear_dtheta, self).__init__(theta, c, wn)
         self.theta = theta
@@ -1089,9 +1106,7 @@ class dLinear_dtheta(Linear):
         return 2*self.theta**2 * (t1 - self.c) * (t2 - self.c) 
 
 class dLinear_dc(Linear):
-    """
-        Log-derivative in order to c
-    """
+    """ Log-derivative in order to c """
     def __init__(self, theta, c, wn):
         super(dLinear_dc, self).__init__(theta, c, wn)
         self.thta = theta
@@ -1102,9 +1117,7 @@ class dLinear_dc(Linear):
         return self.theta**2 * self.c * (-t1 - t2 + 2*self.c)
 
 class dLinear_dwn(Linear):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, c, wn):
         super(dLinear_dwn, self).__init__(theta, c, wn)
         self.theta = theta
@@ -1121,11 +1134,21 @@ class dLinear_dwn(Linear):
 ##### Gamma-exponential ########################################################
 class GammaExp(covFunction):
     """
-        Definition of the gamma-exponential kernel
-            theta = amplitude
-            gamma = shape parameter ( 0 < gamma <= 2)
-            ell = lenght scale
-            wn = white noise amplitude
+    Definition of the gamma-exponential kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude
+    gamma: float
+        Shape parameter ( 0 < gamma <= 2)
+    ell: float
+        Lenght scale
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, gamma, ell, wn):
         super(GammaExp, self).__init__(theta, gamma, ell, wn)
@@ -1146,9 +1169,7 @@ class GammaExp(covFunction):
             return self.theta**2 * exp(-(np.abs(r)/self.ell) ** self.gamma) 
 
 class dGammaExp_dtheta(GammaExp):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, gamma, ell, wn):
         super(dGammaExp_dtheta, self).__init__(theta, gamma, ell, wn)
         self.theta = theta
@@ -1160,9 +1181,7 @@ class dGammaExp_dtheta(GammaExp):
         return 2*self.theta**2 * exp(-(np.abs(r)/self.ell)**self.gamma)
 
 class dGammaExp_dgamma(GammaExp):
-    """
-        Log-derivative in order to ell
-    """
+    """ Log-derivative in order to ell """
     def __init__(self, theta, gamma, ell, wn):
         super(dGammaExp_dgamma, self).__init__(theta, gamma, ell, wn)
         self.theta = theta
@@ -1175,9 +1194,7 @@ class dGammaExp_dgamma(GammaExp):
                 *np.log(np.abs(r)/self.ell) * exp(-(np.abs(r)/self.ell)**self.gamma)
 
 class dGammaExp_dell(GammaExp):
-    """
-        Log-derivative in order to gamma
-    """
+    """ Log-derivative in order to gamma """
     def __init__(self, theta, gamma, ell, wn):
         super(dGammaExp_dell, self).__init__(theta, gamma, ell, wn)
         self.theta = theta 
@@ -1190,9 +1207,7 @@ class dGammaExp_dell(GammaExp):
                 * self.gamma * exp(-(np.abs(r)/self.ell)**self.gamma)
 
 class dGammaExp_dwn(GammaExp):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, gamma, ell, wn):
         super(dGammaExp_dwn, self).__init__(theta, gamma, ell, wn)
         self.theta = theta
@@ -1210,12 +1225,23 @@ class dGammaExp_dwn(GammaExp):
 ##### Polinomial ###############################################################
 class Polynomial(covFunction):
     """
-        Definition of the polinomial kernel
-            theta = amplitude ???
-            a = real value > 0
-            b = real value >= 0
-            c = integer value
-            wn = white noise amplitude
+    Definition of the polinomial kernel
+    
+    Parameters
+    ----------
+    theta: float
+        Amplitude ???
+    a: float
+        Real value > 0
+    b: foat
+        Real value >= 0
+    c: int
+        Integer value
+    wn: float
+        White noise amplitude
+        
+    Returns
+    -------
     """
     def __init__(self, theta, a, b, c, wn):
         super(Polynomial, self).__init__(theta, a, b, c, wn)
@@ -1237,9 +1263,7 @@ class Polynomial(covFunction):
             return (self.a * t1 * t2 + self.b)**self.c 
 
 class dPolynomial_dtheta(Polynomial):
-    """
-        Log-derivative in order to theta
-    """
+    """ Log-derivative in order to theta """
     def __init__(self, theta, a, b, c, wn):
         super(dPolynomial_dtheta, self).__init__(theta, a, b, c, wn)
         self.theta = theta
@@ -1252,9 +1276,7 @@ class dPolynomial_dtheta(Polynomial):
         return 2*self.theta**2 * (self.a * t1 * t2 + self.b)**self.c 
 
 class dPolynomial_da(Polynomial):
-    """
-        Log-derivative in order to a
-    """
+    """ Log-derivative in order to a """
     def __init__(self, theta, a, b, c, wn):
         super(dPolynomial_da, self).__init__(theta, a, b, c, wn)
         self.theta = theta
@@ -1267,9 +1289,7 @@ class dPolynomial_da(Polynomial):
         return self.theta**2 * self.c*t1*t2*(self.b+self.a*t1*t2)**(self.c-1)*self.a
 
 class dPolynomial_db(Polynomial):
-    """
-        Log-derivative in order to b
-    """
+    """ Log-derivative in order to b """
     def __init__(self, theta, a, b, c, wn):
         super(dPolynomial_db, self).__init__(theta, a, b, c, wn)
         self.theta = theta
@@ -1282,9 +1302,7 @@ class dPolynomial_db(Polynomial):
         return self.theta**2 * self.c*(self.b+self.a*t1*t2)**(self.c-1)*self.b
 
 class dPolynomial_dc(Polynomial):
-    """
-        Log-derivative in order to c
-    """
+    """ Log-derivative in order to c """
     def __init__(self, theta, a, b, c, wn):
         super(dPolynomial_dc, self).__init__(theta, a, b, c, wn)
         self.theta = theta
@@ -1298,9 +1316,7 @@ class dPolynomial_dc(Polynomial):
                 *np.log(self.a*t1*t2+self.b)
 
 class dPolynomial_dwn(Polynomial):
-    """
-        Log-derivative in order to the white noise
-    """
+    """ Log-derivative in order to the white noise """
     def __init__(self, theta, a, b, c, wn):
         super(dPolynomial_dwn, self).__init__(theta, a, b, c, wn)
         self.theta = theta
