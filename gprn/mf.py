@@ -708,11 +708,12 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
 
+        jitt = np.exp(np.array(jitter)) 
         jitt2 = np.exp(2*np.array(jitter)) #jitters
-        new_y0 = new_y.T #new_y0.shape = (p,n)
+        ycalc = new_y.T #new_y0.shape = (p,n)
         logl = 0
         for p in range(self.p):
-            new_y0[p] = new_y.T[p,:] / (jitt2[p] + self.yerr2[p,:])
+            ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr2[p,:])
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
@@ -722,15 +723,13 @@ class inference(object):
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc = np.append(Wcalc, mu_w[p,:,n])
-            Fcalc0, Fcalc = np.array([]), np.array([])
+            Fcalc = np.array([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, mu_f[:, q, n])
-                        Fcalc0 = np.append(Fcalc0, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
-            Ymean0 = (Wcalc * Fcalc0).reshape(self.N, self.p)
-            Ymean = (Wcalc * Fcalc).reshape(self.N,self.p)
-            Ydiff = (new_y0 - Ymean0.T) * (new_y - Ymean).T
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr2[p,n])))
+            Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
+            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff) 
             value = 0
             for i in range(self.p):
