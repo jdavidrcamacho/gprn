@@ -61,7 +61,7 @@ def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
     -------
     t: array
         Time of measurements
-    RV: arrav
+    RV: array
         RV signal generated
     """
     if t is  None:

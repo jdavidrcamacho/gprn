@@ -114,7 +114,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
 
@@ -299,6 +299,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
+        print(ExpLogLike, ExpLogPrior, Entropy)
         return ELBO
     
     
@@ -383,7 +384,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1000, 'adaptive': True})
+                               options = {'maxiter': 1, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -391,7 +392,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1000, 'adaptive': True})
+                               options={'maxiter': 1, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -713,9 +714,9 @@ class inference(object):
         for p in range(self.p):
             new_y0[p] = new_y.T[p,:] / (jitt2[p] + self.yerr2[p,:])
             for n in range(self.N):
-                logl += np.log(self.yerr2[p,n] + jitt2[p])
+                logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        
+        print('this is the first', logl)
         if self.q == 1:
             Wcalc = np.array([])
             for n in range(self.N):
