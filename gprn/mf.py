@@ -199,10 +199,10 @@ class inference(object):
             L = cholesky(matrix, lower=True, overwrite_a=True)
             return L, nugget
         except LinAlgError:
-            print('NUGGET ADDED TO DIAGONAL!')
+            #print('NUGGET ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
-                print ('n:', n+1, ', nugget:', nugget)
+                #print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L = cholesky(matrix + nugget*np.identity(matrix.shape[0]),
                                  lower=True, overwrite_a=True)
@@ -299,7 +299,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        print(ExpLogLike, ExpLogPrior, Entropy)
+        #print('LogL =', ExpLogLike,'LogP =', ExpLogPrior, 'Ent =', Entropy)
         return ELBO
     
     
@@ -384,7 +384,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1, 'adaptive': True})
+                               options = {'maxiter': 100, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -392,7 +392,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1, 'adaptive': True})
+                               options={'maxiter': 100, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -713,11 +713,11 @@ class inference(object):
         ycalc = new_y.T #new_y0.shape = (p,n)
         logl = 0
         for p in range(self.p):
-            ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr2[p,:])
+            ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr[p,:])
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        print('this is the first', logl)
+        #print('this is the first', logl)
         if self.q == 1:
             Wcalc = np.array([])
             for n in range(self.N):
@@ -727,7 +727,7 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr2[p,n])))
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff) 
@@ -747,19 +747,16 @@ class inference(object):
                 for p in range(self.p):
                     Wcalc[p].append(mu_w[p, :, n])
             Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.p)
-            Fcalc0, Fcalc = np.array([]), np.array([])
+            Fcalc = np.array([])
             for p in range(self.p):
                 Fcalc.append([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[q].append(mu_f[:, q, n])
-                        Fcalc0[q] = np.append(Fcalc0, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
-            Fcalc0 = np.array(Fcalc0).reshape(self.p, self.N * self.p)
+                        Fcalc[q] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
             Fcalc = np.array(Fcalc).reshape(self.p, self.N * self.p)
-            Ymean0 = np.sum((Wcalc * Fcalc0).T, axis=1).reshape(self.N, self.p)
-            Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N,self.p)
-            Ydiff = (new_y0 - Ymean0) * (new_y - Ymean).T 
+            Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.p)
+            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) 
             logl = -0.5 * np.sum(Ydiff)
             value = 0
             for i in range(self.p):

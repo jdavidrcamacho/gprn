@@ -58,8 +58,7 @@ def checkKernel(originalCov,newPars, node=True):
         if isinstance(originalCov, covFunction.WhiteNoise):
             return covFunction.WhiteNoise(newPars[0])
         elif isinstance(originalCov, covFunction.SquaredExponential):
-            ######################### TO BE SOLVED 
-            return covFunction.SquaredExponential(1, newPars[0], newPars[1])
+            return covFunction.SquaredExponential(1, newPars[0], 0*newPars[1])
         elif isinstance(originalCov, covFunction.Periodic):
             return covFunction.Periodic(1, newPars[0], newPars[1], newPars[2])
         elif isinstance(originalCov, covFunction.QuasiPeriodic):
