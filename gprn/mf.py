@@ -299,7 +299,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        #print('LogL =', ExpLogLike,'LogP =', ExpLogPrior, 'Ent =', Entropy)
+        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -348,7 +348,11 @@ class inference(object):
             nodesParams = np.append(nodesParams, nodes[q].pars[1:])
         #same for the weight
         weightParams = weight[0].pars[:-1]
-        #same for the means
+        #and we finish putting everything in one giant array
+        initParams = np.concatenate((nodesParams, weightParams))
+        initParams = np.log(np.array(initParams))
+        initParams[initParams == -np.inf] = 0
+        #same logic for the means
         meanParams = np.array([])
         noneMean = 0
         for p in range(self.p):
@@ -356,11 +360,15 @@ class inference(object):
                 noneMean += 1
             else:
                 meanParams = np.append(meanParams, mean[p].pars)
-        #and we finish putting everything in one giant array
-        initParams = np.concatenate((nodesParams, weightParams, meanParams))
-        initParams = np.log(np.array(initParams))
+        meanParams = np.log(np.array(meanParams))
+        meanParams[meanParams == -np.inf] = 0
         #the jitter also become an array in log space
         jittParams = np.log(np.array(jitter))
+        jittParams[jittParams == -np.inf] = 0
+        
+#        #experiment
+#        jittParams = np.concatenate((jittParams, meanParams))
+#        
         
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
@@ -384,7 +392,7 @@ class inference(object):
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 100, 'adaptive': True})
+                               options = {'maxiter': 1, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -392,7 +400,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 100, 'adaptive': True})
+                               options={'maxiter': 1, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
