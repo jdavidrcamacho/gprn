@@ -117,16 +117,18 @@ class Cubic(MeanModel):
 
 class Sine(MeanModel):
     """ 
-    A sinusoidal mean function
-    m(t) = amplitude * sine(ang_freq * t + phase)
+        A sinusoidal mean function
+        m(t) = amplitude**2 * sine( (2*pi*t/P) + phase) + displacement
     """
     _parsize = 3
-    def __init__(self, amp, w, phi):
-        super(Sine, self).__init__(amp, w, phi)
+    def __init__(self, amp, P, phi, D):
+        super(Sine, self).__init__(amp, P, phi, D)
 
     @array_input
     def __call__(self, t):
-        return self.pars[0] * np.sin(self.pars[1]*t + self.pars[2])
+        return self.pars[0] * np.sin((2*np.pi*t/self.pars[1]) + self.pars[2]) \
+                + self.pars[3]
+
 
 
 class oldKeplerian(MeanModel):

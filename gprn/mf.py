@@ -304,8 +304,8 @@ class inference(object):
     
     
     def optimizeGPRN(self, nodes, weight, mean, jitter, iterations = 1000,
-                     updateVarParams = True, updateJittParams = False, 
-                     updateHyperParams = False):
+                     updateVarParams = True, updateMeanParams = False, 
+                     updateJittParams = False, updateHyperParams = False):
         """
         Optimizes the GPRN using scipy
         
@@ -381,18 +381,25 @@ class inference(object):
         iterNumber = 0
         while iterNumber < iterations:
             print('\n*** ITERATION {0} ***'.format(iterNumber+1))
-            #1st step - optimize mu and var
+            #Optimize mu and var analytically
             if updateVarParams:
                 _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
+            #1st step - optimize mu and var
+            if updateMeanParams:
+                res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
+                               args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
+                               method = 'Nelder-Mead',
+                               options = {'maxiter': 200, 'adaptive': True})
+                meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1, 'adaptive': True})
+                               options = {'maxiter': 200, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -400,7 +407,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1, 'adaptive': True})
+                               options={'maxiter': 200, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -411,7 +418,7 @@ class inference(object):
             iterNumber += 1
             #Stoping criteria:
             criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-            if criteria < 1e-5 and criteria != 0 :
+            if criteria < 1e-1 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes:', nodes)
@@ -607,6 +614,50 @@ class inference(object):
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
+    
+    
+    def _meanELBO(self, params, node, weight, mean, jitter, mu, sigF, sigW):
+        """
+        Function used to optimeze the mean functions
+        
+        Parameters
+        ----------
+        params : array
+            Means parameters
+        node : array
+            Node functions of the GPRN
+        weight: array
+            Weights of the GPRN
+        mean: array
+            Mean fucntions of the GPRN
+        mu: array
+            Means of the variational parameters
+        sigF: array
+            Covariance of the variational parameters (nodes)
+        sigW: array
+            Covariance of the variational parameters (weights)
+        Returns
+        -------
+        ExpLogLike: float
+            Minus expected log-likelihood
+        """
+        #to separate the means between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        
+        parsUsed = 0
+        for p in range(self.p):
+            if mean[p] == None:
+                pass
+            else:
+                howBig = len(mean[p].pars) 
+                parsToUse = params[parsUsed:parsUsed+howBig]
+                mean[p].pars = np.exp(np.array(parsToUse))
+                parsUsed += howBig
+
+        #Expected log-likelihood
+        ExpLogLike = self._expectedLogLike(node, weight, mean, jitter,
+                                           sigF, muF, sigW, muW)
+        return -ExpLogLike
     
     
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
