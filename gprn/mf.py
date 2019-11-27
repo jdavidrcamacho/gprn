@@ -114,7 +114,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
 
@@ -299,7 +299,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
+        #print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -323,6 +323,8 @@ class inference(object):
             Number of iterations 
         updateVarParams: bool
             True to optimize the variational parameters
+        updateMeanParams: bool
+            True to optimize the mean functions
         updateJittParams: bool
             True to optimize the jitters
         updateHyperParams: boll
@@ -387,19 +389,19 @@ class inference(object):
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
-            #1st step - optimize mu and var
+            #1st step - optimize the means
             if updateMeanParams:
                 res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
                                args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': True})
+                               options = {'maxiter': 100, 'adaptive': True})
                 meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': True})
+                               options = {'maxiter': 100, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -407,7 +409,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 200, 'adaptive': True})
+                               options={'maxiter': 100, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -418,7 +420,7 @@ class inference(object):
             iterNumber += 1
             #Stoping criteria:
             criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-            if criteria < 1e-1 and criteria != 0 :
+            if criteria < 1e-3 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes:', nodes)
@@ -770,25 +772,32 @@ class inference(object):
         jitt = np.exp(np.array(jitter)) 
         jitt2 = np.exp(2*np.array(jitter)) #jitters
         ycalc = new_y.T #new_y0.shape = (p,n)
+        ycalc1 = new_y.T
         logl = 0
         for p in range(self.p):
             ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr[p,:])
+            #ycalc[p] = new_y.T[p,:] / (jitt2[p] + self.yerr2[p,:])
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
         #print('this is the first', logl)
         if self.q == 1:
-            Wcalc = np.array([])
+            Wcalc, Wcalc1 = np.array([]), np.array([])
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc = np.append(Wcalc, mu_w[p,:,n])
-            Fcalc = np.array([])
+                    Wcalc1 = np.append(Wcalc1, mu_w[p,:,n])
+            Fcalc, Fcalc1 = np.array([]), np.array([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
                         Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+                        #Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
+                        Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
+            #Ymean1 = (Wcalc1 * Fcalc1).reshape(self.N, self.p)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+            #Ydiff = (ycalc - Ymean.T) * (ycalc1 - Ymean1.T)
             logl += -0.5 * np.sum(Ydiff) 
             value = 0
             for i in range(self.p):
