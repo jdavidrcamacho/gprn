@@ -114,7 +114,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) + 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
 
@@ -257,15 +257,16 @@ class inference(object):
             sigmaF = []
             for q in range(self.q):
                 sigmaF.append(np.diag(varF[0, q, :]))
-                for p in range(self.p):
-                    sigmaF = np.array(sigmaF).reshape(self.q, self.N, self.N)
+#                for p in range(self.p):
+#                    print(np.array(sigmaF).shape)
+#                    #sigmaF = np.array(sigmaF).reshape(1, self.N, self.N)
         if sigmaW is None:
             sigmaW = []
             for q in range(self.q):
                 for p in range(self.p):
                     sigmaW.append(np.diag(varW[p, q, :]))
             sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
-                    
+#        print(np.array(sigmaF).shape, np.array(sigmaW).shape)
         #updating mu and var
         if opt_step == 0:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
@@ -299,7 +300,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        #print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
+        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -353,7 +354,7 @@ class inference(object):
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams))
         initParams = np.log(np.array(initParams))
-        initParams[initParams == -np.inf] = 0
+        #initParams[initParams == -np.inf] = 0
         #same logic for the means
         meanParams = np.array([])
         noneMean = 0
@@ -368,10 +369,6 @@ class inference(object):
         jittParams = np.log(np.array(jitter))
         jittParams[jittParams == -np.inf] = 0
         
-#        #experiment
-#        jittParams = np.concatenate((jittParams, meanParams))
-#        
-        
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         np.random.seed(100)
@@ -384,6 +381,7 @@ class inference(object):
         while iterNumber < iterations:
             print('\n*** ITERATION {0} ***'.format(iterNumber+1))
             #Optimize mu and var analytically
+            print('init mu', mu)
             if updateVarParams:
                 _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                                  mean, jittParams, 
@@ -394,14 +392,14 @@ class inference(object):
                 res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
                                args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 100, 'adaptive': True})
+                               options = {'maxiter': 1, 'adaptive': True})
                 meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 100, 'adaptive': True})
+                               options = {'maxiter': 1, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -409,7 +407,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 100, 'adaptive': True})
+                               options={'maxiter': 1, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -581,13 +579,13 @@ class inference(object):
                 diagFj = np.zeros_like(self.N)
                 auxCalc = np.zeros_like(self.N)
                 for i in range(self.p):
-                    diagFj = diagFj + (muW[j,i,:]*muW[j,i,:]+varW[j,i,:])\
+                    diagFj = diagFj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
                                                 /(jitt2[i] + self.yerr2[i,:])
                     sumNj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
-                            sumNj += muW[k,i,:]*muF[k,:].reshape(self.N)
-                    auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[j,i,:]) \
+                            sumNj += muW[i,k,:]*muF[k,:].reshape(self.N)
+                    auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[i,j,:]) \
                                         / (jitt2[i] + self.yerr2[i,:])
                 CovF = np.diag(1 / diagFj) + Kf[j]
                 CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF, Kf[j])
@@ -608,13 +606,14 @@ class inference(object):
                     sumNj = 0
                     for k in range(self.q):
                         if k != j:
-                            sumNj += mu_f[k].reshape(self.N)*np.array(muW[k,i,:])
+                            sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
                     auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:]) \
                                         / (jitt2[i] + self.yerr2[i,:])
                     sigma_w.append(CovWij)
                     mu_w.append(CovWij @ auxCalc)
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(mu_w)
+        print('muF', mu_f, 'muW', mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
     
     
@@ -689,7 +688,6 @@ class inference(object):
         """
         #to separate the means between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
-
         #Expected log-likelihood
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter,
                                            sigF, muF, sigW, muW)
@@ -726,7 +724,7 @@ class inference(object):
             Minus expected log prior
         """
         params = np.exp(np.array(params))
-        #print(params)
+#        print(params)
         node, weight = newCov(node, weight, params, self.q)
         
         #to separate the variational parameters between the nodes and weights
@@ -780,7 +778,7 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        #print('this is the first', logl)
+#        print('this is the first', logl)
         if self.q == 1:
             Wcalc, Wcalc1 = np.array([]), np.array([])
             for n in range(self.N):
@@ -814,16 +812,19 @@ class inference(object):
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc[p].append(mu_w[p, :, n])
-            Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.p)
-            Fcalc = np.array([])
+#            print(np.array(Wcalc).shape)
+            Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+            Fcalc = []#np.array([])
             for p in range(self.p):
                 Fcalc.append([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[q] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-            Fcalc = np.array(Fcalc).reshape(self.p, self.N * self.p)
-            Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.p)
+                        Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+#            Fcalc = np.array(Fcalc).reshape(self.p, self.N * self.p)
+#            print(np.array(Wcalc).shape, np.array(Fcalc).shape)
+            Ymean = np.sum((np.array(Wcalc) * np.array(Fcalc)).T, axis=1).reshape(self.N, self.q)
+            print('Wcalc=', mu_w)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) 
             logl = -0.5 * np.sum(Ydiff)
             value = 0
@@ -869,21 +870,24 @@ class inference(object):
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         Lw = self._cholNugget(Kw[0])[0]
-        logKw = -self.q * np.float(np.sum(np.log(np.diag(Lw))))
+        logKw = np.float(np.sum(np.log(np.diag(Lw))))
         muW = mu_w.reshape(self.q, self.p, self.N)
         
+        sumSigmaF = np.zeros_like(sigma_f[0])
         for j in range(self.q):
             Lf = self._cholNugget(Kf[j])[0]
-            logKf = -self.q * np.float(np.sum(np.log(np.diag(Lf))))
+            logKf = np.float(np.sum(np.log(np.diag(Lf))))
             muK =  np.linalg.solve(Lf, mu_f[:,j, :].reshape(self.N))
             muKmu = muK @ muK
-            trace = np.trace(np.linalg.solve(Kf[j],sigma_f[j]))
-            first_term += logKf -0.5*muKmu -0.5*trace
+            sumSigmaF = sumSigmaF + sigma_f[j]
+            trace = np.trace(np.linalg.solve(Kf[j], sumSigmaF))#sigma_f[j]))
+            first_term += -0.5*(logKf + muKmu + trace)
             for i in range(self.p):
                 muK = np.linalg.solve(Lw, muW[j,i]) 
                 muKmu = muK @ muK
+                #muKmu = np.linalg.solve(Lw, muW[j,i]) @muW[j,i].T
                 trace = np.trace(np.linalg.solve(Kw[0], sigma_w[j, i, :, :]))
-                second_term += logKw -0.5*muKmu -0.5*trace
+                second_term += -0.5*(logKw + muKmu + trace)
         logp = first_term + second_term
         return logp
 

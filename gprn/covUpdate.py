@@ -29,6 +29,7 @@ def newCov(nodes, weight, newPars, q):
             parsToUse = newPars[parsUsed:parsUsed+howBig]
             nodes[qq] = checkKernel(nodes[qq], parsToUse, node=True)
             parsUsed += howBig
+    nodes[1] = nodes[0]
     howBig = weight[0].params_size - 1
     parsToUse = newPars[parsUsed:parsUsed+howBig]
     weight[0] = checkKernel(weight[0], parsToUse, node=False)
