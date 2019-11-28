@@ -381,7 +381,6 @@ class inference(object):
         while iterNumber < iterations:
             print('\n*** ITERATION {0} ***'.format(iterNumber+1))
             #Optimize mu and var analytically
-            print('init mu', mu)
             if updateVarParams:
                 _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                                  mean, jittParams, 
@@ -562,7 +561,7 @@ class inference(object):
                     Kw = np.squeeze(Kw)
                     CovWij = np.diag(1 / Diag_ij) + Kw
                     CovWij = Kw - Kw @ np.linalg.solve(CovWij, Kw)
-                    sumNj = 0
+                    sumNj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
                             sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
@@ -594,26 +593,27 @@ class inference(object):
                 muF = np.array(mu_f)
             sigma_f = np.array(sigma_f)
             mu_f = np.array(mu_f)
-            sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+            sigma_w, mu_w = [], np.zeros_like(muW) #creation of Sigma_wij and mu_wij
             for j in range(self.q):
                 for i in range(self.p):
                     mu_fj = mu_f[j]
                     var_fj = np.diag(sigma_f[j])
                     Diag_ij = (mu_fj*mu_fj+var_fj) /(jitt2[i] + self.yerr2[i,:])
                     Kw = np.squeeze(Kw)
+                    #print(Kw)
                     CovWij = np.diag(1 / Diag_ij) + Kw
                     CovWij = Kw - Kw @ np.linalg.solve(CovWij, Kw)
-                    sumNj = 0
+                    #print(CovWij)
+                    sumNj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
                             sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
                     auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:]) \
                                         / (jitt2[i] + self.yerr2[i,:])
                     sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ auxCalc)
+                    muW[i,j,:] = CovWij @ auxCalc
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
-            mu_w = np.array(mu_w)
-        print('muF', mu_f, 'muW', mu_w)
+            mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
     
     
@@ -824,7 +824,6 @@ class inference(object):
 #            Fcalc = np.array(Fcalc).reshape(self.p, self.N * self.p)
 #            print(np.array(Wcalc).shape, np.array(Fcalc).shape)
             Ymean = np.sum((np.array(Wcalc) * np.array(Fcalc)).T, axis=1).reshape(self.N, self.q)
-            print('Wcalc=', mu_w)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) 
             logl = -0.5 * np.sum(Ydiff)
             value = 0
@@ -881,13 +880,12 @@ class inference(object):
             muKmu = muK @ muK
             sumSigmaF = sumSigmaF + sigma_f[j]
             trace = np.trace(np.linalg.solve(Kf[j], sumSigmaF))#sigma_f[j]))
-            first_term += -0.5*(logKf + muKmu + trace)
+            first_term += -self.q*logKf - 0.5*(muKmu + trace)
             for i in range(self.p):
                 muK = np.linalg.solve(Lw, muW[j,i]) 
                 muKmu = muK @ muK
-                #muKmu = np.linalg.solve(Lw, muW[j,i]) @muW[j,i].T
                 trace = np.trace(np.linalg.solve(Kw[0], sigma_w[j, i, :, :]))
-                second_term += -0.5*(logKw + muKmu + trace)
+                second_term += -self.q*logKw - 0.5*(muKmu + trace)
         logp = first_term + second_term
         return logp
 
