@@ -266,7 +266,6 @@ class inference(object):
                 for p in range(self.p):
                     sigmaW.append(np.diag(varW[p, q, :]))
             sigmaW = np.array(sigmaW).reshape(self.q, self.p, self.N, self.N)
-#        print(np.array(sigmaF).shape, np.array(sigmaW).shape)
         #updating mu and var
         if opt_step == 0:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
@@ -391,14 +390,14 @@ class inference(object):
                 res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
                                args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1, 'adaptive': True})
+                               options = {'maxiter': 100, 'adaptive': True})
                 meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 1, 'adaptive': True})
+                               options = {'maxiter': 100, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -406,7 +405,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 1, 'adaptive': True})
+                               options={'maxiter': 100, 'adaptive': False})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -724,7 +723,6 @@ class inference(object):
             Minus expected log prior
         """
         params = np.exp(np.array(params))
-#        print(params)
         node, weight = newCov(node, weight, params, self.q)
         
         #to separate the variational parameters between the nodes and weights
@@ -766,19 +764,17 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-
-        jitt = np.exp(np.array(jitter)) 
-        jitt2 = np.exp(2*np.array(jitter)) #jitters
+        jitt = np.exp(np.array(jitter)) #jitters
+        jitt2 = np.exp(2*np.array(jitter)) #jitters squared
         ycalc = new_y.T #new_y0.shape = (p,n)
-        ycalc1 = new_y.T
+        
         logl = 0
         for p in range(self.p):
             ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr[p,:])
-            #ycalc[p] = new_y.T[p,:] / (jitt2[p] + self.yerr2[p,:])
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-#        print('this is the first', logl)
+        
         if self.q == 1:
             Wcalc, Wcalc1 = np.array([]), np.array([])
             for n in range(self.N):
@@ -790,13 +786,10 @@ class inference(object):
                 for q in range(self.q):
                     for p in range(self.p):
                         Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-                        #Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
                         Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
-            #Ymean1 = (Wcalc1 * Fcalc1).reshape(self.N, self.p)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-            #Ydiff = (ycalc - Ymean.T) * (ycalc1 - Ymean1.T)
-            logl += -0.5 * np.sum(Ydiff) 
+            logl += -0.5 * np.sum(Ydiff)
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
@@ -812,7 +805,6 @@ class inference(object):
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc[p].append(mu_w[p, :, n])
-#            print(np.array(Wcalc).shape)
             Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
             Fcalc = []#np.array([])
             for p in range(self.p):
@@ -821,11 +813,10 @@ class inference(object):
                 for q in range(self.q):
                     for p in range(self.p):
                         Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-#            Fcalc = np.array(Fcalc).reshape(self.p, self.N * self.p)
-#            print(np.array(Wcalc).shape, np.array(Fcalc).shape)
-            Ymean = np.sum((np.array(Wcalc) * np.array(Fcalc)).T, axis=1).reshape(self.N, self.q)
+            Ymean = np.sum((Wcalc * Fcalc).reshape(self.N, self.q), axis=1)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) 
-            logl = -0.5 * np.sum(Ydiff)
+            logl += -0.5 * np.sum(Ydiff)
+
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
