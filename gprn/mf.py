@@ -353,7 +353,7 @@ class inference(object):
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams))
         initParams = np.log(np.array(initParams))
-        #initParams[initParams == -np.inf] = 0
+        initParams[initParams == -np.inf] = 0
         #same logic for the means
         meanParams = np.array([])
         noneMean = 0
