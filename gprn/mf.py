@@ -9,6 +9,8 @@ from scipy.optimize import minimize
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
 from gprn.covUpdate import newCov
+from gprn.utils import run_mcmc
+
 
 class inference(object):
     """ 
@@ -199,7 +201,7 @@ class inference(object):
             L = cholesky(matrix, lower=True, overwrite_a=True)
             return L, nugget
         except LinAlgError:
-            print('NUGGET ADDED TO DIAGONAL!')
+            #print('NUGGET ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
                 #print ('n:', n+1, ', nugget:', nugget)
@@ -299,7 +301,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
+        #print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -390,14 +392,14 @@ class inference(object):
                 res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
                                args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': False})
+                               options = {'maxiter': 200, 'adaptive': True})
                 meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': False})
+                               options = {'maxiter': 200, 'adaptive': True})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -405,7 +407,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 200, 'adaptive': False})
+                               options={'maxiter': 200, 'adaptive': True})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -431,6 +433,17 @@ class inference(object):
             print('jitter:', jitter, '\n')
         return hyperparameters, jitter, elboArray, mu, var
     
+    
+    def mcmcGPRN(self, nodes, weight, mean, jitter, 
+                 elboFunc, priorFunc, iterations = 1000):
+        D = self.time.size * self.q *(self.p+1)
+        mu = np.random.rand(D, 1)
+        var = np.random.rand(D, 1)
+        #to separate the variational parameters between the nodes and weights
+        muF, muW = self._u_to_fhatW(mu.flatten())
+        varF, varW = self._u_to_fhatW(var.flatten())
+    
+        return 0
     
     def Prediction(self, node, weights, means, tstar, mu):
         """

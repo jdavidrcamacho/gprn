@@ -12,8 +12,8 @@ class covFunction(object):
     def __init__(self, *args):
         """ Puts all kernel arguments in an array pars """
         self.pars = np.array(args, dtype=float)
-        self.pars[self.pars > 1e25] = 1e25
-        #self.pars[self.pars < 1e-25] = 1e-25
+        self.pars[self.pars > 1e50] = 1e50
+        #self.pars[self.pars < 1e-50] = 1e-50
     def __call__(self, r, t1 = None, t2=None):
         """
         r = t - t' 
