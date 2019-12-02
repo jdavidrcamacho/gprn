@@ -199,7 +199,7 @@ class inference(object):
             L = cholesky(matrix, lower=True, overwrite_a=True)
             return L, nugget
         except LinAlgError:
-            #print('NUGGET ADDED TO DIAGONAL!')
+            print('NUGGET ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
                 #print ('n:', n+1, ', nugget:', nugget)
@@ -390,14 +390,14 @@ class inference(object):
                 res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
                                args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 100, 'adaptive': True})
+                               options = {'maxiter': 200, 'adaptive': False})
                 meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 100, 'adaptive': False})
+                               options = {'maxiter': 200, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
             #3rdstep - optimize nodes, weights, and means
@@ -405,7 +405,7 @@ class inference(object):
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 100, 'adaptive': False})
+                               options={'maxiter': 200, 'adaptive': False})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
@@ -415,8 +415,8 @@ class inference(object):
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
-            criteria = np.abs(np.mean(elboArray[-5:]) - ELBO)
-            if criteria < 1e-3 and criteria != 0 :
+            criteria = np.abs(np.mean(elboArray[-2:-1]) - ELBO)
+            if criteria < 1e-5 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes:', nodes)
