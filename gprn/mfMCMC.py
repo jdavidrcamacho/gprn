@@ -242,9 +242,8 @@ class inference(object):
             Evidence lower bound
         """ 
         D = self.time.size * self.q *(self.p+1)
-        np.random.seed(100)
-        mu = np.random.rand(D, 1)
-        np.random.seed(200)
+        np.random.seed(230190)
+        mu = np.random.randn(D, 1)
         var = np.random.rand(D, 1)
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
