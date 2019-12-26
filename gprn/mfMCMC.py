@@ -521,10 +521,11 @@ class inference(object):
         jitt = np.array(jitter) #jitters
         jitt2 = np.array(jitter)**2 #jitters squared
         ycalc = new_y.T #new_y0.shape = (p,n)
+        ycalc1 = new_y.T #new_y0.shape = (p,n)
         
         logl = 0
         for p in range(self.p):
-            ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr[p,:])
+            ycalc[p] = new_y.T[p,:] / (jitt2[p] + self.yerr2[p,:])
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
@@ -539,10 +540,11 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
                         Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
-            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+            Ymean1 = (Wcalc1 * Fcalc1).reshape(self.N, self.p)
+            Ydiff = (ycalc - Ymean.T) * (ycalc1 - Ymean1.T)
             logl += -0.5 * np.sum(Ydiff)
             value = 0
             for i in range(self.p):

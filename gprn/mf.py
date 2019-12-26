@@ -301,7 +301,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        #print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
+        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -380,34 +380,34 @@ class inference(object):
         elboArray = np.array([]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
-            print('\n*** ITERATION {0} ***'.format(iterNumber+1))
+            #print('\n*** ITERATION {0} ***'.format(iterNumber+1))
             #Optimize mu and var analytically
             if updateVarParams:
                 _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
-            #1st step - optimize the means
-            if updateMeanParams:
-                res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
-                               args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
-                               method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': True})
-                meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
                                args = (nodes, weight, mean, mu, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': True})
+                               options = {'maxiter': 200, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
+            #1st step - optimize the means
+            if updateMeanParams:
+                res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
+                               args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
+                               method = 'Nelder-Mead',
+                               options = {'maxiter': 200, 'adaptive': False})
+                meanParams = res0.x #updated jitters array
             #3rdstep - optimize nodes, weights, and means
             if updateHyperParams:
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
                                args = (nodes, weight, mean, mu, var, sigF, sigW), 
                                method = 'Nelder-Mead',
-                               options={'maxiter': 200, 'adaptive': True})
+                               options={'maxiter': 200, 'adaptive': False})
                 initParams = res2.x
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
