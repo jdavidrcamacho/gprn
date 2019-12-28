@@ -387,6 +387,13 @@ class inference(object):
                                                                  mean, jittParams, 
                                                                  mu, var, 
                                                                  opt_step=0)
+            #1st step - optimize the means
+            if updateMeanParams:
+                res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
+                               args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
+                               method = 'Nelder-Mead',
+                               options = {'maxiter': 200, 'adaptive': False})
+                meanParams = res0.x #updated jitters array
             #2nd step - optimize the jitters
             if updateJittParams:
                 res1 = minimize(fun = self._jittELBO, x0 = jittParams, 
@@ -395,13 +402,6 @@ class inference(object):
                                options = {'maxiter': 200, 'adaptive': False})
                 jittParams = res1.x #updated jitters array
             jitter = np.exp(np.array(jittParams)) #updated jitter values
-            #1st step - optimize the means
-            if updateMeanParams:
-                res0 = minimize(fun = self._meanELBO, x0 = meanParams, 
-                               args = (nodes, weight, mean, jittParams, mu, sigF, sigW), 
-                               method = 'Nelder-Mead',
-                               options = {'maxiter': 200, 'adaptive': False})
-                meanParams = res0.x #updated jitters array
             #3rdstep - optimize nodes, weights, and means
             if updateHyperParams:
                 res2 = minimize(fun = self._paramsELBO, x0 = initParams,
@@ -783,7 +783,7 @@ class inference(object):
         ycalc1 = new_y.T
         
         #self.yerr2 = 0*self.yerr2
-        #self.yerr = 0*self.yerr
+        self.yerr = 0*self.yerr
         
         logl = 0
         for p in range(self.p):
@@ -798,16 +798,16 @@ class inference(object):
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc = np.append(Wcalc, mu_w[p,:,n])
-                    Wcalc1 = np.append(Wcalc1, mu_w[p,:,n])
+                    #Wcalc1 = np.append(Wcalc1, mu_w[p,:,n])
             Fcalc, Fcalc1 = np.array([]), np.array([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr[p,n])))
                         #Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
-                        Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
+                        #Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
-            Ymean1 = (Wcalc1 * Fcalc1).reshape(self.N, self.p)
+            #Ymean1 = (Wcalc1 * Fcalc1).reshape(self.N, self.p)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
             #Ydiff = (ycalc - Ymean.T) * (ycalc1 - Ymean1.T)
             logl += -0.5 * np.sum(Ydiff)
