@@ -803,7 +803,7 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr[p,n])))
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n] - jitt[p]*self.yerr[p,n])))
                         #Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
                         #Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)

@@ -137,7 +137,8 @@ def phase_folding(t, y, yerr, period):
 
 
 ##### MCMC with dynesty or emcee ##############################################
-def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
+def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000, 
+             sampler = 'emcee'):
     """
     run_mcmc() allow the user to run emcee or dynesty automatically
     
@@ -147,9 +148,11 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
         Function that return an array with the priors
     elbo_func: func
         Function that calculates the ELBO 
+    init_values: array
+        Initial values of the parameters 
     iterations: int
-        Number of iterations; in emcee the same number of iterations will be 
-        used as mcmc burn-in followed by the same number of iterations as mcmc 
+        Number of iterations; in emcee will use a quarter as burn-in 
+        followed by three quarters as sampling 
         run
     sampler: str
         'emcee' or 'dynesty'
@@ -163,19 +166,21 @@ def run_mcmc(prior_func, elbo_func, iterations = 1000, sampler = 'emcee'):
     from multiprocessing import Pool
     if sampler == 'emcee':
         ndim = prior_func().size
-        burns, runs = int(iterations), int(iterations)
+        burns, runs = int(iterations/4), int(3*iterations/4)
         #defining emcee properties
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, 
                                         elbo_func, threads= 4)
         
         #Initialize the walkers
-        p0=[prior_func() for i in range(nwalkers)]
+        #p0=[prior_func() for i in range(nwalkers)]
+        p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
         #running burns and runs
         print("Running burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
         print("\nRunning production chain...")
         sampler.reset()
+        p0 = p0 + 1e-4*np.random.rand(nwalkers, ndim)
         sampler.run_mcmc(p0, runs)
         
         #preparing samples to return
