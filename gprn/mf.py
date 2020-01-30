@@ -351,7 +351,7 @@ class inference(object):
         for q in range(self.q):
             nodesParams = np.append(nodesParams, nodes[q].pars[1:])
         #same for the weight
-        weightParams = weight[0].pars[:-1]
+        weightParams = weight[0].pars[:]
         #and we finish putting everything in one giant array
         initParams = np.concatenate((nodesParams, weightParams))
         initParams = np.log(np.array(initParams))

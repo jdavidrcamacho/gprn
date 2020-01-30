@@ -138,7 +138,7 @@ def phase_folding(t, y, yerr, period):
 
 ##### MCMC with dynesty or emcee ##############################################
 def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000, 
-             sampler = 'emcee'):
+             sampler = 'emcee', priors = True):
     """
     run_mcmc() allow the user to run emcee or dynesty automatically
     
@@ -173,14 +173,17 @@ def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000,
                                         elbo_func, threads= 4)
         
         #Initialize the walkers
-        #p0=[prior_func() for i in range(nwalkers)]
-        p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
+        if priors:
+            p0=[prior_func() for i in range(nwalkers)]
+        else:
+            p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
         #running burns and runs
         print("Running burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
         print("\nRunning production chain...")
         sampler.reset()
-        p0 = p0 + 1e-4*np.random.rand(nwalkers, ndim)
+        if priors is False:
+            p0 = p0 + 1e-4*np.random.rand(nwalkers, ndim)
         sampler.run_mcmc(p0, runs)
         
         #preparing samples to return

@@ -248,6 +248,7 @@ class inference(object):
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
+
         if optimalSolution is True:
             sigmaF, muF, sigmaW, muW = self._updateSigmaMu(node, weight, mean, 
                                                            jitter, muF, varF, 
@@ -334,6 +335,8 @@ class inference(object):
         #mean functions
         means = self._mean(means, tstar)
         means = np.array_split(means, self.p)
+        #means = np.zeros_like(means)
+
         muF, muW = self._u_to_fhatW(mu.flatten())
         
         ystar = np.zeros((self.p, tstar.size))
@@ -544,7 +547,7 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n] - jitt[p]*self.yerr[p,n])))
+                        Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))# - jitt[p]*self.yerr[p,n])))
                         #Fcalc = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
                         #Fcalc1 = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
@@ -568,15 +571,20 @@ class inference(object):
                 for p in range(self.p):
                     Wcalc[p].append(mu_w[p, :, n])
             Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-            Fcalc = []#np.array([])
+            Wcalc1 = Wcalc
+            Fcalc, Fcalc1  = [], []#np.array([])
             for p in range(self.p):
                 Fcalc.append([])
+                Fcalc1.append([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+                        Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
+                        Fcalc1[p] = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = np.sum((Wcalc * Fcalc).reshape(self.N, self.q), axis=1)
-            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) 
+            Ymean1 = np.sum((Wcalc1 * Fcalc1).reshape(self.N, self.q), axis=1)
+            #Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+            Ydiff = (ycalc1 - Ymean1.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff)
 
             value = 0

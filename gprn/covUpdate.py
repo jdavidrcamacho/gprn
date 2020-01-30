@@ -29,7 +29,7 @@ def newCov(nodes, weight, newPars, q):
             parsToUse = newPars[parsUsed:parsUsed+howBig]
             nodes[qq] = checkKernel(nodes[qq], parsToUse, node=True)
             parsUsed += howBig
-    howBig = weight[0].params_size - 1
+    howBig = weight[0].params_size - 1 +1
     parsToUse = newPars[parsUsed:parsUsed+howBig]
     weight[0] = checkKernel(weight[0], parsToUse, node=False)
     return nodes, weight
@@ -93,7 +93,7 @@ def checkKernel(originalCov,newPars, node=True):
     if isinstance(originalCov, covFunction.WhiteNoise):
         return covFunction.WhiteNoise(newPars[0])
     elif isinstance(originalCov, covFunction.SquaredExponential):
-        return covFunction.SquaredExponential(newPars[0], newPars[1], 0)
+        return covFunction.SquaredExponential(newPars[0], newPars[1], newPars[2])
     elif isinstance(originalCov, covFunction.Periodic):
         return covFunction.Periodic(newPars[0], newPars[1], newPars[2], 0)
     elif isinstance(originalCov, covFunction.QuasiPeriodic):
