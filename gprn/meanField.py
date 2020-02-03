@@ -360,7 +360,6 @@ class inference(object):
         final_ystar = np.array(final_ystar)
         return final_ystar
     
-    
     def _updateSigmaMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
         """
         Efficient closed-form updates fot variational parameters. This
