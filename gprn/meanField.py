@@ -2,14 +2,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pylab as plt
-
-from scipy.linalg import cholesky, LinAlgError
-from scipy.optimize import minimize
+from scipy.linalg import cholesky, cho_solve, cho_factor, LinAlgError
+from scipy.stats import multivariate_normal
 
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-from gprn.covUpdate import newCov
-from gprn.utils import run_mcmc
 
 
 class inference(object):
@@ -216,7 +213,120 @@ class inference(object):
             raise LinAlgError("Not positive definite, even with nugget.")
             
             
+    def _CBMatrix(self, nodes, weight):
+        """
+        Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be 
+        an N*q*(p+1) X N*q*(p+1) block diagonal matrix
+
+        Parameters
+        ----------
+            nodes = array of node functions 
+            weight = weight function
+
+        Returns
+        -------
+            CB = matrix CB
+        """
+        time = self.time
+        CB_size = time.size * self.q * (self.p + 1)
+        CB = np.zeros((CB_size, CB_size)) #initial empty matrix
+        
+        pos = 0 #we start filling CB at position (0,0)
+        #first we enter the nodes
+        for i in range(self.q):
+            node_CovMatrix = self._kernelMatrix(nodes[i], time)
+            CB[pos:pos+time.size, pos:pos+time.size] = node_CovMatrix
+            pos += time.size
+        weight_CovMatrix = self._kernelMatrix(weight[0], time)
+        #then we enter the weights
+        for i in range(self.qp):
+            CB[pos:pos+time.size, pos:pos+time.size] = weight_CovMatrix
+            pos += time.size
+        return CB
+
+    def _sampleCB(self, nodes, weight):
+        """ 
+        Returns samples from the matrix CB
+        
+        Parameters
+        ----------
+            nodes = array of node functions 
+            weight = weight function
+
+        Returns
+        -------
+            Samples of CB
+        """
+        time = self.time
+        mean = np.zeros(time.size*self.q*(self.p+1))
+        cov = self._CBMatrix(nodes, weight)
+        norm = multivariate_normal(mean, cov, allow_singular=True).rvs()
+        return norm
             
+            
+    def sampleIt(self, latentFunc, time=None):
+        """
+        Returns samples from the kernel
+        
+        Parameters
+        ----------
+        latentFunc: func
+            Covariance function
+        time: array
+            Time array
+        
+        Returns
+        -------
+        norm: array
+            Sample of K 
+        """
+        if time is None:
+            time = self.time
+        
+        mean = np.zeros_like(time)
+        K = np.array([self._kernelMatrix(i, time) for i in latentFunc])
+        norm = multivariate_normal(mean, np.squeeze(K), allow_singular=True).rvs()
+        return norm
+    
+#    def Wfhat(self, nodes, weights):
+#        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+#        Lf = cho_factor(Kf[0]) #0 = number of nodes
+#        solf = cho_solve(Lf, self.y[0])
+#        Kstar = self._predictKernelMatrix(nodes[0], self.time)
+#        fstar = np.dot(Kstar, solf)
+#        
+#        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+#        Lw = cho_factor(Kw[0]) 
+#        solw = cho_solve(Lw, self.y[0])
+#        Wstar = self._predictKernelMatrix(weights[0], self.time)
+#        wstar = np.dot(Wstar, solw)
+#        
+#        wfhat = wstar*fstar
+##        fig, (ax1, ax2) = plt.subplots(1, 2)
+##        ax1.plot(self.time, self.y.T , '.')
+##        ax1.plot(self.time, fstar)
+##        ax2.plot(self.time, wstar)
+####        Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
+####        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+####        fxi, wxi = np.diag(Kf[0]), np.diag(Kw[0])
+####        wfhat = wxi * fxi
+#
+###        w = self.sampleIt(weights, self.time)
+###        fhat = self.sampleIt(nodes, self.time)
+###        wfhat = w*fhat
+#        return wfhat
+#    
+#    def likelihood(self, nodes, weights, jitter):
+#        jitt2 = np.array(jitter)**2
+#        stds = np.squeeze(self.yerr2) + jitt2
+#        means = self.Wfhat(nodes, weights)
+#        llike = np.array([])
+#        for i in range(self.N):
+#            llike = np.append(llike, norm(means[i], stds[i]).rvs())
+#        prod = np.prod(llike)
+#        return prod
+
+
 ##### Mean-Field Inference functions ##########################################
     def EvidenceLowerBound(self, node, weight, mean, jitter, 
                            optimalSolution = False):
