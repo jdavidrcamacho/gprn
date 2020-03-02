@@ -307,7 +307,8 @@ class inference(object):
     
     def optimizeGPRN(self, nodes, weight, mean, jitter, iterations = 1000,
                      updateVarParams = True, updateMeanParams = False, 
-                     updateJittParams = False, updateHyperParams = False):
+                     updateJittParams = False, updateHyperParams = False,
+                     mu = None, var = None):
         """
         Optimizes the GPRN using scipy
         
@@ -372,10 +373,9 @@ class inference(object):
         
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
-        np.random.seed(100)
-        mu = np.random.rand(D, 1)
-        np.random.seed(200)
-        var = np.random.rand(D, 1)
+        if mu is None and var is None:
+            mu = np.random.rand(D, 1)
+            var = np.random.rand(D, 1)
         
         elboArray = np.array([]) #To add new elbo values inside
         iterNumber = 0
@@ -412,13 +412,13 @@ class inference(object):
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
             #4th step - ELBO to check stopping criteria
-            ELBO  = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, 
+            ELBO = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, 
                                              mu, var, sigF, sigW, opt_step=1)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
-            criteria = np.abs(np.mean(elboArray[-2:-1]) - ELBO)
-            if criteria < 1e-5 and criteria != 0 :
+            criteria = np.abs(np.mean(elboArray[-2:-1]) - ELBO)/ELBO
+            if criteria < 1e-3 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes:', nodes)

@@ -11,7 +11,7 @@ from gprn import covFunction
 from gprn import meanFunction
 
 #mean-field inference
-from gprn import meanField
+from gprn import meanField, mfi_notSoOld
 
 #useful functions
 from gprn import utils

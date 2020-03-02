@@ -137,7 +137,7 @@ def phase_folding(t, y, yerr, period):
 
 
 ##### MCMC with dynesty or emcee ##############################################
-def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000, 
+def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000, 
              sampler = 'emcee', priors = True):
     """
     run_mcmc() allow the user to run emcee or dynesty automatically
@@ -169,16 +169,16 @@ def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000,
         burns, runs = int(iterations/4), int(3*iterations/4)
         #defining emcee properties
         nwalkers = 2*ndim
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, 
-                                        elbo_func, threads= 4)
-        
-        #Initialize the walkers
-        if priors:
-            p0=[prior_func() for i in range(nwalkers)]
-        else:
-            p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
-        #running burns and runs
-        print("Running burn-in...")
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, elbo_func, 
+                                        kwargs = dict(MU=mu,VAR=var), threads=4)
+#        #Initialize the walkers
+#        if priors:
+#            p0=[prior_func() for i in range(nwalkers)]
+#        else:
+#            p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
+#        #running burns and runs
+        p0=[prior_func() for i in range(nwalkers)]
+        print("\nRunning burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
         print("\nRunning production chain...")
         sampler.reset()
@@ -193,15 +193,13 @@ def run_mcmc(prior_func, elbo_func , init_values, iterations = 1000,
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
-                                        nlive = 5, sample='rwalk',
-                                        queue_size=4, pool=Pool(4))
-        print("Running dynesty...")
-        dsampler.run_nested(nlive_init = 20, maxiter = iterations)
+                                        sample='rwalk',
+                                        queue_size=4, pool=Pool(4),
+                                        logl_kwargs = dict(MU=mu, VAR=var))
+        print("\nRunning dynesty...")
+        dsampler.run_nested(nlive_init=500, nlive_batch=500, maxiter = iterations)
         results = dsampler.results
     return results
-
-def elbo_mcmc():
-    return 0
 
 
 ##### scipy minimization ######################################################
