@@ -197,7 +197,8 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
                                         queue_size=4, pool=Pool(4),
                                         logl_kwargs = dict(MU=mu, VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init=500, nlive_batch=500, maxiter = iterations)
+        dsampler.run_nested(nlive_init=int(iterations/4), 
+                            nlive_batch=int(iterations/4), maxiter = iterations)
         results = dsampler.results
     return results
 

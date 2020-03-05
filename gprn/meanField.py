@@ -334,7 +334,7 @@ class inference(object):
             for p in range(self.p):
                 sigW.append(np.diag(varW[p, q, :]))
                 
-        elboArray = np.array([-np.inf]) #To add new elbo values inside
+        elboArray = np.array([-1e10]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
@@ -344,20 +344,14 @@ class inference(object):
             iterNumber += 1
             #Stoping criteria:
             criteria = np.abs((elboArray[-2] - ELBO)/ELBO)
-#            if elboArray[-2] > ELBO:
-#                break
-            print(ELBO)
+            if elboArray[-2] > ELBO:
+#                print('BREEEAK')
+                break
             if criteria < 1e-3 and criteria !=0:
-                print('\nELBO converged to '+ str(round(float(ELBO),5)) \
-                      +' at iteration ' + str(iterNumber))
-                plt.figure()
-                plt.plot(elboArray)
-                plt.show()
+#                print('\nELBO converged to '+ str(round(float(ELBO),5)) \
+#                      +' at iteration ' + str(iterNumber))
                 return ELBO, mu, var
-        plt.figure()
-        plt.plot(elboArray)
-        plt.show()
-        ELBO = -np.inf
+        ELBO = -1e10
         return ELBO, mu, var
     
     
@@ -731,12 +725,12 @@ class inference(object):
         logl = -0.5 * logl
         
         if self.q == 1:
-            Wcalc, Wcalc1 = np.array([]), np.array([])
+            Wcalc = np.array([])
             for n in range(self.N):
                 for p in range(self.p):
                     Wcalc = np.append(Wcalc, mu_w[p,:,n])
                     #Wcalc1 = np.append(Wcalc1, mu_w[p,:,n])
-            Fcalc, Fcalc1 = np.array([]), np.array([])
+            Fcalc = np.array([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
@@ -764,20 +758,21 @@ class inference(object):
                 for p in range(self.p):
                     Wcalc[p].append(mu_w[p, :, n])
             Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-            Wcalc1 = Wcalc
-            Fcalc, Fcalc1  = [], []#np.array([])
+            #Wcalc1 = Wcalc
+            Fcalc = []#np.array([])
             for p in range(self.p):
                 Fcalc.append([])
-                Fcalc1.append([])
+                #Fcalc1.append([])
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
-                        Fcalc1[p] = np.append(Fcalc1, mu_f[:, q, n])
+                        Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+                        #Fcalc[p] = np.append(Fcalc, (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
+                        #Fcalc1[p] = np.append(Fcalc1, mu_f[:, q, n])
             Ymean = np.sum((Wcalc * Fcalc).reshape(self.N, self.q), axis=1)
-            Ymean1 = np.sum((Wcalc1 * Fcalc1).reshape(self.N, self.q), axis=1)
-            #Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-            Ydiff = (ycalc1 - Ymean1.T) * (ycalc - Ymean.T)
+            #Ymean1 = np.sum((Wcalc1 * Fcalc1).reshape(self.N, self.q), axis=1)
+            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+            #Ydiff = (ycalc1 - Ymean1.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff)
 
             value = 0
