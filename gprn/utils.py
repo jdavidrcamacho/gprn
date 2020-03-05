@@ -136,8 +136,8 @@ def phase_folding(t, y, yerr, period):
     return phase, folded_y, folded_yerr
 
 
-##### MCMC with dynesty or emcee ##############################################
-def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000, 
+##### sampling with dynesty or emcee ##########################################
+def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000, 
              sampler = 'emcee', priors = True, init_values = None):
     """
     run_mcmc() allow the user to run emcee or dynesty automatically
@@ -161,10 +161,11 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
     sampler: str
         'emcee' or 'dynesty'
     priors: bool
-        False if we don't define a prior function
+        False if we don't define a prior function with the priors distributions
         Default: True
     init_values: arr
-        Initial values of the kernels parameters, only needed if priors = False
+        Initial values of the kernels parameters, only needed if 
+        priors = False, not implemented for dynesty
         Default: None
         
     Returns
@@ -180,14 +181,13 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
         #defining emcee properties
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, elbo_func, 
-                                        kwargs = dict(MU=mu,VAR=var), threads=4)
+                                        kwargs=dict(MU=mu,VAR=var), threads=4)
         #Initialize the walkers
         if priors:
             p0=[prior_func() for i in range(nwalkers)]
         else:
             p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
         #running burns and runs
-        p0=[prior_func() for i in range(nwalkers)]
         print("\nRunning burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
         print("\nRunning production chain...")
@@ -202,17 +202,18 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
         results = np.vstack([samples.T,np.array(lnprob).T]).T
     if sampler == 'dynesty':
         ndim = prior_func(0).size
-        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
-                                        bound='single',
-                                        queue_size=4, pool=Pool(4))
-#        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
-#                                        sample='rwalk',
-#                                        queue_size=4, pool=Pool(4),
-#                                        logl_kwargs = dict(MU=mu, VAR=var))
+        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
+                                                ndim=ndim, bound='single',
+                                                queue_size=4, pool=Pool(4))
+#        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
+#                                                ndim=ndim, bound='single',
+#                                                queue_size=4, pool=Pool(4),
+#                                                logl_kwargs=dict(MU=mu,VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0})
-#        dsampler.run_nested(nlive_init=int(iterations/4), 
-#                            nlive_batch=int(iterations/4), maxiter = iterations)
+        dsampler.run_nested(nlive_init = 500, nlive_batch = 100,
+                            wt_kwargs={'pfrac': 0.0}, 
+                            stop_kwargs={'pfrac': 0.0},
+                            maxiter = iterations)
         results = dsampler.results
     return results
 
