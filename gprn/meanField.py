@@ -334,7 +334,7 @@ class inference(object):
             for p in range(self.p):
                 sigW.append(np.diag(varW[p, q, :]))
                 
-        elboArray = np.array([-1e10]) #To add new elbo values inside
+        elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
@@ -345,13 +345,10 @@ class inference(object):
             #Stoping criteria:
             criteria = np.abs((elboArray[-2] - ELBO)/ELBO)
             if elboArray[-2] > ELBO:
-#                print('BREEEAK')
                 break
             if criteria < 1e-3 and criteria !=0:
-#                print('\nELBO converged to '+ str(round(float(ELBO),5)) \
-#                      +' at iteration ' + str(iterNumber))
                 return ELBO, mu, var
-        ELBO = -1e10
+        ELBO = -1e15
         return ELBO, mu, var
     
     

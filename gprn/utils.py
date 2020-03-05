@@ -138,7 +138,7 @@ def phase_folding(t, y, yerr, period):
 
 ##### MCMC with dynesty or emcee ##############################################
 def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000, 
-             sampler = 'emcee', priors = True):
+             sampler = 'emcee', priors = True, init_values = None):
     """
     run_mcmc() allow the user to run emcee or dynesty automatically
     
@@ -147,7 +147,11 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
     prior_func: func
         Function that return an array with the priors
     elbo_func: func
-        Function that calculates the ELBO 
+        Function that calculates the ELBO
+    mu: arr
+        Variational means
+    var: arr
+        Variational variances
     init_values: array
         Initial values of the parameters 
     iterations: int
@@ -156,6 +160,12 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
         run
     sampler: str
         'emcee' or 'dynesty'
+    priors: bool
+        False if we don't define a prior function
+        Default: True
+    init_values: arr
+        Initial values of the kernels parameters, only needed if priors = False
+        Default: None
         
     Returns
     -------
@@ -171,18 +181,18 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
         nwalkers = 2*ndim
         sampler = emcee.EnsembleSampler(nwalkers, ndim, elbo_func, 
                                         kwargs = dict(MU=mu,VAR=var), threads=4)
-#        #Initialize the walkers
-#        if priors:
-#            p0=[prior_func() for i in range(nwalkers)]
-#        else:
-#            p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
-#        #running burns and runs
+        #Initialize the walkers
+        if priors:
+            p0=[prior_func() for i in range(nwalkers)]
+        else:
+            p0 = init_values + 1e-1*np.random.rand(nwalkers, ndim)
+        #running burns and runs
         p0=[prior_func() for i in range(nwalkers)]
         print("\nRunning burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burns)
         print("\nRunning production chain...")
         sampler.reset()
-        if priors is False:
+        if not priors:
             p0 = p0 + 1e-4*np.random.rand(nwalkers, ndim)
         sampler.run_mcmc(p0, runs)
         
@@ -193,12 +203,16 @@ def run_mcmc(prior_func, elbo_func , mu, var, iterations = 1000,
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
-                                        sample='rwalk',
-                                        queue_size=4, pool=Pool(4),
-                                        logl_kwargs = dict(MU=mu, VAR=var))
+                                        bound='single',
+                                        queue_size=4, pool=Pool(4))
+#        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, ndim=ndim, 
+#                                        sample='rwalk',
+#                                        queue_size=4, pool=Pool(4),
+#                                        logl_kwargs = dict(MU=mu, VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init=int(iterations/4), 
-                            nlive_batch=int(iterations/4), maxiter = iterations)
+        dsampler.run_nested(wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0})
+#        dsampler.run_nested(nlive_init=int(iterations/4), 
+#                            nlive_batch=int(iterations/4), maxiter = iterations)
         results = dsampler.results
     return results
 
