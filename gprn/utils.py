@@ -200,19 +200,29 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
         samples = sampler.chain[:, :, :].reshape((-1, ndim))
         lnprob = sampler.lnprobability[:, :].reshape(nwalkers*runs, 1)
         results = np.vstack([samples.T,np.array(lnprob).T]).T
+        
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
                                                 ndim=ndim, bound='single',
-                                                queue_size=4, pool=Pool(4))
-#        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
-#                                                ndim=ndim, bound='single',
-#                                                queue_size=4, pool=Pool(4),
-#                                                logl_kwargs=dict(MU=mu,VAR=var))
+                                                queue_size=4, pool=Pool(4),
+                                                logl_kwargs=dict(MU=mu,VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init = 500, nlive_batch = 100,
-                            wt_kwargs={'pfrac': 0.0}, 
-                            stop_kwargs={'pfrac': 0.0},
+        dsampler.run_nested(nlive_init = int(0.25*iterations), 
+                            nlive_batch = int(0.05*iterations),
+                            wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
+                            maxiter = iterations)
+        results = dsampler.results
+        
+    if sampler == 'dynesty4gp':
+        ndim = prior_func(0).size
+        dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
+                                                ndim=ndim, bound='single',
+                                                queue_size=4, pool=Pool(4))
+        print("\nRunning dynesty...")
+        dsampler.run_nested(nlive_init = int(0.25*iterations), 
+                            nlive_batch = int(0.05*iterations),
+                            wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
     return results
