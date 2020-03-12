@@ -208,8 +208,8 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
                                                 queue_size=4, pool=Pool(4),
                                                 logl_kwargs=dict(MU=mu,VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init = int(0.25*iterations), 
-                            nlive_batch = int(0.05*iterations),
+        dsampler.run_nested(nlive_init = 1000, 
+                            nlive_batch = 1000,
                             wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
@@ -220,8 +220,8 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
                                                 ndim=ndim, bound='single',
                                                 queue_size=4, pool=Pool(4))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init = int(0.25*iterations), 
-                            nlive_batch = int(0.05*iterations),
+        dsampler.run_nested(nlive_init = 1000, 
+                            nlive_batch = 1000,
                             wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
