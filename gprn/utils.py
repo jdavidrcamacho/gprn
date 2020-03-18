@@ -204,25 +204,24 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
-                                                ndim=ndim, bound='single',
+                                                ndim=ndim, nlive=1000,
+                                                bound='multi', sample='slice',
                                                 queue_size=4, pool=Pool(4),
                                                 logl_kwargs=dict(MU=mu,VAR=var))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init = 1000, 
-                            nlive_batch = 1000,
-                            wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
+        dsampler.run_nested(wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
         
     if sampler == 'dynesty4gp':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
-                                                ndim=ndim, bound='single',
+                                                ndim=ndim, nlive=1000,
+                                                bound='multi', sample='slice',
+                                                update_interval=1000,
                                                 queue_size=4, pool=Pool(4))
         print("\nRunning dynesty...")
-        dsampler.run_nested(nlive_init = 1000, 
-                            nlive_batch = 1000,
-                            wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
+        dsampler.run_nested(wt_kwargs={'pfrac': 0.0}, stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
     return results
