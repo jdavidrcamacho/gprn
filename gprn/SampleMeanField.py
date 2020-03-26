@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-import matplotlib.pylab as plt
-from scipy.linalg import cholesky, cho_solve, cho_factor, LinAlgError
+from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
-from scipy.optimize import minimize
-
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
 
@@ -711,7 +708,7 @@ class inference(object):
         jitt = np.array(jitter) #jitters
         jitt2 = np.array(jitter)**2 #jitters squared
         ycalc = new_y.T #new_y0.shape = (p,n)
-        ycalc1 = new_y.T
+        #ycalc1 = new_y.T
         
         logl = 0
         for p in range(self.p):
@@ -771,7 +768,7 @@ class inference(object):
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
             #Ydiff = (ycalc1 - Ymean1.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff)
-
+            
             value = 0
             for i in range(self.p):
                 for j in range(self.q):
