@@ -116,7 +116,7 @@ class inference(object):
             K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
-
+    
     def _predictKernelMatrix(self, kernel, time):
         """
         To be used in predict_gp()
@@ -138,7 +138,7 @@ class inference(object):
                 r = time[:,None] - self.time[None,:]
             K = kernel(r) 
         return K
-
+    
     def _kernel_pars(self, kernel):
         """
         Hyperparameters of a given kernel
@@ -152,7 +152,7 @@ class inference(object):
             Hyperparameter values
         """
         return kernel.pars
-
+    
     def _u_to_fhatW(self, u):
         """
         Given an array of values, divides it in the corresponding nodes (f hat)
@@ -172,7 +172,7 @@ class inference(object):
         f = u[:self.q * self.N].reshape((1, self.q, self.N))
         w = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, w
-
+    
     def _cholNugget(self, matrix, maximum=10):
         """
         Returns the cholesky decomposition to a given matrix, if it is not
@@ -256,9 +256,6 @@ class inference(object):
             sigmaF = []
             for q in range(self.q):
                 sigmaF.append(np.diag(varF[0, q, :]))
-#                for p in range(self.p):
-#                    print(np.array(sigmaF).shape)
-#                    #sigmaF = np.array(sigmaF).reshape(1, self.N, self.N)
         if sigmaW is None:
             sigmaW = []
             for q in range(self.q):
@@ -298,7 +295,6 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = -(ExpLogLike + ExpLogPrior + Entropy)
-        print('LogL =', ExpLogLike,'\nLogP =', ExpLogPrior, '\nEnt =', Entropy)
         return ELBO
     
     
@@ -347,7 +343,7 @@ class inference(object):
         nodesParams = np.array([])
         #we put the nodes parameters all in one array
         for q in range(self.q):
-            nodesParams = np.append(nodesParams, nodes[q].pars[1:])
+            nodesParams = np.append(nodesParams, nodes[q].pars[:-1])
         #same for the weight
         weightParams = weight[0].pars[:]
         #and we finish putting everything in one giant array
@@ -374,10 +370,10 @@ class inference(object):
             mu = np.random.rand(D, 1)
             var = np.random.rand(D, 1)
         
-        elboArray = np.array([]) #To add new elbo values inside
+        elboArray = np.array([0]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
-            #print('\n*** ITERATION {0} ***'.format(iterNumber+1))
+            print('\n*** ITERATION {0} ***'.format(iterNumber+1))
             #Optimize mu and var analytically
             if updateVarParams:
                 _, mu, var, sigF, sigW = self.EvidenceLowerBound(nodes, weight, 
@@ -409,13 +405,14 @@ class inference(object):
             hyperparameters = np.exp(np.array(initParams))
             nodes, weight = newCov(nodes, weight, hyperparameters, self.q)
             #4th step - ELBO to check stopping criteria
-            ELBO = -self.EvidenceLowerBound(nodes, weight, mean, jittParams, 
+            ELBO = self.EvidenceLowerBound(nodes, weight, mean, jittParams, 
                                              mu, var, sigF, sigW, opt_step=1)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
             criteria = np.abs(np.mean(elboArray[-2:-1]) - ELBO)/ELBO
-            if criteria < 1e-3 and criteria != 0 :
+            print('criteria', criteria, ELBO)
+            if np.abs(criteria) < 1e-3 and criteria != 0 :
                 print('\nELBO converged to '+ str(round(float(ELBO),5)) \
                       +' at iteration ' + str(iterNumber))
                 print('nodes:', nodes)
@@ -430,17 +427,6 @@ class inference(object):
             print('jitter:', jitter, '\n')
         return hyperparameters, jitter, elboArray, mu, var
     
-    
-    def mcmcGPRN(self, nodes, weight, mean, jitter, 
-                 elboFunc, priorFunc, iterations = 1000):
-        D = self.time.size * self.q *(self.p+1)
-        mu = np.random.rand(D, 1)
-        var = np.random.rand(D, 1)
-        #to separate the variational parameters between the nodes and weights
-        muF, muW = self._u_to_fhatW(mu.flatten())
-        varF, varW = self._u_to_fhatW(var.flatten())
-    
-        return 0
     
     def Prediction(self, node, weights, means, tstar, mu):
         """
@@ -625,7 +611,6 @@ class inference(object):
             mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
     
-    
     def _meanELBO(self, params, node, weight, mean, jitter, mu, sigF, sigW):
         """
         Function used to optimeze the mean functions
@@ -663,12 +648,11 @@ class inference(object):
                 parsToUse = params[parsUsed:parsUsed+howBig]
                 mean[p].pars = np.exp(np.array(parsToUse))
                 parsUsed += howBig
-
+                
         #Expected log-likelihood
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter,
                                            sigF, muF, sigW, muW)
         return -ExpLogLike
-    
     
     def _jittELBO(self, jitter, node, weight, mean, mu, sigF, sigW):
         """

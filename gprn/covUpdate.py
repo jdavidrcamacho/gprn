@@ -60,7 +60,7 @@ def checkKernel(originalCov,newPars, node=True):
         elif isinstance(originalCov, covFunction.SquaredExponential):
             return covFunction.SquaredExponential(newPars[0], newPars[1], newPars[2])
         elif isinstance(originalCov, covFunction.Periodic):
-            return covFunction.Periodic(newPars[0], newPars[1], newPars[2], newPars[3])
+            return covFunction.Periodic(newPars[0], newPars[1], newPars[2], 1e-5)
         elif isinstance(originalCov, covFunction.QuasiPeriodic):
             return covFunction.QuasiPeriodic(newPars[0], newPars[1], 
                                              newPars[2], newPars[3], newPars[4])
@@ -95,7 +95,7 @@ def checkKernel(originalCov,newPars, node=True):
     if isinstance(originalCov, covFunction.WhiteNoise):
         return covFunction.WhiteNoise(newPars[0])
     elif isinstance(originalCov, covFunction.SquaredExponential):
-        return covFunction.SquaredExponential(newPars[0], newPars[1], newPars[2])
+        return covFunction.SquaredExponential(newPars[0], newPars[1], 1e-5)
     elif isinstance(originalCov, covFunction.Periodic):
         return covFunction.Periodic(newPars[0], newPars[1], newPars[2], 0)
     elif isinstance(originalCov, covFunction.QuasiPeriodic):
