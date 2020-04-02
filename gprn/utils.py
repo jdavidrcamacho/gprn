@@ -28,7 +28,6 @@ def semi_amplitude(period, Mplanet, Mstar, ecc):
     Pmass = Mplanet / 1
     Smass = np.float(np.power(1/Mstar, 2/3))
     Ecc = 1 / np.sqrt(1 - ecc**2)
-
     return 28.435 * per * Pmass* Smass * Ecc
 
 
@@ -68,19 +67,16 @@ def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
         print()
         print('TEMPORAL ERROR, time is nowhere to be found')
         print()
-
     #mean anomaly
     if phi is None:
         mean_anom = [2*np.pi*(x1-T)/P  for x1 in t]
     else:
         T = t[0] - (P*phi)/(2.*np.pi)
         mean_anom = [2*np.pi*(x1-T)/P  for x1 in t]
-
     #eccentric anomaly -> E0=M + e*sin(M) + 0.5*(e**2)*sin(2*M)
     E0 = [x + e*np.sin(x)  + 0.5*(e**2)*np.sin(2*x) for x in mean_anom]
     #mean anomaly -> M0=E0 - e*sin(E0)
     M0 = [x - e*np.sin(x) for x in E0]
-
     i = 0
     while i < 1000:
         #[x + y for x, y in zip(first, second)]
@@ -90,7 +86,6 @@ def keplerian(P=365, K=.1, e=0,  w=np.pi, T=0, phi=None, gamma=0, t=None):
         i += 1
         E0 = E1
         M0 = M1
-
     nu = [2*np.arctan(np.sqrt((1+e)/(1-e))*np.tan(x5/2)) for x5 in E0]
     RV = [ gamma + K*(e*np.cos(w)+np.cos(w+x6)) for x6 in nu]
     RV = [x for x in RV] #m/s 
@@ -127,10 +122,8 @@ def phase_folding(t, y, yerr, period):
     foldtimes = t / period
     #remove the whole number part of the phase
     foldtimes = foldtimes % 1
-    
     if yerr is None:
         yerr = 0 * y
-    
     #sort everything
     phase, folded_y, folded_yerr = zip(*sorted(zip(foldtimes, y, yerr)))
     return phase, folded_y, folded_yerr
@@ -195,12 +188,10 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
         if not priors:
             p0 = p0 + 1e-4*np.random.rand(nwalkers, ndim)
         sampler.run_mcmc(p0, runs)
-        
         #preparing samples to return
         samples = sampler.chain[:, :, :].reshape((-1, ndim))
         lnprob = sampler.lnprobability[:, :].reshape(nwalkers*runs, 1)
         results = np.vstack([samples.T,np.array(lnprob).T]).T
-        
     if sampler == 'dynesty':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
@@ -215,7 +206,6 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
                             stop_kwargs={'pfrac': 0.0},
                             maxiter = iterations)
         results = dsampler.results
-        
     if sampler == 'dynesty4gp':
         ndim = prior_func(0).size
         dsampler = dynesty.DynamicNestedSampler(elbo_func, prior_func, 
@@ -235,7 +225,7 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
 ##### scipy minimization ######################################################
 def run_minimization(elbo_func, init_x, constraints, iterations=1000):
     """
-    run_mcmc() allow the user to run the COBYLA minimization method
+    run_minimization() allow the user to run the COBYLA minimization method
     
     Parameters
     ----------
@@ -266,18 +256,9 @@ def run_minimization(elbo_func, init_x, constraints, iterations=1000):
         cons.append(u)
     #initial values of the parameters
     x0 = np.array(init_x)
-
-#    #running minimization for the sigma_f
-#    sigma_f = minimize(elbo_func, x0[-1], constraints=cons, method='COBYLA',
-#               options={'disp': True, 'maxiter': iterations})
-#    #running minimization for the hyperparameters
-#    hyperparams = minimize(elbo_func, x0[0:-2], constraints=cons, method='COBYLA',
-#               options={'disp': True, 'maxiter': iterations})
-    
     #running minimization for the hyperparameters
     results = minimize(elbo_func, x0, constraints=cons, method='COBYLA',
                options={'disp': True, 'maxiter': iterations})
-    
     return results
 
 
@@ -305,5 +286,6 @@ def truncCauchy_rvs(loc=0, scale=1, a=-1, b=1, size=None):
     U = np.random.uniform(ua, ub, size=size)
     rvs =  loc + scale * np.tan(np.pi*(U - 0.5))
     return rvs
+
 
 ### END
