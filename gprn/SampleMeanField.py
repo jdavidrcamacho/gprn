@@ -322,7 +322,7 @@ class inference(object):
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW = self._ELBO(nodes, weight, mean, jitter, 
+            ELBO, mu, var, sigF, sigW = self.ELBO(nodes, weight, mean, jitter, 
                                                        mu, var, sigF, sigW)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
@@ -660,9 +660,10 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[p] = np.append(Fcalc, 
+                        Fcalc[p] = np.append(Fcalc[p], 
                              (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-            Ymean = np.sum((Wcalc * Fcalc).reshape(self.N, self.q), axis=1)
+            Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+            Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
             logl += -0.5 * np.sum(Ydiff)
             value = 0
