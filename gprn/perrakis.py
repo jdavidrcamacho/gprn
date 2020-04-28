@@ -6,7 +6,7 @@ import scipy.stats
 from math import sqrt, log
 
 
-### Functions taken from
+### Original functions taken from
 ### https://github.com/exord/bayev
 
 
@@ -40,49 +40,32 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     ----------
     Perrakis et al. (2014; arXiv:1311.0674)
     """
-
     if not isinstance(marginal_sample, np.ndarray):
         marginal_sample = np.array(marginal_sample)
-
     number_parameters = marginal_sample.shape[1]
-
-    ##
     # Estimate marginal posterior density for each parameter.
     marginal_posterior_density = np.zeros(marginal_sample.shape)
-
     for parameter_index in range(number_parameters):
-
         # Extract samples for this parameter.
         x = marginal_sample[:, parameter_index]
-
         # Estimate density with method "densityestimation".
         marginal_posterior_density[:, parameter_index] = \
             estimate_density(x, method=densityestimation, **kwargs)
-
     # Compute produt of marginal posterior densities for all parameters
     prod_marginal_densities = marginal_posterior_density.prod(axis=1)
-    ##
-
-    ##
     # Compute lnprior and likelihood in marginal sample.
     log_prior = lnpriorfunc(marginal_sample, *lnpriorargs)
     log_likelihood = lnlikefunc(marginal_sample, *lnlikeargs)
-    ##
-
     # Mask values with zero likelihood (a problem in lnlike)
     cond = log_likelihood != 0
-
     # Use identity for summation
     # http://en.wikipedia.org/wiki/List_of_logarithmic_identities#Summation.2Fsubtraction
     # ln(sum(x)) = ln(x[0]) + ln(1 + sum( exp( ln(x[1:]) - ln(x[0]) ) ) )
     # log_summands = log_likelihood[cond] + np.log(prior_probability[cond])
     #  - np.log(prod_marginal_densities[cond])
     log_summands = (log_likelihood[cond] + log_prior[cond] -
-                    np.log(prod_marginal_densities[cond])
-                    )
-
+                    np.log(prod_marginal_densities[cond]))
     perr = log_sum(log_summands) - log(len(log_summands))
-
     return perr
 
 
@@ -101,30 +84,23 @@ def estimate_density(x, method='histogram', **kwargs):
         Number of bins used in "histogram method".
     :return: density estimation at the sample points.
     """
-
     nbins = kwargs.pop('nbins', 100)
-
     if method == 'normal':
         # Approximate each parameter distribution by a normal.
         return scipy.stats.norm.pdf(x, loc=x.mean(), scale=sqrt(x.var()))
-
     elif method == 'kde':
         # Approximate each parameter distribution using a gaussian
         # kernel estimation
         return scipy.stats.gaussian_kde(x)(x)
-
     elif method == 'histogram':
         # Approximate each parameter distribution based on the histogram
         # Uses nbins keyword parameter.
         density, bin_edges = np.histogram(x, nbins, density=True)
-
         # Find to which bin each element corresponds
         density_indexes = np.searchsorted(bin_edges, x, side='left')
-
         # Correct to avoid index zero from being assiged to last element
         density_indexes = np.where(density_indexes > 0, density_indexes,
                                    density_indexes + 1)
-
         return density[density_indexes - 1]
 
 
@@ -140,23 +116,20 @@ def make_marginal_samples(joint_samples, nsamples=None):
     :type nsamples:
         int or None
     """
-
     # Copy joint samples before reshuffling in place.
     # Keep only last nsamples
     # WARNING! Always taking the last nsamples. This is not changed
     # at different MonteCarlo realisations.
     if nsamples > len(joint_samples) or nsamples is None:
         nsamples = len(joint_samples)
-
     marginal_samples = joint_samples[-nsamples:, :].copy()
-
     number_parameters = marginal_samples.shape[-1]
     # Reshuffle joint posterior samples to obtain _marginal_ posterior
     # samples
     for parameter_index in range(number_parameters):
         random.shuffle(marginal_samples[:, parameter_index])
-
     return marginal_samples
+
 
 def log_sum(log_summands):
     a = np.inf
@@ -165,3 +138,4 @@ def log_sum(log_summands):
         a = x[0] + np.log(1 + np.sum(np.exp(x[1:] - x[0])))
         random.shuffle(x)
     return a
+
