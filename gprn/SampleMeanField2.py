@@ -705,12 +705,13 @@ class inference(object):
             Expected log prior value
         """
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-        Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
+        Kw0 = np.array([self._kernelMatrix(j, self.time) for j in weights])
+        Kw = Kw0.reshape(self.p, self.q, self.N, self.N)
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         #Lw = self._cholNugget(Kw[0])[0]
-        Lw = np.array([self._cholNugget(j)[0] for j in Kw])
+        Lw = np.array([self._cholNugget(j)[0] for j in Kw0])
         Lw = Lw.reshape(self.p, self.q, self.N, self.N)
         muW = mu_w.reshape(self.q, self.p, self.N)
         sumSigmaF = np.zeros_like(sigma_f[0])
@@ -725,7 +726,7 @@ class inference(object):
             for i in range(self.p):
                 muK = np.linalg.solve(Lw[i,j,:,:], muW[j,i]) 
                 muKmu = muK @ muK
-                trace = np.trace(np.linalg.solve(Kw[0], sigma_w[j, i, :, :]))
+                trace = np.trace(np.linalg.solve(Kw[i,j,:,:], sigma_w[j,i,:,:]))
                 second_term += -self.q*np.float(np.sum(np.log(np.diag(Lw[i,j,:,:])))) - 0.5*(muKmu + trace)
         logp = first_term + second_term
         return logp
