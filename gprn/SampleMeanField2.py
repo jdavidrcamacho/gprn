@@ -425,6 +425,7 @@ class inference(object):
         Lf = np.array([self._cholNugget(i)[0] for i in Kf])
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weights])
         Lw = np.array([self._cholNugget(j)[0] for j in Kw])
+        Lw = Lw.reshape(self.p, self.q, self.N, self.N)
         #mean functions
         means = self._mean(means, tstar)
         means = np.array_split(means, self.p)
@@ -433,8 +434,8 @@ class inference(object):
         for i in range(tstar.size):
             Kfstar = np.array([self._predictKMatrix(i1, tstar[i]) for i1 in node])
             Kwstar = np.array([self._predictKMatrix(i2, tstar[i]) for i2 in weights])
-            Lwstar = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kwstar).T)
-
+            #print(Kfstar.shape, Kwstar.shape, Lw.shape)
+            #Lwstar = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kwstar).T)
             countF, countW = 1, 1
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
             for q in range(self.q):
@@ -444,8 +445,11 @@ class inference(object):
                                                      muF[:,q,:].T)
                 countF += self.N
                 for p in range(self.p):
-                    Wstar[p, q] = Lwstar @ np.linalg.solve(np.squeeze(Lw[0]), 
-                                                             muW[p][q].T)
+#                    Wstar[p, q] = Lwstar @ np.linalg.solve(np.squeeze(Lw[0]), 
+#                                                             muW[p][q].T)
+#                    print(Kwstar.shape, Lw.shape)
+                    Wstar[p, q] = np.linalg.solve(Lw[p,q,:,:],
+                         Kwstar[p,q,:].T) @ np.linalg.solve(Lw[p,q,:,:], muW[p][q].T)
                     countW += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
         final_ystar = []
