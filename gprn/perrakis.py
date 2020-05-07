@@ -133,9 +133,63 @@ def make_marginal_samples(joint_samples, nsamples=None):
 
 def log_sum(log_summands):
     a = np.inf
+    
     x = log_summands.copy()
     while a == np.inf or a == -np.inf or np.isnan(a):
         a = x[0] + np.log(1 + np.sum(np.exp(x[1:] - x[0])))
         random.shuffle(x)
     return a
 
+
+def perrakis_evidence(marginal_sample, lnpost, densityestimation='histogram', **kwargs):
+    """
+    Computes the Perrakis estimate of the bayesian evidence.
+    The estimation is based on n marginal posterior samples
+    (indexed by s, with s = 0, ..., n-1).
+    :param array marginal_sample:
+        A sample from the parameter marginal posterior distribution.
+        Dimensions are (n x k), where k is the number of parameters.
+    :param callable lnlikefunc:
+        Function to compute ln(likelihood) on the marginal samples.
+    :param callable lnpriorfunc:
+        Function to compute ln(prior density) on the marginal samples.
+    :param tuple lnlikeargs:
+        Extra arguments passed to the likelihood function.
+    :param tuple lnpriorargs:
+        Extra arguments passed to the lnprior function.
+    :param str densityestimation:
+        The method used to estimate the marginal posterior density of each
+        model parameter ("normal", "kde", or "histogram").
+    Other parameters
+    ----------------
+    :param kwargs:
+        Additional arguments passed to estimate_density function.
+    :return:
+    References
+    ----------
+    Perrakis et al. (2014; arXiv:1311.0674)
+    """
+    if not isinstance(marginal_sample, np.ndarray):
+        marginal_sample = np.array(marginal_sample)
+    number_parameters = marginal_sample.shape[1]
+    # Estimate marginal posterior density for each parameter.
+    marginal_posterior_density = np.zeros(marginal_sample.shape)
+    for parameter_index in range(number_parameters):
+        # Extract samples for this parameter.
+        x = marginal_sample[:, parameter_index]
+        # Estimate density with method "densityestimation".
+        marginal_posterior_density[:, parameter_index] = \
+            estimate_density(x, method=densityestimation, **kwargs)
+    # Compute produt of marginal posterior densities for all parameters
+    prod_marginal_densities = marginal_posterior_density.prod(axis=1)
+    # Mask values with zero likelihood (a problem in lnlike)
+    cond = lnpost != 0
+    # Use identity for summation
+    # http://en.wikipedia.org/wiki/List_of_logarithmic_identities#Summation.2Fsubtraction
+    # ln(sum(x)) = ln(x[0]) + ln(1 + sum( exp( ln(x[1:]) - ln(x[0]) ) ) )
+    # log_summands = log_likelihood[cond] + np.log(prior_probability[cond])
+    #  - np.log(prod_marginal_densities[cond])
+    log_summands = (lnpost -
+                    np.log(prod_marginal_densities[cond]))
+    perr = log_sum(log_summands) - log(len(log_summands))
+    return perr
