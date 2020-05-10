@@ -91,6 +91,7 @@ def estimate_density(x, method='histogram', **kwargs):
     elif method == 'kde':
         # Approximate each parameter distribution using a gaussian
         # kernel estimation
+        print('kde called')
         return scipy.stats.gaussian_kde(x)(x)
     elif method == 'histogram':
         # Approximate each parameter distribution based on the histogram

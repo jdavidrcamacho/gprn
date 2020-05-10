@@ -16,6 +16,6 @@ from gprn import SampleMeanField, SampleMeanField2
 #useful functions
 from gprn import utils
 from gprn import perrakis
-
+from gprn import correlationFunctions
 
 
