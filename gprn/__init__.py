@@ -11,11 +11,11 @@ from gprn import covFunction
 from gprn import meanFunction
 
 #mean-field inference
-from gprn import SampleMeanField, SampleMeanField2
+from gprn import simpleMeanField, completeMeanField
 
 #useful functions
 from gprn import utils
-from gprn import perrakis
+from gprn import evidenceEstimation
 from gprn import correlationFunctions
 
 
