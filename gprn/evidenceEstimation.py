@@ -7,8 +7,8 @@ from math import sqrt, log
 
 ### Original functions taken from https://github.com/exord/bayev
 
-def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
-                              lnlikeargs=(), lnpriorargs=(),
+def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc, 
+                              nsamples=1000, lnlikeargs=(), lnpriorargs=(),
                               densityestimation='histogram', **kwargs):
     """
     Computes the Perrakis estimate of the bayesian evidence.
@@ -21,6 +21,8 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
         Function to compute ln(likelihood) on the marginal samples.
     :param callable lnpriorfunc:
         Function to compute ln(prior density) on the marginal samples.
+    :param nsamples:
+        Number of samples to produce.
     :param tuple lnlikeargs:
         Extra arguments passed to the likelihood function.
     :param tuple lnpriorargs:
@@ -37,7 +39,7 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     ----------
     Perrakis et al. (2014; arXiv:1311.0674)
     """
-    marginal_sample = make_marginal_samples(marginal_sample, 1000)
+    marginal_sample = make_marginal_samples(marginal_sample, nsamples)
     if not isinstance(marginal_sample, np.ndarray):
         marginal_sample = np.array(marginal_sample)
     number_parameters = marginal_sample.shape[1]
