@@ -10,7 +10,8 @@ from gprn import lib
 
 def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc, 
                               nsamples=1000, lnlikeargs=(), lnpriorargs=(),
-                              densityestimation='histogram', **kwargs):
+                              densityestimation='histogram', errorestimation=False,
+                              **kwargs):
     """
     Computes the Perrakis estimate of the bayesian evidence.
     The estimation is based on n marginal posterior samples
@@ -29,7 +30,7 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     :param tuple lnpriorargs:
         Extra arguments passed to the lnprior function.
     :param str densityestimation:
-        The method used to estimate the marginal posterior density of each
+        The method used to estimate theinitial_samples marginal posterior density of each
         model parameter ("normal", "kde", or "histogram").
     Other parameters
     ----------------
@@ -40,6 +41,8 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     ----------
     Perrakis et al. (2014; arXiv:1311.0674)
     """
+    if errorestimation:
+        initial_sample = marginal_sample
     marginal_sample = make_marginal_samples(marginal_sample, nsamples)
     if not isinstance(marginal_sample, np.ndarray):
         marginal_sample = np.array(marginal_sample)
@@ -47,7 +50,7 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     #Estimate marginal posterior density for each parameter.
     marginal_posterior_density = np.zeros(marginal_sample.shape)
     for parameter_index in range(number_parameters):
-        #Extract samples for this parameter.
+        #Extract samples for this parameter._perrakis_error(
         x = marginal_sample[:, parameter_index]
         #Estimate density with method "densityestimation".
         marginal_posterior_density[:, parameter_index] = \
@@ -62,7 +65,32 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     log_summands = (log_likelihood[cond] + log_prior[cond] -
                     np.log(prod_marginal_densities[cond]))
     perr = log_sum(log_summands) - log(len(log_summands))
+    
+    #error estimation
+    K = 40
+    if errorestimation:
+        batchSize = int (initial_sample.shape[0]/40)
+        meanErr = [_perrakis_error(initial_sample[0:batchSize, :],
+                                   lnlikefunc, lnpriorfunc, nsamples=nsamples,
+                                   densityestimation=densityestimation)]
+        for i in range(K):
+            meanErr.append(_perrakis_error(initial_sample[i*batchSize:(i+1)*batchSize, :],
+                                           lnlikefunc, lnpriorfunc,
+                                           nsamples=nsamples,
+                                           densityestimation=densityestimation))
+        stdErr = np.std(meanErr)
+        meanErr = np.mean(meanErr)
+        return perr, stdErr
     return perr
+
+
+def _perrakis_error(marginal_samples, lnlikefunc, lnpriorfunc, nsamples=1000,
+                    densityestimation='histogram', errorestimation=False):
+    """ To use when estimating the error of the perrakis method """
+    return compute_perrakis_estimate(marginal_samples, lnlikefunc, lnpriorfunc, 
+                                     nsamples=nsamples, 
+                                     densityestimation=densityestimation,
+                                     errorestimation=False)
 
 
 def estimate_density(x, method='histogram', **kwargs):
@@ -134,7 +162,7 @@ def compute_harmonicmean(lnlike_post, posterior_sample=None, lnlikefunc=None,
     """
     Computes the harmonic mean estimate of the marginal likelihood.
     The estimation is based on n posterior samples
-    (indexed by s, with s = 0, ..., n-1), but can be done directly if the
+    (indexed by s, with s = 0, marginal likelihood error..., n-1), but can be done directly if the
     log(likelihood) in this sample is passed.
     :param array lnlike_post:
         log(likelihood) computed over a posterior sample. 1-D array of length n.
