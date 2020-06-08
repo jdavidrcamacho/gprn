@@ -6,7 +6,7 @@ from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
 
-
+from scipy.linalg import cho_factor, cho_solve, inv
 class inference(object):
     """ 
     Class to perform mean field variational inference for GPRNs. 
@@ -399,7 +399,7 @@ class inference(object):
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
-    def Prediction(self, node, weights, means, tstar, mu):
+    def Prediction(self, node, weights, means, jitter, tstar, mu, std=False):
         """
         Prediction for mean-field inference
         
@@ -411,6 +411,8 @@ class inference(object):
             Weight function
         means: array
             Mean functions
+        jitter: array
+            Jitter terms
         tstar: array
             Predictions time
         mu: array
@@ -451,6 +453,26 @@ class inference(object):
         for i in range(self.p):
             final_ystar.append(ystar[i] + means[i])
         final_ystar = np.array(final_ystar)
+        
+        if std:
+            jitt2 = np.array(jitter)**2 #jitters
+            invKf = np.array([inv(i) for i in Kf])
+            Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
+            Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
+            invKw = np.array([inv(j) for j in Kw])
+            Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])
+            Kwstarxx = np.array([self._kernelMatrix(i2, tstar) for i2 in weights])
+            final_ystd = []
+            for i in range(self.p):
+                WWmu = Kwstar[0,:,:] @ invKw[0,:,:] @ muW[i,:,:].T
+                first = WWmu@WWmu.T@(Kfstarxx[0,:,:]-Kfstar[0,:,:]@invKf[0,:,:]@Kfstar[0,:,:].T)
+                FFmu = Kfstar[0,:,:] @ invKf[0,:,:] @ muF[0,:,:].T
+                second = (Kwstarxx[0,:,:]-Kwstar[0,:,:]@invKw[0,:,:]@Kwstar[0,:,:].T)\
+                        @(Kfstarxx[0,:,:]-Kfstar[0,:,:]@invKf[0,:,:]@Kfstar[0,:,:].T \
+                          + FFmu@FFmu.T)
+                final_ystd.append(np.diag(first + second + jitt2[i]))
+            final_ystd = np.array(final_ystd)
+            return final_ystar, final_ystd
         return final_ystar
     
     
@@ -753,4 +775,60 @@ class inference(object):
                 L2 = self._cholNugget(sigma_w[j, i, :, :])
                 entropy += np.sum(np.log(np.diag(L2[0])))
         return entropy
+    
+    
+###############################################################################
+    def gpPrediction(self, kernel, time = False):
+        """ 
+        Conditional predictive distribution of the Gaussian process
+        
+        Parameters
+        ----------
+        kernel: func
+            Covariance function
+        mean: func
+            Mean function being used
+        time: array
+            Time array
+        
+        Returns
+        -------
+        y_mean: array
+            Mean vector
+        y_std: array
+            Standard deviation vector
+        y_cov: array
+            Covariance matrix
+        """
+        r = self.y.T
+        cov = self._kernelMatrix(kernel, self.time) #K
+        L1 = cho_factor(cov)
+        sol = cho_solve(L1, r)
+        #Kstar
+        Kstar = self._predictKMatrix(kernel, time)
+        #Kstarstar
+        Kstarstar =  self._kernelMatrix(kernel, time)
+        y_mean = np.dot(Kstar, sol) #mean
+        kstarT_k_kstar = []
+        for i, _ in enumerate(time):
+            kstarT_k_kstar.append(np.dot(Kstar, cho_solve(L1, Kstar[i,:])))
+        y_cov = Kstarstar - kstarT_k_kstar
+        y_var = np.diag(y_cov) #variance
+        y_std = np.sqrt(y_var) #standard deviation
+        return y_mean
 
+
+    def gprnPrediction(self, nodes, weights, means, tstar):
+        """
+        Prediction using Wilson et al. (2012) supplementary material.
+        Equations  (7) and (8) - q is j; p is i
+        
+        Parameters
+        ----------
+        """
+        Ef = np.array([self.gpPrediction(i, time = tstar) for i in nodes])
+        Ew = np.array([self.gpPrediction(j, time = tstar) for j in weights])
+        means = self._mean(means, tstar)
+        means = np.array_split(means, self.p)
+        ymean = np.squeeze(Ef*Ew) + np.squeeze(means)
+        return ymean
