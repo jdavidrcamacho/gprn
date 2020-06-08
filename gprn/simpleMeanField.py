@@ -417,6 +417,9 @@ class inference(object):
             Predictions time
         mu: array
             Variational means
+        std: bool
+            True to calculate the standard deviation on the prediction, False
+            otherwise
             
         Returns
         -------
@@ -456,23 +459,50 @@ class inference(object):
         
         if std:
             jitt2 = np.array(jitter)**2 #jitters
-            invKf = np.array([inv(i) for i in Kf])
             Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
             Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
-            invKw = np.array([inv(j) for j in Kw])
             Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])
             Kwstarxx = np.array([self._kernelMatrix(i2, tstar) for i2 in weights])
             final_ystd = []
             for i in range(self.p):
-                WWmu = Kwstar[0,:,:] @ invKw[0,:,:] @ muW[i,:,:].T
-                first = WWmu@WWmu.T@(Kfstarxx[0,:,:]-Kfstar[0,:,:]@invKf[0,:,:]@Kfstar[0,:,:].T)
-                FFmu = Kfstar[0,:,:] @ invKf[0,:,:] @ muF[0,:,:].T
-                second = (Kwstarxx[0,:,:]-Kwstar[0,:,:]@invKw[0,:,:]@Kwstar[0,:,:].T)\
-                        @(Kfstarxx[0,:,:]-Kfstar[0,:,:]@invKf[0,:,:]@Kfstar[0,:,:].T \
+                #WWmu = Kwstar[0,:,:] @ invKw[0,:,:] @ muW[i,:,:].Tsolve
+                WWmu = Kwstar[0,:,:] @ np.linalg.solve(Lw[0,:,:], muW[i,:,:].T)
+                #the zeros here is to substitute by self.q
+                LfKfstar = np.linalg.solve(Lf[0,:,:], Kfstar[0,:,:].T)
+                first = WWmu@WWmu.T@(Kfstarxx[0,:,:] - LfKfstar.T @ LfKfstar)
+                Fmu = np.linalg.solve(np.squeeze(Lf[0,:,:]), muF[0,:,:].T)
+                FFmu =Fmu.T @ np.linalg.solve(np.squeeze(Lf[0,:,:]), 
+                                              Kfstar[0,:,:].T)
+                invKwKw = np.linalg.solve(Lw[0,:,:], Kwstar[0,:,:].T)
+                invKfKf = np.linalg.solve(Lf[0,:,:], Kfstar[0,:,:].T)
+                second = (Kwstarxx[0,:,:]- invKwKw.T @ invKwKw) \
+                        @ (Kfstarxx[0,:,:]- invKfKf.T @ invKfKf \
                           + FFmu@FFmu.T)
                 final_ystd.append(np.diag(first + second + jitt2[i]))
             final_ystd = np.array(final_ystd)
             return final_ystar, final_ystd
+        
+#        if std:
+#            jitt2 = np.array(jitter)**2 #jitters
+#            Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
+#            Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
+#            Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])
+#            Kwstarxx = np.array([self._kernelMatrix(i2, tstar) for i2 in weights])
+#            final_ystd = []
+#            for i in range(self.p):
+#                WWmu = Kwstar[0,:,:] @ np.linalg.solve(Lw[0,:,:], muW[i,:,:].T)
+#                first = WWmu@WWmu.T@(Kfstarxx[0,:,:] -\
+#                    Kfstar[0,:,:]@ np.linalg.solve(np.squeeze(Lf[0,:,:]), Kfstar[0,:,:].T))
+#                FFmu = Kfstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]), muF[0,:,:].T)
+#                second = (Kwstarxx[0,:,:] - \
+#                          Kwstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]),Kwstar[0,:,:].T)\
+#                          @(Kfstarxx[0,:,:] - \
+#                          Kfstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]),Kfstar[0,:,:].T)\
+#                          + FFmu@FFmu.T))
+#                final_ystd.append(np.diag(first + second + jitt2[i]))
+#            final_ystd = np.array(final_ystd)
+#            return final_ystar, final_ystd
+        
         return final_ystar
     
     
