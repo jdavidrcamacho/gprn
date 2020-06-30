@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
+#package version
+__version__ = '0.1'
 
-##### Necessary scripts to everything work #####
-"""
-    To import everything
-"""
 #covariance functions
 from gprn import covFunction
 
