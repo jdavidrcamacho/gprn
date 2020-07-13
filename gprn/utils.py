@@ -1,5 +1,7 @@
-# -*- coding: utf-8 -*-
-import  numpy as np
+import numpy as np
+from scipy.stats import invgamma
+from scipy.optimize import minimize
+
 
 ##### Semi amplitude calculation ##############################################
 def semi_amplitude(period, Mplanet, Mstar, ecc):
@@ -287,5 +289,35 @@ def truncCauchy_rvs(loc=0, scale=1, a=-1, b=1, size=None):
     rvs =  loc + scale * np.tan(np.pi*(U - 0.5))
     return rvs
 
+
+##### inverse gamma distribution ###############################################
+f = lambda x, lims: \
+    (np.array([invgamma(a=x[0], scale=x[1]).cdf(lims[0]) - 0.01,
+               invgamma(a=x[0], scale=x[1]).sf(lims[1]) - 0.01])**2).sum()
+
+def invGamma(lower, upper, x0=[1, 5], showit=False):
+    """
+    Arguments
+    ---------
+    lower, upper : float
+        The upper and lower limits between which we want 98% of the probability
+    x0 : list, length 2
+        Initial guesses for the parameters of the inverse gamma (a and scale)
+    showit : bool
+        Make a plot
+    """
+    limits = [lower, upper]
+    result = minimize(f, x0=x0, args=limits, method='L-BFGS-B',
+                      bounds=[(0, None), (0, None)], tol=1e-10)
+    a, b = result.x
+    if showit:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
+        d = invgamma(a=a, scale=b)
+        x = np.linspace(0.2*limits[0], 2*limits[1], 1000)
+        ax.plot(x, d.pdf(x))
+        ax.vlines(limits, 0, d.pdf(x).max())
+        plt.show()
+    return invgamma(a=a, scale=b)
 
 ### END
