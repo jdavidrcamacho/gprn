@@ -1,17 +1,18 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""
+    Mean-field inference
+"""
 import numpy as np
 from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
 
-from scipy.linalg import cho_factor, cho_solve, inv
+
 class inference(object):
     """ 
-    Class to perform mean field variational inference for GPRNs. 
+    Class to perform mean field variational inference for GPRNs.
     See Nguyen & Bonilla (2013) for more information.
-    
+
     Parameters
     ----------
     num_nodes: int
@@ -19,19 +20,19 @@ class inference(object):
     time: array
         Time coordinates
     *args: arrays
-        The actual data (or components), it needs be given in order of data1, 
+        The actual data (or components), it needs be given in order of data1,
         data1error, data2, data2error, etc...
-    """ 
-    def  __init__(self, num_nodes, time, *args):
+    """
+    def __init__(self, num_nodes, time, *args):
         #number of node functions; f(x) in Wilson et al. (2012)
         self.num_nodes = num_nodes
         self.q = num_nodes
         #array of the time
-        self.time = time 
+        self.time = time
         #number of observations, N in Wilson et al. (2012)
         self.N = self.time.size
         #the data, it should be given as data1, data1error, data2, ...
-        self.args = args 
+        self.args = args
         #number of outputs y(x); p in Wilson et al. (2012)
         self.p = int(len(self.args)/2)
         #total number of weights, we will have q*p weights in total
@@ -41,7 +42,7 @@ class inference(object):
         ys = []
         ystd = []
         yerrs = []
-        for i,j  in enumerate(args):
+        for i, j in enumerate(args):
             if i%2 == 0:
                 ys.append(j)
                 ystd.append(np.std(j))
@@ -52,18 +53,18 @@ class inference(object):
         self.yerr = np.array(yerrs).reshape(self.p, self.N) #matrix p*N of errors
         self.yerr2 = self.yerr**2
         #check if the input was correct
-        assert int((i+1)/2) == self.p, \
+        assert int((len(args)+1)/2) == self.p, \
         'Given data and number of components dont match'
-        
-        
+
+
 ##### mean functions definition ###############################################
     def _mean(self, means, time=None):
         """
         Returns the values of the mean functions
-        
+
         Parameters
         ----------
-        
+
         Returns
         -------
         m: float
@@ -87,24 +88,25 @@ class inference(object):
                 else:
                     m[i*N : (i+1)*N] = meanfun(time)
         return m
-    
-    
+
+
 ##### To create matrices and samples ###########################################
-    def _kernelMatrix(self, kernel, time = None):
+    def _kernelMatrix(self, kernel, time=None):
         """
         Returns the covariance matrix created by evaluating a given kernel 
         at inputs time
-        
+
         Parameters
         ----------
-        
+
         Returns
         -------
         K: array
             Matrix of a covariance function
         """
+        if time is None:
+            time = self.time
         r = time[:, None] - time[None, :]
-        
         #to deal with the non-stationary kernels problem
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
@@ -112,15 +114,15 @@ class inference(object):
             K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
-    
-    
+
+
     def _predictKMatrix(self, kernel, time):
         """
         To be used in predict_gp()
-        
+
         Parameters
         ----------
-        
+
         Returns
         -------
         K: array
@@ -135,17 +137,17 @@ class inference(object):
                 r = time[:,None] - self.time[None,:]
             K = kernel(r) 
         return K
-    
-    
+
+
     def _u_to_fhatW(self, u):
         """
         Given an array of values, divides it in the corresponding nodes (f hat)
         and weights (w) parts
-        
+
         Parameters
         ----------
         u: array
-        
+
         Returns
         -------
         f: array
@@ -156,20 +158,20 @@ class inference(object):
         f = u[:self.q * self.N].reshape((1, self.q, self.N))
         w = u[self.q * self.N:].reshape((self.p, self.q, self.N))
         return f, w
-    
-    
+
+
     def _cholNugget(self, matrix, maximum=10):
         """
         Returns the cholesky decomposition to a given matrix, if it is not
         positive definite, a nugget is added to its diagonal.
-        
+
         Parameters
         ----------
         matrix: array
             Matrix to decompose
         maximum: int
             Number of times a nugget is added.
-        
+
         Returns
         -------
         L: array
@@ -196,8 +198,8 @@ class inference(object):
                 finally:
                     n += 1
             raise LinAlgError("Not positive definite, even with nugget.")
-            
-            
+
+
     def _CBMatrix(self, nodes, weight):
         """
         Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be 
@@ -215,7 +217,7 @@ class inference(object):
         time = self.time
         CB_size = time.size * self.q * (self.p + 1)
         CB = np.zeros((CB_size, CB_size)) #initial empty matrix
-        
+
         pos = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
@@ -228,17 +230,17 @@ class inference(object):
             CB[pos:pos+time.size, pos:pos+time.size] = weight_CovMatrix
             pos += time.size
         return CB
-    
-    
+
+
     def _sampleCB(self, nodes, weight):
-        """ 
+        """
         Returns samples from the matrix CB
-        
+
         Parameters
         ----------
             nodes = array of node functions 
             weight = weight function
-            
+
         Returns
         -------
             Samples of CB
@@ -248,43 +250,43 @@ class inference(object):
         cov = self._CBMatrix(nodes, weight)
         norm = multivariate_normal(mean, cov, allow_singular=True).rvs()
         return norm
-            
-            
+
+
     def sampleIt(self, latentFunc, time=None):
         """
         Returns samples from the kernel
-        
+
         Parameters
         ----------
         latentFunc: func
             Covariance function
         time: array
             Time array
-        
+
         Returns
         -------
         norm: array
-            Sample of K 
+            Sample of K
         """
         if time is None:
             time = self.time
-        
+
         mean = np.zeros_like(time)
         K = np.array([self._kernelMatrix(i, time) for i in latentFunc])
         norm = multivariate_normal(mean, np.squeeze(K), allow_singular=True).rvs()
         return norm
-    
-    
+
+
 ##### Mean-Field Inference functions ##########################################
-    def optVarParams(self, nodes, weight, mean, jitter, iterations = 1000,
-                     mu = None, var = None):
+    def optVarParams(self, nodes, weight, mean, jitter, iterations=1000,
+                     mu=None, var=None):
         """
         Function to use in the the sampling of the GPRN
-        
+
         Parameters
         ----------
         node: array
-            Node functions 
+            Node functions
         weight: array
             Weight function
         mean: array
@@ -292,12 +294,12 @@ class inference(object):
         jitter: array
             Jitter terms
         iterations: int
-            Number of iterations 
+            Number of iterations
         mu: array
             Variational means
         var: array
             Variational variances
-            
+
         Returns
         -------
         ELBO: array
@@ -323,7 +325,7 @@ class inference(object):
         while iterNumber < iterations:
             #Optimize mu and var analytically
             ELBO, mu, var, sigF, sigW = self.ELBO(nodes, weight, mean, jitter, 
-                                                       mu, var, sigF, sigW)
+                                                  mu, var, sigF, sigW)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
@@ -333,16 +335,16 @@ class inference(object):
             if criteria < 1e-3 and criteria !=0:
                 return ELBO, mu, var
         return ELBO, mu, var
-    
-    
+
+
     def ELBO(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
         """
         Evidence Lower bound to use in optVarParams()
-        
+
         Parameters
         ----------
         node: array
-            Node functions 
+            Node functions
         weight: array
             Weight function
         mean: array
@@ -353,7 +355,7 @@ class inference(object):
             Variational means
         var: array
             Variational variances
-            
+
         Returns
         -------
         ELBO: float
@@ -367,8 +369,8 @@ class inference(object):
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
         sigmaF, muF, sigmaW, muW = self._updateSigMu(node, weight, mean, 
-                                                       jitter, muF, varF, 
-                                                       muW, varW)
+                                                     jitter, muF, varF, 
+                                                     muW, varW)
         #new mean for the nodes
         muF = muF.reshape(1, self.q, self.N)
         varF =  []
@@ -397,16 +399,16 @@ class inference(object):
         #Evidence Lower Bound
         ELBO = ExpLogLike + ExpLogPrior + Entropy
         return ELBO, new_mu, new_var, sigmaF, sigmaW
-    
-    
+
+
     def Prediction(self, node, weights, means, jitter, tstar, mu, std=False):
         """
         Prediction for mean-field inference
-        
+
         Parameters
         ----------
         node: array
-            Node functions 
+            Node functions
         weight: array
             Weight function
         means: array
@@ -420,7 +422,7 @@ class inference(object):
         std: bool
             True to calculate the standard deviation on the prediction, False
             otherwise
-            
+
         Returns
         -------
         final_ystar: array
@@ -456,7 +458,6 @@ class inference(object):
         for i in range(self.p):
             final_ystar.append(ystar[i] + means[i])
         final_ystar = np.array(final_ystar)
-        
         if std:
             jitt2 = 0*np.array(jitter)**2 #jitters
             Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
@@ -481,7 +482,6 @@ class inference(object):
                 final_ystd.append(np.diag(first + second + jitt2[i]))
             final_ystd = np.array(final_ystd)
             return final_ystar, final_ystd
-        
 #        if std:
 #            jitt2 = np.array(jitter)**2 #jitters
 #            Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
@@ -502,19 +502,18 @@ class inference(object):
 #                final_ystd.append(np.diag(first + second + jitt2[i]))
 #            final_ystd = np.array(final_ystd)
 #            return final_ystar, final_ystd
-        
         return final_ystar
-    
-    
+
+
     def _updateSigMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
         """
         Efficient closed-form updates fot variational parameters. This
         corresponds to eqs. 16, 17, 18, and 19 of Nguyen & Bonilla (2013)
-        
+
         Parameters
         ----------
         nodes: array
-            Node functions 
+            Node functions
         weight: array
             Weight function
         mean: array
@@ -529,7 +528,7 @@ class inference(object):
             Initial variational mean of each weight
         varW: array
             Initial variational variance of each weight
-            
+
         Returns
         -------
         sigma_f: array
@@ -547,7 +546,7 @@ class inference(object):
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         #kernel matrix for the weights
-        Kw = np.array([self._kernelMatrix(j, self.time) for j in weight]) 
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weight])
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         if self.q == 1:
             sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
@@ -618,10 +617,8 @@ class inference(object):
                     var_fj = np.diag(sigma_f[j])
                     Diag_ij = (mu_fj*mu_fj+var_fj) /(jitt2[i] + self.yerr2[i,:])
                     Kw = np.squeeze(Kw)
-                    #print(Kw)
                     CovWij = np.diag(1 / Diag_ij) + Kw
                     CovWij = Kw - Kw @ np.linalg.solve(CovWij, Kw)
-                    #print(CovWij)
                     sumNj = np.zeros(self.N)
                     for k in range(self.q):
                         if k != j:
@@ -633,14 +630,14 @@ class inference(object):
             sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
             mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
-    
-    
+
+
     def _expectedLogLike(self, nodes, weight, mean, jitter, sigma_f, mu_f,
                          sigma_w, mu_w):
         """
         Calculates the expected log-likelihood in mean-field inference, 
         corresponds to eq.14 in Nguyen & Bonilla (2013)
-        
+
         Parameters
         ----------
         nodes: array
@@ -657,7 +654,7 @@ class inference(object):
             Variational covariance for each weight
         mu_w: array
             Variational mean for each weight
-            
+
         Returns
         -------
         logl: float
@@ -674,7 +671,7 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        
+
         if self.q == 1:
             Wcalc = np.array([])
             for n in range(self.N):
@@ -684,7 +681,7 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc = np.append(Fcalc, 
+                        Fcalc = np.append(Fcalc,
                                 (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
             Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
             Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
@@ -712,7 +709,7 @@ class inference(object):
             for n in range(self.N):
                 for q in range(self.q):
                     for p in range(self.p):
-                        Fcalc[p] = np.append(Fcalc[p], 
+                        Fcalc[p] = np.append(Fcalc[p],
                              (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
             Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
             Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
@@ -733,7 +730,7 @@ class inference(object):
         """
         Calculates the expection of the log prior wrt q(f,w) in mean-field 
         inference, corresponds to eq.15 in Nguyen & Bonilla (2013)
-        
+
         Parameters
         ----------
             nodes: array
@@ -748,7 +745,7 @@ class inference(object):
                 Variational covariance for each weight
             mu_w: array
                 Variational mean for each weight
-        
+
         Returns
         -------
         logp: float
@@ -772,26 +769,26 @@ class inference(object):
             trace = np.trace(np.linalg.solve(Kf[j], sumSigmaF))#sigma_f[j]))
             first_term += -self.q*logKf - 0.5*(muKmu + trace)
             for i in range(self.p):
-                muK = np.linalg.solve(Lw, muW[j,i]) 
+                muK = np.linalg.solve(Lw, muW[j,i])
                 muKmu = muK @ muK
                 trace = np.trace(np.linalg.solve(Kw[0], sigma_w[j, i, :, :]))
                 second_term += -self.q*logKw - 0.5*(muKmu + trace)
         logp = first_term + second_term
         return logp
-    
-    
+
+
     def _entropy(self, sigma_f, sigma_w):
         """
         Calculates the entropy in mean-field inference, corresponds to eq.14 
         in Nguyen & Bonilla (2013)
-        
+
         Parameters
         ----------
             sigma_f: array
                 Variational covariance for each node
             sigma_w: array
                 Variational covariance for each weight
-        
+
         Returns
         -------
         entropy: float
@@ -805,54 +802,14 @@ class inference(object):
                 L2 = self._cholNugget(sigma_w[j, i, :, :])
                 entropy += np.sum(np.log(np.diag(L2[0])))
         return entropy
-    
-    
+
+
 ###############################################################################
-    def gpPrediction(self, kernel, time = False):
-        """ 
-        Conditional predictive distribution of the Gaussian process
-        
-        Parameters
-        ----------
-        kernel: func
-            Covariance function
-        mean: func
-            Mean function being used
-        time: array
-            Time array
-        
-        Returns
-        -------
-        y_mean: array
-            Mean vector
-        y_std: array
-            Standard deviation vector
-        y_cov: array
-            Covariance matrix
-        """
-        r = self.y.T
-        cov = self._kernelMatrix(kernel, self.time) #K
-        L1 = cho_factor(cov)
-        sol = cho_solve(L1, r)
-        #Kstar
-        Kstar = self._predictKMatrix(kernel, time)
-        #Kstarstar
-        Kstarstar =  self._kernelMatrix(kernel, time)
-        y_mean = np.dot(Kstar, sol) #mean
-        kstarT_k_kstar = []
-        for i, _ in enumerate(time):
-            kstarT_k_kstar.append(np.dot(Kstar, cho_solve(L1, Kstar[i,:])))
-        y_cov = Kstarstar - kstarT_k_kstar
-        y_var = np.diag(y_cov) #variance
-        y_std = np.sqrt(y_var) #standard deviation
-        return y_mean
-
-
     def gprnPrediction(self, nodes, weights, means, tstar):
         """
         Prediction using Wilson et al. (2012) supplementary material.
         Equations  (7) and (8) - q is j; p is i
-        
+
         Parameters
         ----------
         """

@@ -1,15 +1,16 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-import numpy as np
+"""
+Computation of the evidence using the method developed by Perrakis et al. (2014)
+"""
 import random
-import scipy.stats
 from math import sqrt, log
-from gprn import lib
 from time import time
+import numpy as np
+import scipy.stats
+from gprn import lib
 
 ### Original functions taken from https://github.com/exord/bayev
 
-def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc, 
+def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
                               nsamples=1000, lnlikeargs=(), lnpriorargs=(),
                               densityestimation='histogram', errorestimation=False,
                               **kwargs):
@@ -77,7 +78,6 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
                                    lnlikefunc, lnpriorfunc, nsamples=nsamples,
                                    densityestimation=densityestimation)]
         for i in range(K):
-
             meanErr.append(_perrakis_error(initial_sample[i*batchSize:(i+1)*batchSize, :],
                                            lnlikefunc, lnpriorfunc,
                                            nsamples=nsamples,
@@ -91,13 +91,13 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
 def _perrakis_error(marginal_samples, lnlikefunc, lnpriorfunc, nsamples=1000,
                     densityestimation='histogram', errorestimation=False):
     """ To use when estimating the error of the perrakis method """
-    return compute_perrakis_estimate(marginal_samples, lnlikefunc, lnpriorfunc, 
-                                     nsamples=nsamples, 
+    return compute_perrakis_estimate(marginal_samples, lnlikefunc, lnpriorfunc,
+                                     nsamples=nsamples,
                                      densityestimation=densityestimation,
-                                     errorestimation=False)
+                                     errorestimation=errorestimation)
 
 
-def _errorCalc(marginal_sample, lnlikefunc, lnpriorfunc, nsamples=300, 
+def _errorCalc(marginal_sample, lnlikefunc, lnpriorfunc, nsamples=300,
                densityestimation='histogram', **kwargs):
     marginal_sample = make_marginal_samples(marginal_sample, nsamples)
     if not isinstance(marginal_sample, np.ndarray):
@@ -143,10 +143,10 @@ def estimate_density(x, method='histogram', **kwargs):
     if method == 'normal':
         #Approximate each parameter distribution by a normal.
         return scipy.stats.norm.pdf(x, loc=x.mean(), scale=sqrt(x.var()))
-    elif method == 'kde':
+    if method == 'kde':
         #Approximate each parameter distribution using a gaussian kernel estimation
         return scipy.stats.gaussian_kde(x)(x)
-    elif method == 'histogram':
+    if method == 'histogram':
         #Approximate each parameter distribution based on the histogram
         density, bin_edges = np.histogram(x, nbins, density=True)
         #Find to which bin each element corresponds
@@ -180,6 +180,7 @@ def make_marginal_samples(joint_samples, nsamples=None):
 
 
 def log_sum(log_summands):
+    """ log_sum operation """
     a = np.inf
     x = log_summands.copy()
     while a == np.inf or a == -np.inf or np.isnan(a):
@@ -220,8 +221,8 @@ def compute_harmonicmean(lnlike_post, posterior_sample=None, lnlikefunc=None,
         samplesize = kwargs.pop('size', len(posterior_sample))
         if samplesize < len(posterior_sample):
             posterior_subsample = np.random.choice(posterior_sample,
-                                                      size=samplesize,
-                                                      replace=False)
+                                                   size=samplesize,
+                                                   replace=False)
         else:
             posterior_subsample = posterior_sample.copy()
         #Compute log likelihood in posterior sample.
@@ -229,12 +230,13 @@ def compute_harmonicmean(lnlike_post, posterior_sample=None, lnlikefunc=None,
     elif len(lnlike_post) > 0:
         samplesize = kwargs.pop('size', len(lnlike_post))
         log_likelihood = np.random.choice(lnlike_post, size=samplesize,
-                                             replace=False)
+                                          replace=False)
     hme = -log_sum(-log_likelihood) + log(len(log_likelihood))
     return hme
 
 
 def run_hme_mc(log_likelihood, nmc, samplesize):
+    """ Harmonic mean """
     hme = np.zeros(nmc)
     for i in range(nmc):
         hme[i] = compute_harmonicmean(log_likelihood, size=samplesize)
@@ -418,6 +420,7 @@ def get_fixed_point(posterior_samples, param_post, lnlike, lnprior, lnlikeargs=(
             #Evaluate lnlike function at fixed point.
             lnprior0 = lnprior(fixed_point, *lnpriorargs)
         return fixed_point, lnlike0 + lnprior0
-    else:
-        raise NotImplementedError
-        pass
+    raise NotImplementedError
+
+
+### END

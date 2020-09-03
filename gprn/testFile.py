@@ -9,14 +9,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.close('all')
 
-from gprn.covFunction import SquaredExponential, Periodic
+from gprn.covFunction import SquaredExponential, Periodic, Sum
 from gprn.meanFunction import Constant
 from gprn.simpleMeanField import inference
 
 import emcee
 import corner
 
-time2count = [10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+time2count = [10, 20, 50, 100, 200]#, 300, 400, 500, 600, 700, 800, 900, 1000]
 
 finalTimes = []
 for i, j in enumerate(time2count):
