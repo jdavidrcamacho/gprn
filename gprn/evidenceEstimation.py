@@ -5,6 +5,7 @@ import random
 import scipy.stats
 from math import sqrt, log
 from gprn import lib
+from time import time
 
 ### Original functions taken from https://github.com/exord/bayev
 
@@ -41,13 +42,14 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
     ----------
     Perrakis et al. (2014; arXiv:1311.0674)
     """
+    start = time()
     if errorestimation:
         initial_sample = marginal_sample
     marginal_sample = make_marginal_samples(marginal_sample, nsamples)
     if not isinstance(marginal_sample, np.ndarray):
         marginal_sample = np.array(marginal_sample)
     number_parameters = marginal_sample.shape[1]
-    #Estimate marginal posterior density for each parameter.
+    print('Estimating marginal posterior density for each parameter...')
     marginal_posterior_density = np.zeros(marginal_sample.shape)
     for parameter_index in range(number_parameters):
         #Extract samples for this parameter._perrakis_error(
@@ -55,21 +57,22 @@ def compute_perrakis_estimate(marginal_sample, lnlikefunc, lnpriorfunc,
         #Estimate density with method "densityestimation".
         marginal_posterior_density[:, parameter_index] = \
             estimate_density(x, method=densityestimation, **kwargs)
-    #Compute produt of marginal posterior densities for all parameters
+    print('Computing produt of marginal posterior densities for all parameters...')
     prod_marginal_densities = marginal_posterior_density.prod(axis=1)
-    #Compute lnprior and likelihood in marginal sample.
+    print('Computing lnprior and likelihood in marginal sample...')
     log_prior = lnpriorfunc(marginal_sample, *lnpriorargs)
     log_likelihood = lnlikefunc(marginal_sample, *lnlikeargs)
-    #Mask values with zero likelihood (a problem in lnlike)
+    print('Masking values with zero likelihood...')
     cond = log_likelihood != 0
     log_summands = (log_likelihood[cond] + log_prior[cond] -
                     np.log(prod_marginal_densities[cond]))
     perr = log_sum(log_summands) - log(len(log_summands))
-    ##print('evidence estimate = ', perr)
+    end = time()
+    print('Estimated evidence: {0}; it took {1}s'.format(perr, end-start))
     #error estimation
-    K = 40
+    K = 50
     if errorestimation:
-        batchSize = int (initial_sample.shape[0]/40)
+        batchSize = initial_sample.shape[0]//K
         meanErr = [_perrakis_error(initial_sample[0:batchSize, :],
                                    lnlikefunc, lnpriorfunc, nsamples=nsamples,
                                    densityestimation=densityestimation)]

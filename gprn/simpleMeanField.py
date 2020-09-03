@@ -458,7 +458,7 @@ class inference(object):
         final_ystar = np.array(final_ystar)
         
         if std:
-            jitt2 = np.array(jitter)**2 #jitters
+            jitt2 = 0*np.array(jitter)**2 #jitters
             Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
             Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
             Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])

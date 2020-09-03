@@ -204,8 +204,8 @@ def run_sampler(prior_func, elbo_func , mu, var, iterations = 1000,
         print("\nRunning dynesty...")
         dsampler.run_nested(nlive_init = 1000, 
                             nlive_batch = 100,
-                            wt_kwargs={'pfrac': 0.0}, 
-                            stop_kwargs={'pfrac': 0.0},
+                            wt_kwargs={'pfrac': 1.0}, 
+                            stop_kwargs={'pfrac': 1.0},
                             maxiter = iterations)
         results = dsampler.results
     if sampler == 'dynesty4gp':
