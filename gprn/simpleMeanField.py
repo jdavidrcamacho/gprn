@@ -315,11 +315,13 @@ class inference(object):
             mu = np.random.randn(D, 1)
             var = np.random.rand(D, 1)
         varF, varW = self._u_to_fhatW(var.flatten())
-        sigF, sigW = [], []
-        for q in range(self.q):
-            sigF.append(np.diag(varF[0, q, :]))
-            for p in range(self.p):
-                sigW.append(np.diag(varW[p, q, :]))
+#        sigF, sigW = [], []
+#        for q in range(self.q):
+#            sigF.append(np.diag(varF[0, q, :]))
+#            for p in range(self.p):
+#                sigW.append(np.diag(varW[p, q, :]))
+        sigF = [np.diag(varF[0, q, :]) for q in range(self.q)]
+        sigW = [np.diag(varW[p, q, :]) for q in range(self.q) for p in range(self.p)]
         elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
@@ -373,17 +375,19 @@ class inference(object):
                                                      muW, varW)
         #new mean for the nodes
         muF = muF.reshape(1, self.q, self.N)
-        varF =  []
-        for i in range(self.q):
-            varF.append(np.diag(sigmaF[i]))
+#        varF =  []
+#        for i in range(self.q):
+#            varF.append(np.diag(sigmaF[i]))
+        varF = [np.diag(sigmaF[i]) for i in range(self.q)]
         #new variance for the nodes
         varF = np.array(varF).reshape(1, self.q, self.N)
         #new mean for the weights
         muW = muW.reshape(self.p, self.q, self.N)
-        varW =  []
-        for j in range(self.q):
-            for i in range(self.p):
-                varW.append(np.diag(sigmaW[j, i, :]))
+#        varW =  []
+#        for j in range(self.q):
+#            for i in range(self.p):
+#                varW.append(np.diag(sigmaW[j, i, :]))
+        varW = [np.diag(sigmaW[j, i, :]) for j in range(self.q) for i in range(self.p)]
         #new variance for the weights
         varW = np.array(varW).reshape(self.p, self.q, self.N)
         new_mu = np.concatenate((muF, muW))
