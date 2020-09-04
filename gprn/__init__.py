@@ -9,7 +9,7 @@ from gprn import covFunction
 from gprn import meanFunction
 
 #mean-field inference
-from gprn import simpleMeanField, completeMeanField
+from gprn import simpleMeanFieldOLD, simpleMeanField, completeMeanField
 
 #useful functions
 from gprn import utils
