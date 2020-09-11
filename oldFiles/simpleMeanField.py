@@ -319,10 +319,11 @@ class inference(object):
             criteria = abs((elboArray[-2] - ELBO)/ELBO)
             if elboArray[-2] > ELBO:
                 break
-            if criteria < 1e-1 and criteria !=0:
+            if criteria < 1e-3 and criteria !=0:
                 return ELBO, mu, var
         return ELBO, mu, var
-    
+
+
     def ELBO(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
         """
         Evidence Lower bound to use in optVarParams()
@@ -375,8 +376,8 @@ class inference(object):
         #Evidence Lower Bound
         ELBO = ExpLogLike + ExpLogPrior + Entropy
         return ELBO, new_mu, new_var, sigmaF, sigmaW
-    
-    
+
+
     def Prediction(self, node, weights, means, jitter, tstar, mu, std=False):
         """
         Prediction for mean-field inference
@@ -413,31 +414,21 @@ class inference(object):
         means = np.array_split(means, self.p)
         muF, muW = self._u_to_fhatW(mu.flatten())
         ystar = np.zeros((self.p, tstar.size))
-        for i in range(tstar.size):
-            Kfstar = np.array([self._predictKMatrix(i1, tstar[i]) for i1 in node])
-            Kwstar = np.array([self._predictKMatrix(i2, tstar[i]) for i2 in weights])
-            Lwstar = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kwstar).T)
-            countF, countW = 1, 1
-            Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
-            for q in range(self.q):
-                Lfstar = np.linalg.solve(np.squeeze(Lf[q,:,:]), 
-                                         np.squeeze(Kfstar[q,:]).T)
-                fstar[q] = Lfstar @ np.linalg.solve(np.squeeze(Lf[q,:,:]), 
-                                                     muF[:,q,:].T)
-                countF += self.N
-                for p in range(self.p):
-                    Wstar[p, q] = Lwstar @ np.linalg.solve(np.squeeze(Lw[0]), 
-                                                             muW[p][q].T)
-                    countW += self.N
-            ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
-        final_ystar = []
-        for i in range(self.p):
-            final_ystar.append(ystar[i] + means[i])
-        final_ystar = np.array(final_ystar)
+        Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
+        Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
+        Lwstar = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kwstar).T)
+        Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
+        for q in range(self.q):
+            Lfstar = np.linalg.solve(np.squeeze(Lf[q,:,:]), 
+                                     np.squeeze(Kfstar[q,:]).T)
+            print('shapessssssss', Lfstar.shape, np.linalg.solve(Lf[q,:,:], muF[:,q,:].T).shape)
+            fstar[q] = Lfstar @ np.linalg.solve(Lf[q,:,:], muF[:,q,:].T)
+            for p in range(self.p):
+                Wstar[p, q] = Lwstar @ np.linalg.solve(np.squeeze(Lw[0]), 
+                                                         muW[p][q].T)
+        ystar =  np.squeeze(Wstar @ fstar)
+        final_ystar = np.array([(ystar[i] + means[i]) for i in range(self.p)])
         if std:
-            jitt2 = 0*np.array(jitter)**2 #jitters
-            Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
-            Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
             Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])
             Kwstarxx = np.array([self._kernelMatrix(i2, tstar) for i2 in weights])
             final_ystd = []
@@ -455,12 +446,12 @@ class inference(object):
                 second = (Kwstarxx[0,:,:]- invKwKw.T @ invKwKw) \
                         @ (Kfstarxx[0,:,:]- invKfKf.T @ invKfKf \
                           + FFmu@FFmu.T)
-                final_ystd.append(np.diag(first + second + jitt2[i]))
+                final_ystd.append(np.diag(first + second))
             final_ystd = np.array(final_ystd)
             return final_ystar, final_ystd
         return final_ystar
-    
-    
+
+
     def _updateSigMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
         """
         Efficient closed-form updates fot variational parameters. This
@@ -499,13 +490,13 @@ class inference(object):
         new_y = np.concatenate(self.y) - self._mean(mean)
         new_y = np.array(np.array_split(new_y, self.p))
         jitt2 = np.array(jitter)**2 #jitters
-        #kernel matrix for the nodes
+        #kernel matrix for the nodes and for the weights
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
-        #kernel matrix for the weights
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weight])
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         muF = np.squeeze(muF)
         sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
+        sigma_fAppend, mu_fAppend = sigma_f.append, mu_f.append
         for j in range(self.q):
             diagFj = np.zeros_like(self.N)
             auxCalc = np.zeros_like(self.N)
@@ -520,12 +511,12 @@ class inference(object):
                                     / (jitt2[i] + self.yerr2[i,:])
             CovF = np.diag(1 / diagFj) + Kf[j]
             CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF, Kf[j])
-            sigma_f.append(CovF)
-            mu_f.append(CovF @ auxCalc)
+            sigma_fAppend(CovF)
+            mu_fAppend(CovF @ auxCalc)
             muF = np.array(mu_f)
-        sigma_f = np.array(sigma_f)
-        mu_f = np.array(mu_f)
+        mu_f, sigma_f = np.array(mu_f), np.array(sigma_f)
         sigma_w, mu_w = [], np.zeros_like(muW) #creation of Sigma_wij and mu_wij
+        sigma_wAppend = sigma_w.append
         for j in range(self.q):
             for i in range(self.p):
                 mu_fj = mu_f[j]
@@ -540,13 +531,13 @@ class inference(object):
                         sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
                 auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:]) \
                                     / (jitt2[i] + self.yerr2[i,:])
-                sigma_w.append(CovWij)
+                sigma_wAppend(CovWij)
                 muW[i,j,:] = CovWij @ auxCalc
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
         mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
-    
-    
+
+
     def _expectedLogLike(self, nodes, weight, mean, jitter, sigma_f, mu_f,
                          sigma_w, mu_w):
         """
