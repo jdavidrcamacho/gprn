@@ -319,7 +319,7 @@ class inference(object):
             criteria = abs((elboArray[-2] - ELBO)/ELBO)
             if elboArray[-2] > ELBO:
                 break
-            if criteria < 1e-2 and criteria !=0:
+            if criteria < 1e-1 and criteria !=0:
                 return ELBO, mu, var
         return ELBO, mu, var
     
