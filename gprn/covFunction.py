@@ -635,28 +635,24 @@ class Polynomial(covFunction):
 
 
 ##### Piecewise ################################################################
-class PiecewiseSE(covFunction):
+class Piecewise(covFunction):
     """
     WARNING: EXPERIMENTAL KERNEL
     
     Parameters
     ----------
     """
-    def __init__(self, eta1, eta2, eta3, factor):
-        super(PiecewiseSE, self).__init__(eta1, eta2, eta3, factor)
-        self.eta1 = eta1
-        self.eta2 = eta2
+    def __init__(self, eta3):
+        super(Piecewise, self).__init__(eta3)
         self.eta3 = eta3
-        self.factor = factor
         self.type = 'unknown'
         self.derivatives = 0    #number of derivatives in this kernel
         self.params_number = 0    #number of hyperparameters
     def __call__(self, r):
-        SE_term = self.eta1**2 + exp(-0.5 * r**2 / self.eta2**2)
-        piecewise = self.factor*(3*r + 1) * (1 - r)**3
-        k = SE_term*piecewise
-        k = np.where(np.abs(piecewise)>0.5*self.eta3, 0, k)
-        return k
+        r = r/(0.5*self.eta3)
+        piecewise = (3*np.abs(r) +1) * (1 - np.abs(r))**3
+        piecewise = np.where(np.abs(r)>1, 0, piecewise)
+        return piecewise
 
 
 ### END
