@@ -5,7 +5,7 @@ from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-
+np.random.seed(23011990)
 
 class inference(object):
     """ 
@@ -307,6 +307,7 @@ class inference(object):
         var: array
             Optimized variational variance (diagonal of sigma)
         """
+        #np.random.seed(23011990)
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         if mu is None and var is None:
@@ -330,7 +331,7 @@ class inference(object):
             criteria = np.abs((elboArray[-2] - ELBO)/ELBO)
             if elboArray[-2] > ELBO:
                 break
-            if criteria < 1e-3 and criteria !=0:
+            if criteria < 1e-1 and criteria !=0:
                 return ELBO, mu, var
         return ELBO, mu, var
     
@@ -363,6 +364,7 @@ class inference(object):
         new_var: array
             New variational variances
         """ 
+        #np.random.seed(23011990)
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
@@ -395,6 +397,7 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
+        print(ExpLogLike, ExpLogPrior, Entropy)
         ELBO = ExpLogLike + ExpLogPrior + Entropy
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
@@ -503,89 +506,94 @@ class inference(object):
         Kw = np.array([self._kernelMatrix(j, self.time) for j in weight]) 
         Kw = Kw.reshape(self.p, self.q, self.N, self.N)
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
-        if self.q == 1:
-            sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
-            for j in range(self.q):
-                diagFj = np.zeros_like(self.N)
-                auxCalc = np.zeros_like(self.N)
-                for i in range(self.p):
-                    diagFj = diagFj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
-                                                /(jitt2[i] + self.yerr2[i,:])
-                    sumNj = np.zeros(self.N)
-                    for k in range(self.q):
-                        if k != j:
-                            muF = muF.T.reshape(1, self.q, self.N )
-                            sumNj += muW[i,k,:]*muF[:,k,:].reshape(self.N)
-                    auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[i,j,:])\
-                                        / (jitt2[i] + self.yerr2[i,:])
-                CovF0 = np.diag(1 / diagFj) + Kf[j]
-                CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF0, Kf[j])
+#        if self.q == 1:
+#            sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
+#            for j in range(self.q):
+#                diagFj = np.zeros_like(self.N)
+#                auxCalc = np.zeros_like(self.N)
+#                for i in range(self.p):
+#                    diagFj = diagFj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
+#                                                /(jitt2[i] + self.yerr2[i,:])
+#                    sumNj = np.zeros(self.N)
+#                    for k in range(self.q):
+#                        if k != j:
+#                            muF = muF.T.reshape(1, self.q, self.N )
+#                            sumNj += muW[i,k,:]*muF[:,k,:].reshape(self.N)
+#                    auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[i,j,:])\
+#                                        / (jitt2[i] + self.yerr2[i,:])
+#                CovF0 = np.diag(1 / diagFj) + Kf[j]
+#                CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF0, Kf[j])
+#            sigma_f.append(CovF)
+#            mu_f.append(CovF @ auxCalc)
+#            sigma_f = np.array(sigma_f)
+#            mu_f = np.array(mu_f)
+#            sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+#            for i in range(self.p):
+#                for j in range(self.q):
+#                    mu_fj = mu_f[j]
+#                    var_fj = np.diag(sigma_f[j])
+#                    Diag_ij = (mu_fj * mu_fj + var_fj)/(jitt2[i] + self.yerr2[i,:])
+#                    Kw_ij = Kw[i, j, :, :]
+#                    CovWij = np.diag(1 / Diag_ij) + Kw_ij
+#                    CovWij = Kw_ij - Kw_ij @ np.linalg.solve(CovWij, Kw_ij)
+#                    sumNj = np.zeros(self.N)
+#                    for k in range(self.q):
+#                        if k != j:
+#                            sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
+#                    auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:])\
+#                                        / (jitt2[i] + self.yerr2[i,:])
+#                    sigma_w.append(CovWij)
+#                    mu_w.append(CovWij @ auxCalc)
+#            sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
+#            mu_w = np.array(mu_w)
+#        else:
+        muF = np.squeeze(muF)
+        sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
+        for j in range(self.q):
+            diagFj = np.zeros_like(self.N)
+            auxCalc = np.zeros_like(self.N)
+            for i in range(self.p):
+                diagFj = diagFj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
+                                            /(jitt2[i] + self.yerr2[i,:])
+                sumNj = np.zeros(self.N)
+                for k in range(self.q):
+                    if k != j:
+                        sumNj += muW[i,k,:]*muF[k,:].reshape(self.N)
+                auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[i,j,:]) \
+                                    / (jitt2[i] + self.yerr2[i,:])
+            CovF = np.diag(1 / diagFj) + Kf[j]
+            CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF, Kf[j])
             sigma_f.append(CovF)
             mu_f.append(CovF @ auxCalc)
-            sigma_f = np.array(sigma_f)
-            mu_f = np.array(mu_f)
-            sigma_w, mu_w = [], [] #creation of Sigma_wij and mu_wij
+            muF = np.array(mu_f)
+        sigma_f = np.array(sigma_f)
+        mu_f = np.array(mu_f)
+        sigma_w, mu_w = [], np.zeros_like(muW) #creation of Sigma_wij and mu_wij
+        for j in range(self.q):
             for i in range(self.p):
-                for j in range(self.q):
-                    mu_fj = mu_f[j]
-                    var_fj = np.diag(sigma_f[j])
-                    Diag_ij = (mu_fj * mu_fj + var_fj)/(jitt2[i] + self.yerr2[i,:])
-                    Kw_ij = Kw[i, j, :, :]
-                    CovWij = np.diag(1 / Diag_ij) + Kw_ij
-                    CovWij = Kw_ij - Kw_ij @ np.linalg.solve(CovWij, Kw_ij)
-                    sumNj = np.zeros(self.N)
-                    for k in range(self.q):
-                        if k != j:
-                            sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
-                    auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:])\
-                                        / (jitt2[i] + self.yerr2[i,:])
-                    sigma_w.append(CovWij)
-                    mu_w.append(CovWij @ auxCalc)
-            sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
-            mu_w = np.array(mu_w)
-        else:
-            muF = np.squeeze(muF)
-            sigma_f, mu_f = [], [] #creation of Sigma_fj and mu_fj
-            for j in range(self.q):
-                diagFj = np.zeros_like(self.N)
-                auxCalc = np.zeros_like(self.N)
-                for i in range(self.p):
-                    diagFj = diagFj + (muW[i,j,:]*muW[i,j,:]+varW[i,j,:])\
-                                                /(jitt2[i] + self.yerr2[i,:])
-                    sumNj = np.zeros(self.N)
-                    for k in range(self.q):
-                        if k != j:
-                            sumNj += muW[i,k,:]*muF[k,:].reshape(self.N)
-                    auxCalc = auxCalc + ((new_y[i,:]-sumNj)*muW[i,j,:]) \
-                                        / (jitt2[i] + self.yerr2[i,:])
-                CovF = np.diag(1 / diagFj) + Kf[j]
-                CovF = Kf[j] - Kf[j] @ np.linalg.solve(CovF, Kf[j])
-                sigma_f.append(CovF)
-                mu_f.append(CovF @ auxCalc)
-                muF = np.array(mu_f)
-            sigma_f = np.array(sigma_f)
-            mu_f = np.array(mu_f)
-            sigma_w, mu_w = [], np.zeros_like(muW) #creation of Sigma_wij and mu_wij
-            for j in range(self.q):
-                for i in range(self.p):
-                    mu_fj = mu_f[j]
-                    var_fj = np.diag(sigma_f[j])
-                    Diag_ij = (mu_fj*mu_fj+var_fj) /(jitt2[i] + self.yerr2[i,:])
-                    Kw_ij = Kw[i,j,:,:]
-                    #print(Kw)
-                    CovWij = np.diag(1 / Diag_ij) + Kw_ij
-                    CovWij = Kw_ij - Kw_ij @ np.linalg.solve(CovWij, Kw_ij)
-                    #print(CovWij)
-                    sumNj = np.zeros(self.N)
-                    for k in range(self.q):
-                        if k != j:
-                            sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
-                    auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:]) \
-                                        / (jitt2[i] + self.yerr2[i,:])
-                    sigma_w.append(CovWij)
-                    muW[i,j,:] = CovWij @ auxCalc
-            sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
-            mu_w = np.array(muW)
+                mu_fj = mu_f[j]
+                var_fj = np.diag(sigma_f[j])
+                Diag_ij = (mu_fj*mu_fj+var_fj) /(jitt2[i] + self.yerr2[i,:])
+                Kw_ij = Kw[i,j,:,:]
+                CovWij = np.diag(1 / Diag_ij) + Kw_ij
+                CovWij = Kw_ij - Kw_ij @ np.linalg.solve(CovWij, Kw_ij)
+                sumNj = np.zeros(self.N)
+                for k in range(self.q):
+                    if k != j:
+                        sumNj += mu_f[k].reshape(self.N)*np.array(muW[i,k,:])
+                auxCalc = ((new_y[i,:]-sumNj)*mu_f[j,:]) \
+                                    / (jitt2[i] + self.yerr2[i,:])
+                sigma_w.append(CovWij)
+                muW[i,j,:] = CovWij @ auxCalc
+        sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
+        mu_w = np.array(muW)
+        
+        
+#        sigma_f = np.ones_like(sigma_f)
+#        mu_f = np.ones_like(mu_f)
+#        sigma_w = np.ones_like(sigma_w)
+#        mu_w = np.ones_like(mu_w)
+        #print(sigma_f, mu_f, sigma_w, mu_w)
         return sigma_f, mu_f, sigma_w, mu_w
     
     
@@ -628,58 +636,64 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
+#        print('1st:', logl)
+#        if self.q == 1:
+#            Wcalc = np.array([])
+#            for n in range(self.N):
+#                for p in range(self.p):
+#                    Wcalc = np.append(Wcalc, mu_w[p,:,n])
+#            Fcalc = np.array([])
+#            for n in range(self.N):
+#                for q in range(self.q):
+#                    for p in range(self.p):
+#                        Fcalc = np.append(Fcalc, 
+#                                (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+#            Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
+#            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+#            logl += -0.5 * np.sum(Ydiff)
+#            value = 0
+#            for i in range(self.p):
+#                for j in range(self.q):
+#                    value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+#                                    np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+#                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
+#                                    /(jitt2[p] + self.yerr2[p,:]))
+#            logl += -0.5 * value 
+#        else:
+        Wcalc = []
+        for p in range(self.p):
+            Wcalc.append([])
+        for n in range(self.N):
+            for p in range(self.p):
+                Wcalc[p].append(mu_w[p, :, n])
+        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+        Fcalc = []#np.array([])
+        for p in range(self.p):
+            Fcalc.append([])
+            #Fcalc1.append([])
+        for n in range(self.N):
+            for q in range(self.q):
+                for p in range(self.p):
+                    Fcalc[p] = np.append(Fcalc[p], 
+                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+        #print('calcs:', Wcalc.shape, Fcalc.shape)
+        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+        #print(Ymean)
+        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+#        print(Ydiff)
+        logl += -0.5 * np.sum(Ydiff)
         
-        if self.q == 1:
-            Wcalc = np.array([])
-            for n in range(self.N):
-                for p in range(self.p):
-                    Wcalc = np.append(Wcalc, mu_w[p,:,n])
-            Fcalc = np.array([])
-            for n in range(self.N):
-                for q in range(self.q):
-                    for p in range(self.p):
-                        Fcalc = np.append(Fcalc, 
-                                (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-            Ymean = (Wcalc * Fcalc).reshape(self.N, self.p)
-            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-            logl += -0.5 * np.sum(Ydiff)
-            value = 0
-            for i in range(self.p):
-                for j in range(self.q):
-                    value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
-                                    np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
-                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                    /(jitt2[p] + self.yerr2[p,:]))
-            logl += -0.5 * value 
-        else:
-            Wcalc = []
-            for p in range(self.p):
-                Wcalc.append([])
-            for n in range(self.N):
-                for p in range(self.p):
-                    Wcalc[p].append(mu_w[p, :, n])
-            Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-            Fcalc = []#np.array([])
-            for p in range(self.p):
-                Fcalc.append([])
-                #Fcalc1.append([])
-            for n in range(self.N):
-                for q in range(self.q):
-                    for p in range(self.p):
-                        Fcalc[p] = np.append(Fcalc[p], 
-                             (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-            Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
-            Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
-            Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-            logl += -0.5 * np.sum(Ydiff)
-            value = 0
-            for i in range(self.p):
-                for j in range(self.q):
-                    value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
-                                    np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
-                                    np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                    /(jitt2[p] + self.yerr2[p,:]))
-            logl += -0.5* value
+#        print('2nd:', logl)
+        
+        value = 0
+        for i in range(self.p):
+            for j in range(self.q):
+                value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+                                np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+                                np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
+                                /(jitt2[p] + self.yerr2[p,:]))
+        logl += -0.5* value
         return logl
 
 
@@ -710,13 +724,13 @@ class inference(object):
         """
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         Kw0 = np.array([self._kernelMatrix(j, self.time) for j in weights])
-        Kw = Kw0.reshape(self.p, self.q, self.N, self.N)
+        Kw = Kw0.reshape(self.q, self.p, self.N, self.N)
         #we have Q nodes -> j in the paper; we have P y(x)s -> i in the paper
         first_term = 0 #calculation of the first term of eq.15 of Nguyen & Bonilla (2013)
         second_term = 0 #calculation of the second term of eq.15 of Nguyen & Bonilla (2013)
         #Lw = self._cholNugget(Kw[0])[0]
         Lw = np.array([self._cholNugget(j)[0] for j in Kw0])
-        Lw = Lw.reshape(self.p, self.q, self.N, self.N)
+        Lw = Lw.reshape(self.q, self.p, self.N, self.N)
         muW = mu_w.reshape(self.q, self.p, self.N)
         sumSigmaF = np.zeros_like(sigma_f[0])
         for j in range(self.q):
@@ -726,12 +740,12 @@ class inference(object):
             muKmu = muK @ muK
             sumSigmaF = sumSigmaF + sigma_f[j]
             trace = np.trace(np.linalg.solve(Kf[j], sumSigmaF))#sigma_f[j]))
-            first_term += -self.q*logKf - 0.5*(muKmu + trace)
+            first_term += -logKf - 0.5*(muKmu + trace)
             for i in range(self.p):
-                muK = np.linalg.solve(Lw[i,j,:,:], muW[j,i]) 
+                muK = np.linalg.solve(Lw[j,i,:,:], muW[j,i]) 
                 muKmu = muK @ muK
-                trace = np.trace(np.linalg.solve(Kw[i,j,:,:], sigma_w[j,i,:,:]))
-                second_term += -self.q*np.float(np.sum(np.log(np.diag(Lw[i,j,:,:])))) - 0.5*(muKmu + trace)
+                trace = np.trace(np.linalg.solve(Kw[j,i,:,:], sigma_w[j,i,:,:]))
+                second_term += -np.float(np.sum(np.log(np.diag(Lw[j,i,:,:])))) - 0.5*(muKmu + trace)
         logp = first_term + second_term
         return logp
     
