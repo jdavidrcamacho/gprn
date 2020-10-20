@@ -6,7 +6,7 @@ from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-
+np.random.seed(23011990)
 
 class inference(object):
     """ 
@@ -39,9 +39,17 @@ class inference(object):
         self.qp =  self.q * self.p
         #to organize the data we now join everything
         self.tt = np.tile(time, self.p) #"extended" time because why not?
-        ys = [j for i, j in enumerate(args) if i%2 == 0]
+        ys = []
+        ystd = []
+        yerrs = []
+        for i, j in enumerate(args):
+            if i%2 == 0:
+                ys.append(j)
+                ystd.append(np.std(j))
+            else:
+                yerrs.append(j)
+        self.ystd = np.array(ystd).reshape(self.p, 1)
         self.y = np.array(ys).reshape(self.p, self.N) #matrix p*N of outputs
-        yerrs = [j for i, j in enumerate(args) if i%2 != 0]
         self.yerr = np.array(yerrs).reshape(self.p, self.N) #matrix p*N of errors
         self.yerr2 = self.yerr**2
         #check if the input was correct
@@ -104,7 +112,7 @@ class inference(object):
             K = kernel(None, time[:, None], time[None, :])
         else:
             K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
-        K[abs(K)<1e-15] = 0.
+        K[np.abs(K)<1e-15] = 0.
         return K
 
 
@@ -173,14 +181,12 @@ class inference(object):
         """
         nugget = 0 #our nugget starts as zero
         try:
-            nugget += abs(np.diag(matrix).mean()) * 1e-5
+            nugget += np.abs(np.diag(matrix).mean()) * 1e-5
             L = cholesky(matrix, lower=True, overwrite_a=True)
             return L, nugget
         except LinAlgError:
-            #print('NUGGET ADDED TO DIAGONAL!')
             n = 0 #number of tries
             while n < maximum:
-                #print ('n:', n+1, ', nugget:', nugget)
                 try:
                     L = cholesky(matrix + nugget*np.identity(matrix.shape[0]),
                                  lower=True, overwrite_a=True)
@@ -194,8 +200,8 @@ class inference(object):
 
     def _CBMatrix(self, nodes, weight):
         """
-        Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be an 
-        N*q*(p+1) X N*q*(p+1) block diagonal matrix
+        Creates the matrix CB (eq. 5 from Wilson et al. 2012), that will be 
+        an N*q*(p+1) X N*q*(p+1) block diagonal matrix
 
         Parameters
         ----------
@@ -206,19 +212,20 @@ class inference(object):
         -------
             CB = matrix CB
         """
-        CB_size = self.time.size * self.q * (self.p + 1)
+        time = self.time
+        CB_size = time.size * self.q * (self.p + 1)
         CB = np.zeros((CB_size, CB_size)) #initial empty matrix
         pos = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
-            CB[pos:pos+self.time.size, 
-               pos:pos+self.time.size] = self._kernelMatrix(nodes[i], self.time)
-            pos += self.time.size
+            node_CovMatrix = self._kernelMatrix(nodes[i], time)
+            CB[pos:pos+time.size, pos:pos+time.size] = node_CovMatrix
+            pos += time.size
+        weight_CovMatrix = self._kernelMatrix(weight[0], time)
         #then we enter the weights
         for i in range(self.qp):
-            CB[pos:pos+self.time.size, 
-               pos:pos+self.time.size] = self._kernelMatrix(weight[0], self.time)
-            pos += self.time.size
+            CB[pos:pos+time.size, pos:pos+time.size] = weight_CovMatrix
+            pos += time.size
         return CB
 
 
@@ -235,7 +242,8 @@ class inference(object):
         -------
             Samples of CB
         """
-        mean = np.zeros(self.time.size*self.q*(self.p+1))
+        time = self.time
+        mean = np.zeros(time.size*self.q*(self.p+1))
         cov = self._CBMatrix(nodes, weight)
         norm = multivariate_normal(mean, cov, allow_singular=True).rvs()
         return norm
@@ -260,9 +268,8 @@ class inference(object):
         if time is None:
             time = self.time
         mean = np.zeros_like(time)
-        K = [self._kernelMatrix(i, time) for i in latentFunc]
-        norm = multivariate_normal(mean, np.squeeze(np.array(K)),
-                                   allow_singular=True).rvs()
+        K = np.array([self._kernelMatrix(i, time) for i in latentFunc])
+        norm = multivariate_normal(mean, np.squeeze(K), allow_singular=True).rvs()
         return norm
 
 
@@ -304,25 +311,28 @@ class inference(object):
             mu = np.random.randn(D, 1)
             var = np.random.rand(D, 1)
         varF, varW = self._u_to_fhatW(var.flatten())
-        sigF = [np.diag(varF[0, q, :]) for q in range(self.q)]
-        sigW = [np.diag(varW[p, q, :]) for q in range(self.q) for p in range(self.p)]
-        #To add new elbo values inside
-        elboArray = [-1e15]; elboArrayAppend = elboArray.append
+        sigF, sigW = [], []
+        for q in range(self.q):
+            sigF.append(np.diag(varF[0, q, :]))
+            for p in range(self.p):
+                sigW.append(np.diag(varW[p, q, :]))
+        elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
             ELBO, mu, var, sigF, sigW = self.ELBO(nodes, weight, mean, jitter, 
                                                   mu, var, sigF, sigW)
-            elboArrayAppend(ELBO)
+            elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
-            criteria = abs((elboArray[-2] - ELBO)/ELBO)
+            criteria = np.abs((elboArray[-2] - ELBO)/ELBO)
             if elboArray[-2] > ELBO:
                 break
             if criteria < 1e-1 and criteria !=0:
                 return ELBO, mu, var
         return ELBO, mu, var
-    
+
+
     def ELBO(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
         """
         Evidence Lower bound to use in optVarParams()
@@ -357,26 +367,36 @@ class inference(object):
         sigmaF, muF, sigmaW, muW = self._updateSigMu(node, weight, mean, 
                                                      jitter, muF, varF, 
                                                      muW, varW)
-        muF = muF.reshape(1, self.q, self.N) #new mean for the nodes
-        muW = muW.reshape(self.p, self.q, self.N) #new mean for the weights
-        varF = [np.diag(sigmaF[i]) for i in range(self.q)]
-        varW = [np.diag(sigmaW[i, j, :]) for i in range(self.q) for j in range(self.p)]
-        varF = np.array(varF).reshape(1, self.q, self.N) #new variance for the nodes
-        varW = np.array(varW).reshape(self.p, self.q, self.N) #new variance for the weights
-        new_mu, new_var = np.concatenate((muF, muW)), np.concatenate((varF, varW))
+        #new mean for the nodes
+        muF = muF.reshape(1, self.q, self.N)
+        varF =  []
+        for i in range(self.q):
+            varF.append(np.diag(sigmaF[i]))
+        #new variance for the nodes
+        varF = np.array(varF).reshape(1, self.q, self.N)
+        #new mean for the weights
+        muW = muW.reshape(self.p, self.q, self.N)
+        varW =  []
+        for j in range(self.q):
+            for i in range(self.p):
+                varW.append(np.diag(sigmaW[j, i, :]))
+        #new variance for the weights
+        varW = np.array(varW).reshape(self.p, self.q, self.N)
+        new_mu = np.concatenate((muF, muW))
+        new_var = np.concatenate((varF, varW))
         #Entropy
         Entropy = self._entropy(sigmaF, sigmaW)
         #Expected log prior
         ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                             sigmaF, muF, sigmaW, muW)
+                                            sigmaF, muF, sigmaW, muW)
         #Expected log-likelihood
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = ExpLogLike + ExpLogPrior + Entropy
         return ELBO, new_mu, new_var, sigmaF, sigmaW
-    
-    
+
+
     def Prediction(self, node, weights, means, jitter, tstar, mu, std=False):
         """
         Prediction for mean-field inference
@@ -446,7 +466,7 @@ class inference(object):
                 WWmu = Kwstar[0,:,:] @ np.linalg.solve(Lw[0,:,:], muW[i,:,:].T)
                 #the zeros here is to substitute by self.q
                 LfKfstar = np.linalg.solve(Lf[0,:,:], Kfstar[0,:,:].T)
-                first = WWmu @ WWmu.T @(Kfstarxx[0,:,:] - LfKfstar.T @ LfKfstar)
+                first = WWmu@WWmu.T@(Kfstarxx[0,:,:] - LfKfstar.T @ LfKfstar)
                 Fmu = np.linalg.solve(np.squeeze(Lf[0,:,:]), muF[0,:,:].T)
                 FFmu =Fmu.T @ np.linalg.solve(np.squeeze(Lf[0,:,:]), 
                                               Kfstar[0,:,:].T)
@@ -454,13 +474,33 @@ class inference(object):
                 invKfKf = np.linalg.solve(Lf[0,:,:], Kfstar[0,:,:].T)
                 second = (Kwstarxx[0,:,:]- invKwKw.T @ invKwKw) \
                         @ (Kfstarxx[0,:,:]- invKfKf.T @ invKfKf \
-                          + FFmu @ FFmu.T)
+                          + FFmu@FFmu.T)
                 final_ystd.append(np.diag(first + second + jitt2[i]))
             final_ystd = np.array(final_ystd)
             return final_ystar, final_ystd
+#        if std:
+#            jitt2 = np.array(jitter)**2 #jitters
+#            Kfstar = np.array([self._predictKMatrix(i1, tstar) for i1 in node])
+#            Kwstar = np.array([self._predictKMatrix(i2, tstar) for i2 in weights])
+#            Kfstarxx = np.array([self._kernelMatrix(i1, tstar) for i1 in node])
+#            Kwstarxx = np.array([self._kernelMatrix(i2, tstar) for i2 in weights])
+#            final_ystd = []
+#            for i in range(self.p):
+#                WWmu = Kwstar[0,:,:] @ np.linalg.solve(Lw[0,:,:], muW[i,:,:].T)
+#                first = WWmu@WWmu.T@(Kfstarxx[0,:,:] -\
+#                    Kfstar[0,:,:]@ np.linalg.solve(np.squeeze(Lf[0,:,:]), Kfstar[0,:,:].T))
+#                FFmu = Kfstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]), muF[0,:,:].T)
+#                second = (Kwstarxx[0,:,:] - \
+#                          Kwstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]),Kwstar[0,:,:].T)\
+#                          @(Kfstarxx[0,:,:] - \
+#                          Kfstar[0,:,:] @ np.linalg.solve(np.squeeze(Lf[0,:,:]),Kfstar[0,:,:].T)\
+#                          + FFmu@FFmu.T))
+#                final_ystd.append(np.diag(first + second + jitt2[i]))
+#            final_ystd = np.array(final_ystd)
+#            return final_ystar, final_ystd
         return final_ystar
-    
-    
+
+
     def _updateSigMu(self, nodes, weight, mean, jitter, muF, varF, muW, varW):
         """
         Efficient closed-form updates fot variational parameters. This
@@ -545,8 +585,8 @@ class inference(object):
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
         mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
-    
-    
+
+
     def _expectedLogLike(self, nodes, weight, mean, jitter, sigma_f, mu_f,
                          sigma_w, mu_w):
         """
@@ -586,16 +626,17 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        Wcalc = []; WcalcAppend = Wcalc.append
+        Wcalc = []
         for p in range(self.p):
-            WcalcAppend([])
+            Wcalc.append([])
         for n in range(self.N):
             for p in range(self.p):
                 Wcalc[p].append(mu_w[p, :, n])
         Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-        Fcalc = []; FcalcAppend = Fcalc.append
+        Fcalc = []#np.array([])
         for p in range(self.p):
-            FcalcAppend([])
+            Fcalc.append([])
+            #Fcalc1.append([])
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
@@ -605,11 +646,13 @@ class inference(object):
         Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
         Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
         logl += -0.5 * np.sum(Ydiff)
-        value = sum(np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:]\
-                            +np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:]\
-                            +np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                            /(jitt2[p] + self.yerr2[p,:])) \
-                    for i in range(self.p) for j in range(self.q))
+        value = 0
+        for i in range(self.p):
+            for j in range(self.q):
+                value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+                                np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+                                np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
+                                /(jitt2[p] + self.yerr2[p,:]))
         logl += -0.5* value
         return logl
 
@@ -685,10 +728,10 @@ class inference(object):
         entropy = 0 #starts at zero then we sum everything
         for j in range(self.q):
             L1 = self._cholNugget(sigma_f[j])
-            entropy += sum(np.log(np.diag(L1[0])))
+            entropy += np.sum(np.log(np.diag(L1[0])))
             for i in range(self.p):
                 L2 = self._cholNugget(sigma_w[j, i, :, :])
-                entropy += sum(np.log(np.diag(L2[0])))
+                entropy += np.sum(np.log(np.diag(L2[0])))
         return entropy
 
 
@@ -701,10 +744,9 @@ class inference(object):
         Parameters
         ----------
         """
-        Ef = [self.gpPrediction(i, time = tstar) for i in nodes]
-        Ew = [self.gpPrediction(j, time = tstar) for j in weights]
+        Ef = np.array([self.gpPrediction(i, time = tstar) for i in nodes])
+        Ew = np.array([self.gpPrediction(j, time = tstar) for j in weights])
         means = self._mean(means, tstar)
         means = np.array_split(means, self.p)
-        ymean = np.squeeze(np.array(Ef)*np.array(Ew)) + np.squeeze(means)
+        ymean = np.squeeze(Ef*Ew) + np.squeeze(means)
         return ymean
-

@@ -10,7 +10,6 @@ from gprn import meanFunction
 
 #mean-field inference
 from gprn import simpleMeanField, completeMeanField
-from gprn import simpleMeanFieldOLD
 
 #useful functions
 from gprn import utils
