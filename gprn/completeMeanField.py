@@ -395,7 +395,7 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy) #/ self.qp
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy) / self.qp
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
