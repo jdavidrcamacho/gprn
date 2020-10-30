@@ -176,18 +176,18 @@ class Periodic(covFunction):
     ----------
     theta: float
         Amplitude
+    P: float
+        Period
     ell: float
         Lenght scale
-    P: float
-        Periodtoo-many-arguments
     wn: float
         White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, P, wn):
-        super(Periodic, self).__init__(theta, ell, P, wn)
+    def __init__(self, theta, P, ell, wn):
+        super(Periodic, self).__init__(theta, P, ell, wn)
         self.tag = 'P'
         self.theta = theta
         self.ell = ell

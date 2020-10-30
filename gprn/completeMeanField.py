@@ -276,7 +276,7 @@ class inference(object):
     
     
 ##### Mean-Field Inference functions ##########################################
-    def optVarParams(self, nodes, weight, mean, jitter, iterations = 1000,
+    def optVarParams(self, nodes, weight, mean, jitter, iterations = 10000,
                      mu = None, var = None):
         """
         Function to use in the the sampling of the GPRN
@@ -312,6 +312,7 @@ class inference(object):
         if mu is None and var is None:
             mu = np.random.randn(D, 1)
             var = np.random.rand(D, 1)
+            #print(mu.shape, '\n', var.shape)
         varF, varW = self._u_to_fhatW(var.flatten())
         sigF, sigW = [], []
         for q in range(self.q):
@@ -395,7 +396,8 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy) / self.qp
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy) #/ self.qp
+        #print(ExpLogLike, ExpLogPrior, Entropy)
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
@@ -445,7 +447,7 @@ class inference(object):
                                                      muF[:,q,:].T)
                 countF += self.N
                 for p in range(self.p):
-                    Wstar[p, q] = np.linalg.solve(Lw[p,q,:,:],Kwstar[q,p,:].T)\
+                    Wstar[p,q] = np.linalg.solve(Lw[p,q,:,:],Kwstar[p,q,:].T)\
                                      @ np.linalg.solve(Lw[p,q,:,:], muW[p,q].T)
                     countW += self.N
             ystar[:,i] = ystar[:, i] + np.squeeze(Wstar @ fstar)
@@ -689,5 +691,30 @@ class inference(object):
             for i in range(self.p):
                 L2 = self._cholNugget(sigma_w[j, i, :, :])
                 entropy += np.sum(np.log(np.diag(L2[0])))
-        return entropy
+        return entropy + self.N*self.N*self.qp*(1+np.log(2*np.pi))
 
+
+    def _scipyEntropy(self, latentFunc, time=None):
+        """
+        Returns samples from the kernel
+        
+        Parameters
+        ----------
+        latentFunc: func
+            Covariance functions
+        time: array
+            Time array
+        
+        Returns
+        -------
+        norm: array
+            Sample of K 
+        """
+        if time is None:
+            time = self.time
+        
+        mean = np.zeros_like(time)
+        K = np.array([self._kernelMatrix(i, time) for i in [latentFunc]])
+        ent = multivariate_normal(mean, np.squeeze(K), allow_singular=True).entropy()
+        return ent
+        
