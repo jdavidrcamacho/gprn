@@ -307,6 +307,7 @@ class inference(object):
         var: array
             Optimized variational variance (diagonal of sigma)
         """
+        np.random.seed(23011990)
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         if mu is None and var is None:
@@ -437,6 +438,7 @@ class inference(object):
         for i in range(tstar.size):
             Kfstar = np.array([self._predictKMatrix(i1, tstar[i]) for i1 in node])
             Kwstar = np.array([self._predictKMatrix(i2, tstar[i]) for i2 in weights])
+            Kwstar = Kwstar.reshape(self.p, self.q, self.N)
             #Lwstar = np.linalg.solve(np.squeeze(Lw), np.squeeze(Kwstar).T)
             countF, countW = 1, 1
             Wstar, fstar = np.zeros((self.p, self.q)), np.zeros((self.q, 1))
@@ -691,7 +693,7 @@ class inference(object):
             for i in range(self.p):
                 L2 = self._cholNugget(sigma_w[j, i, :, :])
                 entropy += np.sum(np.log(np.diag(L2[0])))
-        return entropy + self.N*self.N*self.qp*(1+np.log(2*np.pi))
+        return entropy + self.qp*(1+np.log(2*np.pi))
 
 
     def _scipyEntropy(self, latentFunc, time=None):
