@@ -698,7 +698,7 @@ class inference(object):
 
     def _scipyEntropy(self, latentFunc, time=None):
         """
-        Returns samples from the kernel
+        Returns entropy from the kernel
         
         Parameters
         ----------
@@ -714,7 +714,6 @@ class inference(object):
         """
         if time is None:
             time = self.time
-        
         mean = np.zeros_like(time)
         K = np.array([self._kernelMatrix(i, time) for i in [latentFunc]])
         ent = multivariate_normal(mean, np.squeeze(K), allow_singular=True).entropy()
