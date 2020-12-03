@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 import numpy as np
 from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
@@ -276,7 +274,7 @@ class inference(object):
     
     
 ##### Mean-Field Inference functions ##########################################
-    def optVarParams(self, nodes, weight, mean, jitter, iterations = 10000,
+    def ELBOcalc(self, nodes, weight, mean, jitter, iterations = 10000,
                      mu = None, var = None):
         """
         Function to use in the the sampling of the GPRN
@@ -307,7 +305,6 @@ class inference(object):
         var: array
             Optimized variational variance (diagonal of sigma)
         """
-        np.random.seed(23011990)
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         if mu is None and var is None:
@@ -323,23 +320,26 @@ class inference(object):
         elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
+            #Ou calcular media de 10 elbos ou 
+            
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW = self.ELBO(nodes, weight, mean, jitter, 
+            ELBO, mu, var, sigF, sigW = self.ELBOaux(nodes, weight, mean, jitter, 
                                                        mu, var, sigF, sigW)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
-            criteria = np.abs((elboArray[-2] - ELBO)/ELBO)
-            if elboArray[-2] > ELBO:
-                break
-            if criteria < 1e-1 and criteria !=0:
-                return ELBO, mu, var
+            if iterNumber > 10:
+                means = np.mean(elboArray[-10:])
+                criteria = np.abs(np.std(elboArray[-10:]) / means)
+                if criteria < 1e-2 and criteria !=0:
+                    return ELBO, mu, var
+        print('Max iterations reached')
         return ELBO, mu, var
     
     
-    def ELBO(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
+    def ELBOaux(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
         """
-        Evidence Lower bound to use in optVarParams()
+        Evidence Lower bound to use in ELBOcalc()
         
         Parameters
         ----------
