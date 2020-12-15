@@ -107,7 +107,7 @@ class inference(object):
         if isinstance(kernel, (covL, covP)):
             K = kernel(None, time[:, None], time[None, :])
         else:
-            K = kernel(r) #+ 1e-6*np.diag(np.diag(np.ones_like(r)))
+            K = kernel(r) + 1e-5*np.diag(np.diag(np.ones_like(r)))
         K[np.abs(K)<1e-15] = 0.
         return K
     

@@ -81,9 +81,7 @@ class Constant(covFunction):
     ----------
     c: float
         Constant
-    wn: float
-        White noise amplitude
-
+        
     Returns
     -------
     """
@@ -91,17 +89,9 @@ class Constant(covFunction):
         super(Constant, self).__init__(c, wn)
         self.tag = 'C'
         self.c = c
-        self.wn = wn
-        self.type = 'non-stationary and anisotropic'
-        self.derivatives = 2    #number of derivatives in this kernel
-        self.params_size = 2    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.c**2 * np.ones_like(r) \
-                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.c**2 * np.ones_like(r)
+        return self.c**2 * np.ones_like(r)
 
 
 ##### White Noise ##############################################################
@@ -121,9 +111,6 @@ class WhiteNoise(covFunction):
         super(WhiteNoise, self).__init__(wn)
         self.tag = 'WN'
         self.wn = wn
-        self.type = 'stationary'
-        self.derivatives = 1    #number of derivatives in this kernel
-        self.params_size = 1    #number of hyperparameters
 
     def __call__(self, r):
         if r[0, :].shape == r[:, 0].shape:
@@ -143,28 +130,18 @@ class SquaredExponential(covFunction):
         Amplitude
     ell: float
         Length-scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, wn):
-        super(SquaredExponential, self).__init__(theta, ell, wn)
+    def __init__(self, theta, ell):
+        super(SquaredExponential, self).__init__(theta, ell)
         self.tag = 'SE'
         self.theta = theta
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and anisotropic'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-0.5 * r**2 / self.ell**2) \
-                    + self.wn**2 *np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-0.5 * r**2 / self.ell**2)
+        return self.theta**2 * EXP(-0.5 * r**2 / self.ell**2)
 
 
 ##### Periodic #################################################################
@@ -180,29 +157,19 @@ class Periodic(covFunction):
         Period
     ell: float
         Lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, P, ell, wn):
-        super(Periodic, self).__init__(theta, P, ell, wn)
+    def __init__(self, theta, P, ell):
+        super(Periodic, self).__init__(theta, P, ell)
         self.tag = 'P'
         self.theta = theta
         self.ell = ell
         self.P = P
-        self.wn = wn
-        self.type = 'non-stationary and isotropic'
-        self.derivatives = 4    #number of derivatives in this kernel
-        self.params_size = 4    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell**2) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell**2)
+        return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell**2)
 
 
 ##### Quasi Periodic ###########################################################
@@ -222,31 +189,20 @@ class QuasiPeriodic(covFunction):
         Kernel periodicity
     ell_p: float
         Length scale of the periodic component
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell_e, P, ell_p, wn):
-        super(QuasiPeriodic, self).__init__(theta, ell_e, P, ell_p, wn)
+    def __init__(self, theta, ell_e, P, ell_p):
+        super(QuasiPeriodic, self).__init__(theta, ell_e, P, ell_p)
         self.tag = 'QP'
         self.theta = theta
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
-        self.wn = wn
-        self.type = 'non-stationary and anisotropic'
-        self.derivatives = 5    #number of derivatives in this kernel
-        self.params_size = 5    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-2*SINE(PI*r/self.P)**2 \
-                       /self.ell_p**2 - r**2/(2*self.ell_e**2)) \
-                       + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2 \
+        return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2 \
                        /self.ell_p**2 - r**2/(2*self.ell_e**2))
 
 
@@ -264,29 +220,19 @@ class RationalQuadratic(covFunction):
         Weight of large and small scale variations
     ell: float
         Characteristic lenght scale to define the kernel "smoothness"
-    wn: float
-        White noise amplitude
-
+        
     Returns
     -------
     """
-    def __init__(self, theta, alpha, ell, wn):
-        super(RationalQuadratic, self).__init__(theta, alpha, ell, wn)
+    def __init__(self, theta, alpha, ell):
+        super(RationalQuadratic, self).__init__(theta, alpha, ell)
         self.tag = 'RQ'
         self.theta = theta
         self.alpha = alpha
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and anisotropic'
-        self.derivatives = 4    #number of derivatives in this kernel
-        self.params_size = 4    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 /(1+r**2/(2*self.alpha*self.ell**2))**(-self.alpha) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 /(1+r**2/(2*self.alpha*self.ell**2))**(-self.alpha)
+        return self.theta**2 /(1+r**2/(2*self.alpha*self.ell**2))**(-self.alpha)
 
 
 ##### RQP kernel ###############################################################
@@ -308,32 +254,21 @@ class RQP(covFunction):
         Aperiodic and periodic lenght scales
     P: float
         Periodic repetitions of the kernel
-    wn: float
-        White noise amplitude
-
+        
     Returns
     -------
     """
-    def __init__(self, theta, alpha, ell_e, P, ell_p, wn):
-        super(RQP, self).__init__(theta, alpha, ell_e, P, ell_p, wn)
+    def __init__(self, theta, alpha, ell_e, P, ell_p):
+        super(RQP, self).__init__(theta, alpha, ell_e, P, ell_p)
         self.tag = 'RQP'
         self.theta = theta
         self.alpha = alpha
         self.ell_e = ell_e
         self.P = P
         self.ell_p = ell_p
-        self.wn = wn
-        self.type = 'non-stationary and anisotropic'
-        self.derivatives = 6    #number of derivatives in this kernel
-        self.params_size = 6    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell_p**2) \
-                        *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha) \
-                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 *EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell_p**2) \
+        return self.theta**2 *EXP(-2*SINE(PI*np.abs(r)/self.P)**2/self.ell_p**2) \
                         *(1+r**2/(2*self.alpha*self.ell_e**2))**(-self.alpha)
 
 
@@ -348,28 +283,18 @@ class CoSINE(covFunction):
         Amplitude
     P: float
         Period
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, P, wn):
-        super(CoSINE, self).__init__(theta, P, wn)
+    def __init__(self, theta, P):
+        super(CoSINE, self).__init__(theta, P)
         self.tag = 'COS'
         self.theta = theta
         self.P = P
-        self.wn = wn
-        self.type = 'non-stationary and isotroPIc'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * COSINE(2*PI*np.abs(r) / self.P) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 *COSINE(2*PI*np.abs(r) / self.P)
+        return self.theta**2 *COSINE(2*PI*np.abs(r) / self.P)
 
 
 ##### Laplacian ##############################################################
@@ -383,28 +308,18 @@ class Laplacian(covFunction):
         Amplitude
     ell: float
         Characteristic lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, wn):
-        super(Laplacian, self).__init__(theta, ell, wn)
+    def __init__(self, theta, ell):
+        super(Laplacian, self).__init__(theta, ell)
         self.tag = 'LAP'
         self.theta = theta
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and isotroPIc'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
-
+        
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-np.abs(r)/self.ell) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-np.abs(r)/self.ell)
+        return self.theta**2 * EXP(-np.abs(r)/self.ell)
 
 
 ##### Exponential ##############################################################
@@ -418,28 +333,18 @@ class Exponential(covFunction):
         Amplitude
     ell: float
         Characteristic lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, wn):
-        super(Exponential, self).__init__(theta, ell, wn)
+    def __init__(self, theta, ell):
+        super(Exponential, self).__init__(theta, ell)
         self.tag = 'EXP'
         self.theta = theta
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and isotroPIc'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-np.abs(r)/(2*self.ell**2)) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-np.abs(r)/self.ell)
+        return self.theta**2 * EXP(-np.abs(r)/self.ell)
 
 
 ##### Matern 3/2 ###############################################################
@@ -454,29 +359,18 @@ class Matern32(covFunction):
         Amplitude
     ell: float
         Characteristic lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, wn):
-        super(Matern32, self).__init__(theta, ell, wn)
+    def __init__(self, theta, ell):
+        super(Matern32, self).__init__(theta, ell)
         self.tag = 'M32'
         self.theta = theta
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and isotroPIc'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * (1.0+SQRT(3.0)*np.abs(r)/self.ell) \
-                        *np.exp(-SQRT(3.0)*np.abs(r) / self.ell) \
-                        + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * (1.0+SQRT(3.0)*np.abs(r)/self.ell) \
+        return self.theta**2 * (1.0+SQRT(3.0)*np.abs(r)/self.ell) \
                         *np.exp(-SQRT(3.0)*np.abs(r) / self.ell)
 
 
@@ -492,30 +386,18 @@ class Matern52(covFunction):
         Amplitude
     ell: float
         Characteristic lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, ell, wn):
-        super(Matern52, self).__init__(theta, ell, wn)
+    def __init__(self, theta, ell):
+        super(Matern52, self).__init__(theta, ell)
         self.tag = 'M52'
         self.theta = theta
         self.ell = ell
-        self.wn = wn
-        self.type = 'stationary and isotroPIc'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2*(1.0+(3*SQRT(5)*self.ell*np.abs(r) \
-                           + 5*np.abs(r)**2)/(3*self.ell**2)) \
-                           * EXP(-SQRT(5.0)*np.abs(r)/self.ell) \
-                           + self.wn**2* np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2*(1.0+(3*SQRT(5)*self.ell*np.abs(r) \
+        return self.theta**2*(1.0+(3*SQRT(5)*self.ell*np.abs(r) \
                            +5*np.abs(r)**2)/(3* self.ell**2)) \
                            *EXP(-SQRT(5.0)*np.abs(r)/self.ell)
 
@@ -531,28 +413,18 @@ class Linear(covFunction):
         Amplitude (should we even have an amplitude???)
     c: float
         Constant
-    wn: float
-        White noise amplitude
-
+        
     Returns
     -------
     """
-    def __init__(self, theta, c, wn):
-        super(Linear, self).__init__(theta, c, wn)
+    def __init__(self, theta, c):
+        super(Linear, self).__init__(theta, c)
         self.tag = 'LIN'
         self.theta = theta
         self.c = c
-        self.wn = wn
-        self.type = 'non-stationary and anisotropic'
-        self.derivatives = 3    #number of derivatives in this kernel
-        self.params_size = 3    #number of hyperparameters
 
     def __call__(self, r, t1, t2):
-        try:
-            return  self.theta**2 * (t1 - self.c) * (t2 - self.c) \
-                + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return  (t1 - self.c) * (t2 - self.c)
+        return  (t1 - self.c) * (t2 - self.c)
 
 
 ##### Gamma-exponential ########################################################
@@ -568,29 +440,19 @@ class GammaEXP(covFunction):
         Shape parameter ( 0 < gamma <= 2)
     ell: float
         Lenght scale
-    wn: float
-        White noise amplitude
 
     Returns
     -------
     """
-    def __init__(self, theta, gamma, ell, wn):
-        super(GammaEXP, self).__init__(theta, gamma, ell, wn)
+    def __init__(self, theta, gamma, ell,):
+        super(GammaEXP, self).__init__(theta, gamma, ell)
         self.tag = 'GEXP'
         self.theta = theta
         self.gamma = gamma
         self.ell = ell
-        self.wn = wn
-        self.type = 'non-stationary and anisotropic'
-        self.derivatives = 4    #number of derivatives in this kernel
-        self.params_size = 4    #number of hyperparameters
 
     def __call__(self, r):
-        try:
-            return self.theta**2 * EXP(-(np.abs(r)/self.ell)**self.gamma) \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return self.theta**2 * EXP(-(np.abs(r)/self.ell) ** self.gamma)
+        return self.theta**2 * EXP(-(np.abs(r)/self.ell) ** self.gamma)
 
 
 ##### Polinomial ###############################################################
@@ -614,24 +476,16 @@ class Polynomial(covFunction):
     Returns
     -------
     """
-    def __init__(self, theta, a, b, c, wn):
-        super(Polynomial, self).__init__(theta, a, b, c, wn)
+    def __init__(self, theta, a, b, c):
+        super(Polynomial, self).__init__(theta, a, b, c)
         self.tag = 'POLY'
         self.theta = theta
         self.a = a
         self.b = b
         self.c = c
-        self.wn = wn
-        self.type = 'unknown'
-        self.derivatives = 5    #number of derivatives in this kernel
-        self.params_size = 5    #number of hyperparameters
 
     def __call__(self, r, t1, t2):
-        try:
-            return self.theta**2 * (self.a * t1 * t2 + self.b)**self.c \
-                    + self.wn**2 * np.diag(np.diag(np.ones_like(r)))
-        except ValueError:
-            return (self.a * t1 * t2 + self.b)**self.c
+        return (self.a * t1 * t2 + self.b)**self.c
 
 
 ##### Piecewise ################################################################
