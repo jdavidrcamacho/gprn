@@ -6,7 +6,7 @@ from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-np.random.seed(23011990)
+#np.random.seed(23011990)
 
 class inference(object):
     """ 

@@ -213,7 +213,6 @@ class inference(object):
         time = self.time
         CB_size = time.size * self.q * (self.p + 1)
         CB = np.zeros((CB_size, CB_size)) #initial empty matrix
-        
         pos = 0 #we start filling CB at position (0,0)
         #first we enter the nodes
         for i in range(self.q):
@@ -305,12 +304,12 @@ class inference(object):
         var: array
             Optimized variational variance (diagonal of sigma)
         """
+        np.random.seed(23011990)
         #initial variational parameters (they start as random)
         D = self.time.size * self.q *(self.p+1)
         if mu is None and var is None:
             mu = np.random.randn(D, 1)
             var = np.random.rand(D, 1)
-            #print(mu.shape, '\n', var.shape)
         varF, varW = self._u_to_fhatW(var.flatten())
         sigF, sigW = [], []
         for q in range(self.q):
@@ -328,9 +327,9 @@ class inference(object):
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
-            if iterNumber > 10:
-                means = np.mean(elboArray[-10:])
-                criteria = np.abs(np.std(elboArray[-10:]) / means)
+            if iterNumber > 5:
+                means = np.mean(elboArray[-5:])
+                criteria = np.abs(np.std(elboArray[-5:]) / means)
                 if criteria < 1e-2 and criteria !=0:
                     return ELBO, mu, var
         print('Max iterations reached')
@@ -397,8 +396,8 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy) #/ self.qp
-        #print(ExpLogLike, ExpLogPrior, Entropy)
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy) / self.q
+        #print(ExpLogLike, ExpLogPrior, Entropy, 'ELBO:', ELBO)
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
