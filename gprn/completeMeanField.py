@@ -322,7 +322,7 @@ class inference(object):
             #Ou calcular media de 10 elbos ou 
             
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW = self.ELBOaux(nodes, weight, mean, jitter, 
+            ELBO, mu, var, sigF, sigW, ExpLogLike, ExpLogPrior,  Entropy = self.ELBOaux(nodes, weight, mean, jitter, 
                                                        mu, var, sigF, sigW)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
@@ -331,9 +331,9 @@ class inference(object):
                 means = np.mean(elboArray[-5:])
                 criteria = np.abs(np.std(elboArray[-5:]) / means)
                 if criteria < 1e-2 and criteria !=0:
-                    return ELBO, mu, var
+                    return ELBO, mu, var, ExpLogLike, ExpLogPrior,  Entropy
         print('Max iterations reached')
-        return ELBO, mu, var
+        return ELBO, mu, var, ExpLogLike, ExpLogPrior,  Entropy
     
     
     def ELBOaux(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
@@ -396,9 +396,9 @@ class inference(object):
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy) / self.q
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
         #print(ExpLogLike, ExpLogPrior, Entropy, 'ELBO:', ELBO)
-        return ELBO, new_mu, new_var, sigmaF, sigmaW
+        return ELBO, new_mu, new_var, sigmaF, sigmaW,ExpLogLike, ExpLogPrior,  Entropy
     
     
     def Prediction(self, node, weights, means, tstar, mu):
@@ -581,30 +581,49 @@ class inference(object):
         ycalc = new_y.T #new_y0.shape = (p,n)
         logl = 0
         for p in range(self.p):
-            ycalc[p] = new_y.T[p,:] / (jitt[p] + self.yerr[p,:])
+            ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:]\
+                         - 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:]))
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        Wcalc = []
+       
+        Wcalc, Fcalc = [], []
         for p in range(self.p):
             Wcalc.append([])
-        for n in range(self.N):
-            for p in range(self.p):
-                Wcalc[p].append(mu_w[p, :, n])
-        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-        Fcalc = []#np.array([])
-        for p in range(self.p):
             Fcalc.append([])
-            #Fcalc1.append([])
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
+                    Wcalc[p].append(mu_w[p, :, n])
                     Fcalc[p] = np.append(Fcalc[p], 
                          (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+        Fcalc = np.array(Fcalc)
         Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
         Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
         logl += -0.5 * np.sum(Ydiff)
+        
+#        Wcalc = []
+#        for p in range(self.p):
+#            Wcalc.append([])
+#        for n in range(self.N):
+#            for p in range(self.p):
+#                Wcalc[p].append(mu_w[p, :, n])
+#        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+#        Fcalc = []#np.array([])
+#        for p in range(self.p):
+#            Fcalc.append([])
+#            #Fcalc1.append([])
+#        for n in range(self.N):
+#            for q in range(self.q):
+#                for p in range(self.p):
+#                    Fcalc[p] = np.append(Fcalc[p], 
+#                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+#        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+#        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+#        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+#        logl += -0.5 * np.sum(Ydiff)
+        
         value = 0
         for i in range(self.p):
             for j in range(self.q):
@@ -613,7 +632,7 @@ class inference(object):
                                 np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
                                 /(jitt2[p] + self.yerr2[p,:]))
         logl += -0.5* value
-        return logl
+        return logl/self.qp
 
 
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
