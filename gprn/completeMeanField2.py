@@ -34,6 +34,7 @@ class inference(object):
         self.p = int(len(self.args)/2)
         #total number of weights, we will have q*p weights in total
         self.qp =  self.q * self.p
+        self.d = self.time.size * self.q *(self.p+1)
         #to organize the data we now join everything
         self.tt = np.tile(time, self.p) #"extended" time because why not?
         ys = []
@@ -306,16 +307,9 @@ class inference(object):
         """
         np.random.seed(23011990)
         #initial variational parameters (they start as random)
-        D = self.time.size * self.q *(self.p+1)
         if mu is None and var is None:
-            mu = np.random.randn(D, 1)
-            var = np.random.rand(D, 1)
-        varF, varW = self._u_to_fhatW(var.flatten())
-        sigF, sigW = [], []
-        for q in range(self.q):
-            sigF.append(np.diag(varF[0, q, :]))
-            for p in range(self.p):
-                sigW.append(np.diag(varW[p, q, :]))
+            mu = np.random.randn(self.d, 1)
+            var = np.random.rand(self.d, 1)
         elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
@@ -323,7 +317,7 @@ class inference(object):
             
             #Optimize mu and var analytically
             ELBO, mu, var, sigF, sigW, ExpLogLike, ExpLogPrior,  Entropy = self.ELBOaux(nodes, weight, mean, jitter, 
-                                                       mu, var, sigF, sigW)
+                                                       mu, var)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
@@ -336,7 +330,7 @@ class inference(object):
         return ELBO, mu, var, ExpLogLike, ExpLogPrior,  Entropy
     
     
-    def ELBOaux(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
+    def ELBOaux(self, node, weight, mean, jitter, mu, var):
         """
         Evidence Lower bound to use in ELBOcalc()
         
@@ -367,26 +361,24 @@ class inference(object):
         #to separate the variational parameters between the nodes and weights
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
+
         sigmaF, muF, sigmaW, muW = self._updateSigMu(node, weight, mean, 
                                                        jitter, muF, varF, 
                                                        muW, varW)
-        #new mean for the nodes
+        #new mean and var for the nodes
         muF = muF.reshape(1, self.q, self.N)
-        varF =  []
+        varF =  np.zeros_like(varF)
         for i in range(self.q):
-            varF.append(np.diag(sigmaF[i]))
-        #new variance for the nodes
-        varF = np.array(varF).reshape(1, self.q, self.N)
-        #new mean for the weights
-        muW = muW.reshape(self.p, self.q, self.N)
-        varW =  []
+            varF[:,i,:] = np.diag(sigmaF[i,:,:])
+        #new mean and varfor the weights
+        #muW = muW.reshape(self.p, self.q, self.N)
+        varW =  np.zeros_like(varW)
         for j in range(self.q):
             for i in range(self.p):
-                varW.append(np.diag(sigmaW[j, i, :]))
-        #new variance for the weights
-        varW = np.array(varW).reshape(self.p, self.q, self.N)
+                varW[i,j,:] = np.diag(sigmaW[j, i,:, :])
         new_mu = np.concatenate((muF, muW))
         new_var = np.concatenate((varF, varW))
+        
         #Entropy
         Entropy = self._entropy(sigmaF, sigmaW)
         #Expected log prior
@@ -494,6 +486,7 @@ class inference(object):
         mu_w: array
             Updated variational mean of each weight
         """
+        #print('1st', muW.shape)
         new_y = np.concatenate(self.y) - self._mean(mean)
         new_y = np.array(np.array_split(new_y, self.p))
         jitt2 = np.array(jitter)**2 #jitters
@@ -543,6 +536,7 @@ class inference(object):
                 muW[i,j,:] = CovWij @ auxCalc
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
         mu_w = np.array(muW)
+        #print('last', mu_w.shape)
         return sigma_f, mu_f, sigma_w, mu_w
     
     
@@ -581,49 +575,23 @@ class inference(object):
         ycalc = new_y.T #new_y0.shape = (p,n)
         logl = 0
         for p in range(self.p):
-#            ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:])
             ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:]\
                          - 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:]))
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
        
-        Wcalc, Fcalc = [], []
-        for p in range(self.p):
-            Wcalc.append([])
-            Fcalc.append([])
+        Fcalc = np.zeros_like(1, shape = (self.p, self.q, self.N))
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
-                    Wcalc[p].append(mu_w[p, :, n])
-                    Fcalc[p] = np.append(Fcalc[p], 
-                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-        Fcalc = np.array(Fcalc)
+                    Fcalc[p, q ,n] = mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])
+        Wcalc = mu_w.reshape(self.p, self.N * self.q)
+        Fcalc = Fcalc.reshape(self.p, self.N * self.q)
+
         Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
         Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
         logl += -0.5 * np.sum(Ydiff)
-        
-#        Wcalc = []
-#        for p in range(self.p):
-#            Wcalc.append([])
-#        for n in range(self.N):
-#            for p in range(self.p):
-#                Wcalc[p].append(mu_w[p, :, n])
-#        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-#        Fcalc = []#np.array([])
-#        for p in range(self.p):
-#            Fcalc.append([])
-#            #Fcalc1.append([])
-#        for n in range(self.N):
-#            for q in range(self.q):
-#                for p in range(self.p):
-#                    Fcalc[p] = np.append(Fcalc[p], 
-#                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-#        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
-#        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
-#        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-#        logl += -0.5 * np.sum(Ydiff)
         
         value = 0
         for i in range(self.p):
@@ -631,9 +599,10 @@ class inference(object):
                 value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
                                 np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
                                 np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                /(jitt[p]+self.yerr[p,:]- 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:])))
+                                /(jitt[p]+self.yerr[p,:]\
+                         - 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:])))
         logl += -0.5* value
-        return logl/self.qp
+        return logl 
 
 
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
@@ -738,3 +707,48 @@ class inference(object):
         ent = multivariate_normal(mean, np.squeeze(K), allow_singular=True).entropy()
         return ent
         
+    
+################################################################################
+#        Wcalc = []
+#        for p in range(self.p):
+#            Wcalc.append([])
+#        for n in range(self.N):
+#            for p in range(self.p):
+#                Wcalc[p].append(mu_w[p, :, n])
+#        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+#        Fcalc = []#np.array([])
+#        for p in range(self.p):
+#            Fcalc.append([])
+#            #Fcalc1.append([])
+#        for n in range(self.N):
+#            for q in range(self.q):
+#                for p in range(self.p):
+#                    Fcalc[p] = np.append(Fcalc[p], 
+#                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+#        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+#        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+#        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+#        logl += -0.5 * np.sum(Ydiff)
+    
+#        Wcalc, Fcalc, Wcalc1, Fcalc1 = [], [], [], []
+#        for p in range(self.p):
+#            Wcalc.append([])
+#            Fcalc.append([])
+#            Wcalc1.append([])
+#            Fcalc1.append([])
+#        for n in range(self.N):
+#            for q in range(self.q):
+#                for p in range(self.p):
+#                    Wcalc[p].append(mu_w[p, :, n])
+#                    Wcalc1[p].append(mu_w[p, :, n])
+##                    Fcalc[p] = np.append(Fcalc[p], 
+##                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+#                    Fcalc[p] = np.append(Fcalc[p], (mu_f[:, q, n] / (jitt2[p] + self.yerr2[p,n])))
+#                    Fcalc1[p] = np.append(Fcalc1[p], mu_f[:, q, n] / np.ones_like((jitt2[p] + self.yerr2[p,n])))
+#        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+#        Wcalc1 = np.array(Wcalc1).reshape(self.p, self.N * self.q)
+#        Fcalc, Fcalc1 = np.array(Fcalc), np.array(Fcalc1)
+#        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+#        Ymean1 = np.sum((Wcalc1 * Fcalc1).T, axis=1).reshape(self.N, self.q)
+#        Ydiff = (ycalc - Ymean.T) * (ycalc1 - Ymean1.T)
+#        logl += -0.5 * np.sum(Ydiff)
