@@ -313,11 +313,9 @@ class inference(object):
         elboArray = np.array([-1e15]) #To add new elbo values inside
         iterNumber = 0
         while iterNumber < iterations:
-            #Ou calcular media de 10 elbos ou 
-            
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW, ExpLogLike, ExpLogPrior,  Entropy = self.ELBOaux(nodes, weight, mean, jitter, 
-                                                       mu, var)
+            ELBO, mu, var, sigF, sigW = self.ELBOaux(nodes, weight, mean, 
+                                                     jitter, mu, var)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
@@ -325,9 +323,9 @@ class inference(object):
                 means = np.mean(elboArray[-5:])
                 criteria = np.abs(np.std(elboArray[-5:]) / means)
                 if criteria < 1e-2 and criteria !=0:
-                    return ELBO, mu, var, ExpLogLike, ExpLogPrior,  Entropy
+                    return ELBO, mu, var
         print('Max iterations reached')
-        return ELBO, mu, var, ExpLogLike, ExpLogPrior,  Entropy
+        return ELBO, mu, var
     
     
     def ELBOaux(self, node, weight, mean, jitter, mu, var):
@@ -362,9 +360,8 @@ class inference(object):
         muF, muW = self._u_to_fhatW(mu.flatten())
         varF, varW = self._u_to_fhatW(var.flatten())
 
-        sigmaF, muF, sigmaW, muW = self._updateSigMu(node, weight, mean, 
-                                                       jitter, muF, varF, 
-                                                       muW, varW)
+        sigmaF, muF, sigmaW, muW = self._updateSigMu(node, weight, mean, jitter, 
+                                                     muF, varF, muW, varW)
         #new mean and var for the nodes
         muF = muF.reshape(1, self.q, self.N)
         varF =  np.zeros_like(varF)
@@ -389,8 +386,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        #print(ExpLogLike, ExpLogPrior, Entropy, 'ELBO:', ELBO)
-        return ELBO, new_mu, new_var, sigmaF, sigmaW,ExpLogLike, ExpLogPrior,  Entropy
+        return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
     def Prediction(self, node, weights, means, tstar, mu):
@@ -493,7 +489,7 @@ class inference(object):
         #kernel matrix for the nodes
         Kf = np.array([self._kernelMatrix(i, self.time) for i in nodes])
         #kernel matrix for the weights
-        Kw = np.array([self._kernelMatrix(j, self.time) for j in weight]) 
+        Kw = np.array([self._kernelMatrix(j, self.time) for j in weight])
         Kw = Kw.reshape(self.p, self.q, self.N, self.N)
         #we have Q nodes => j in the paper; we have P y(x)s => i in the paper
         muF = np.squeeze(muF)
@@ -536,7 +532,6 @@ class inference(object):
                 muW[i,j,:] = CovWij @ auxCalc
         sigma_w = np.array(sigma_w).reshape(self.q, self.p, self.N, self.N)
         mu_w = np.array(muW)
-        #print('last', mu_w.shape)
         return sigma_f, mu_f, sigma_w, mu_w
     
     
