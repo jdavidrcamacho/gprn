@@ -314,8 +314,8 @@ class inference(object):
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW,ExpLogLike, ExpLogPrior, Entropy = self.ELBOaux(nodes, weight, mean, 
-                                                                                      jitter, mu, var)
+            ELBO, mu, var, sigF, sigW = self.ELBOaux(nodes, weight, mean, 
+                                                     jitter, mu, var)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
             #Stoping criteria:
