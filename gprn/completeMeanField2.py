@@ -580,7 +580,8 @@ class inference(object):
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
-                    Fcalc[p, q ,n] = mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])
+                    Fcalc[p, q ,n] = mu_f[:, q, n] / (jitt[p]+self.yerr[p,n]\
+                         - 2*jitt[p]*self.yerr[p,n]/(jitt[p]+self.yerr[p,n]))
         Wcalc = mu_w.reshape(self.p, self.N * self.q)
         Fcalc = Fcalc.reshape(self.p, self.N * self.q)
 

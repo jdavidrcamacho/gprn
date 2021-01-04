@@ -15,6 +15,6 @@ from gprn import simpleMeanField, completeMeanField, completeMeanField2
 from gprn import utils
 from gprn import lib
 from gprn import evidenceEstimation
-from gprn import correlationFunctions
+#from gprn import correlationFunctions
 
 
