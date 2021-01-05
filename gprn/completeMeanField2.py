@@ -584,9 +584,14 @@ class inference(object):
         Wcalc = mu_w.reshape(self.p, self.N * self.q)
         Fcalc = Fcalc.reshape(self.p, self.N * self.q)
 
-        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
-        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T) / ycalcErr
-        print('ydiff', Ydiff.shape, 'yerr', ycalcErr.shape)
+        #print(Wcalc.shape, Fcalc.shape)
+        omegamu= Wcalc*Fcalc
+        #print(ycalc.shape, omegamu.shape)
+        #Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.q, self.N)
+        
+        Ydiff = (ycalc-omegamu) * (ycalc-omegamu)/ ycalcErr
+        #Ydiff = (ycalc - Ymean) * (ycalc - Ymean) / ycalcErr
+        #print('ydiff', (ycalc - Ymean).shape, 'yerr', ycalcErr.shape)
         logl += -0.5 * np.sum(Ydiff)
         
         value = 0
