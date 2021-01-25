@@ -314,7 +314,7 @@ class inference(object):
         iterNumber = 0
         while iterNumber < iterations:
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW = self.ELBOaux(nodes, weight, mean, 
+            ELBO, mu, var, sigF, sigW,ExpLogLike, ExpLogPrior, Entropy = self.ELBOaux(nodes, weight, mean, 
                                                      jitter, mu, var)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
@@ -323,9 +323,9 @@ class inference(object):
                 means = np.mean(elboArray[-5:])
                 criteria = np.abs(np.std(elboArray[-5:]) / means)
                 if criteria < 1e-2 and criteria !=0:
-                    return ELBO, mu, var
+                    return ELBO, mu, var,ExpLogLike, ExpLogPrior, Entropy
         print('Max iterations reached')
-        return ELBO, mu, var
+        return ELBO, mu, var,ExpLogLike, ExpLogPrior, Entropy
     
     
     def ELBOaux(self, node, weight, mean, jitter, mu, var):
@@ -386,7 +386,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        return ELBO, new_mu, new_var, sigmaF, sigmaW
+        return ELBO, new_mu, new_var, sigmaF, sigmaW, ExpLogLike, ExpLogPrior, Entropy
     
     
     def Prediction(self, node, weights, means, tstar, mu):
@@ -573,7 +573,7 @@ class inference(object):
             ycalc[p] = new_y.T[p,:]
             ycalcErr[p] = (jitt2[p]+self.yerr2[p,:])
             for n in range(self.N):
-                logl += np.log(2*np.pi*(jitt2[p] + self.yerr2[p,n]))
+                logl += np.log((jitt2[p] + self.yerr2[p,n]))
         logl = -0.5 * logl
        
         Fcalc = np.zeros_like(1, shape = (self.p, self.q, self.N))
@@ -600,7 +600,7 @@ class inference(object):
                                 np.diag(sigma_f[q,:,:])*np.diag(sigma_w[q,p,:,:]))\
                                 /(jitt2[p]+self.yerr2[p,:]))
         logl += -0.5* value
-        return logl 
+        return logl /self.qp
 
 
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):

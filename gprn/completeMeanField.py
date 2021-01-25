@@ -322,7 +322,7 @@ class inference(object):
             #Ou calcular media de 10 elbos ou 
             
             #Optimize mu and var analytically
-            ELBO, mu, var, sigF, sigW= self.ELBOaux(nodes, weight, mean, jitter, 
+            ELBO, mu, var, sigF, sigW,ExpLogLike, ExpLogPrior, Entropy= self.ELBOaux(nodes, weight, mean, jitter, 
                                                        mu, var, sigF, sigW)
             elboArray = np.append(elboArray, ELBO)
             iterNumber += 1
@@ -331,9 +331,9 @@ class inference(object):
                 means = np.mean(elboArray[-5:])
                 criteria = np.abs(np.std(elboArray[-5:]) / means)
                 if criteria < 1e-2 and criteria !=0:
-                    return ELBO, mu, var
+                    return ELBO, mu, var, ExpLogLike, ExpLogPrior, Entropy
         print('Max iterations reached')
-        return ELBO, mu, var
+        return ELBO, mu, var, ExpLogLike, ExpLogPrior, Entropy
     
     
     def ELBOaux(self, node, weight, mean, jitter, mu, var, sigmaF, sigmaW):
@@ -397,8 +397,7 @@ class inference(object):
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
         ELBO = (ExpLogLike + ExpLogPrior + Entropy)
-        #print(ExpLogLike, ExpLogPrior, Entropy, 'ELBO:', ELBO)
-        return ELBO, new_mu, new_var, sigmaF, sigmaW
+        return ELBO, new_mu, new_var, sigmaF, sigmaW, ExpLogLike, ExpLogPrior, Entropy
     
     
     def Prediction(self, node, weights, means, tstar, mu):
