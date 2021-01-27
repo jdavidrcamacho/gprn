@@ -534,7 +534,7 @@ class inference(object):
         mu_w = np.array(muW)
         return sigma_f, mu_f, sigma_w, mu_w
     
-    
+
     def _expectedLogLike(self, nodes, weight, mean, jitter, sigma_f, mu_f,
                          sigma_w, mu_w):
         """
@@ -563,34 +563,25 @@ class inference(object):
         logl: float
             Expected log-likelihood value
         """
-        new_y = np.concatenate(self.y) - self._mean(mean, self.time)
-        new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
+        y = np.concatenate(self.y) - self._mean(mean, self.time)
+        ycalc = np.array(np.array_split(y, self.p)) #NxP dimensional vector
         jitt2 = np.array(jitter)**2 #jitters squared
-        ycalc = new_y.T #new_y0.shape = (p,n)
-        ycalcErr = np.zeros_like(ycalc)
+        
         logl = 0
         for p in range(self.p):
-            ycalc[p] = new_y.T[p,:]
-            ycalcErr[p] = (jitt2[p]+self.yerr2[p,:])
             for n in range(self.N):
                 logl += np.log((jitt2[p] + self.yerr2[p,n]))
         logl = -0.5 * logl
-       
-        Fcalc = np.zeros_like(1, shape = (self.p, self.q, self.N))
+        print('1st:', logl)
+        
+        sumN = []
         for n in range(self.N):
-            for q in range(self.q):
-                for p in range(self.p):
-                    Fcalc[p, q ,n] = mu_f[:, q, n] #/ (jitt[p]+self.yerr[p,n])
-        Wcalc = mu_w.reshape(self.p, self.N * self.q)
-        Fcalc = Fcalc.reshape(self.p, self.N * self.q)
-        #print(Wcalc.shape, Fcalc.shape)
-        omegamu= Wcalc*Fcalc
-        #print(ycalc.shape, omegamu.shape)
-        #Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.q, self.N)
-        Ydiff = (ycalc-omegamu) * (ycalc-omegamu)/ ycalcErr
-        #Ydiff = (ycalc - Ymean) * (ycalc - Ymean) / ycalcErr
-        #print('ydiff', (ycalc - Ymean).shape, 'yerr', ycalcErr.shape)
-        logl += -0.5 * np.sum(Ydiff)
+            for p in range(self.p):
+                Ydiff = ycalc[p,n] - mu_f[0,:,n].T @mu_w[p,:,n]
+                bottom = jitt2[p]+self.yerr2[p,n]
+                sumN.append(-0.5 * (Ydiff.T * Ydiff)/bottom)
+        print('2nd:', np.sum(sumN))
+        logl += np.sum(sumN)
         
         value = 0
         for p in range(self.p):
@@ -599,10 +590,11 @@ class inference(object):
                                 np.diag(sigma_w[q,p,:,:])*mu_f[:,q,:]*mu_f[:,q,:] +\
                                 np.diag(sigma_f[q,:,:])*np.diag(sigma_w[q,p,:,:]))\
                                 /(jitt2[p]+self.yerr2[p,:]))
+        print('3rd:', value)
         logl += -0.5* value
-        return logl /self.qp
-
-
+        return logl 
+    
+    
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
         """
         Calculates the expection of the log prior wrt q(f,w) in mean-field 

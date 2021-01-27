@@ -575,54 +575,33 @@ class inference(object):
         """
         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
-        jitt = np.array(jitter) #jitters
         jitt2 = np.array(jitter)**2 #jitters squared
         ycalc = new_y.T #new_y0.shape = (p,n)
         logl = 0
         for p in range(self.p):
-#            ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:])
-            ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:]\
-                         - 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:]))
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-       
-        Wcalc, Fcalc = [], []
+        print('1st:',logl)
+        
+        Wcalc, Fcalc, bottom = [], [], []
         for p in range(self.p):
             Wcalc.append([])
             Fcalc.append([])
+            bottom.append([])
         for n in range(self.N):
             for q in range(self.q):
                 for p in range(self.p):
+                    ycalc[p,n] = new_y.T[p,n]
                     Wcalc[p].append(mu_w[p, :, n])
-                    Fcalc[p] = np.append(Fcalc[p], 
-                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+                    Fcalc[p] = np.append(Fcalc[p],mu_f[0, q, n].T)
+                    bottom[p].append(jitt2[p]+self.yerr2[p,n])
+        Wcalc = np.array(Wcalc)#.reshape(self.p, self.N * self.q)
         Fcalc = np.array(Fcalc)
-        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
-        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+        Ymean = (Fcalc @ Wcalc)
+        Ydiff = (ycalc - Ymean).T @ (ycalc - Ymean)/bottom
+        print('2nd', -0.5 * np.sum(Ydiff))
         logl += -0.5 * np.sum(Ydiff)
-        
-#        Wcalc = []
-#        for p in range(self.p):
-#            Wcalc.append([])
-#        for n in range(self.N):
-#            for p in range(self.p):
-#                Wcalc[p].append(mu_w[p, :, n])
-#        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
-#        Fcalc = []#np.array([])
-#        for p in range(self.p):
-#            Fcalc.append([])
-#            #Fcalc1.append([])
-#        for n in range(self.N):
-#            for q in range(self.q):
-#                for p in range(self.p):
-#                    Fcalc[p] = np.append(Fcalc[p], 
-#                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
-#        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
-#        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
-#        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
-#        logl += -0.5 * np.sum(Ydiff)
         
         value = 0
         for i in range(self.p):
@@ -630,9 +609,75 @@ class inference(object):
                 value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
                                 np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
                                 np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
-                                /(jitt[p]+self.yerr[p,:]- 2*jitt[p]*self.yerr[p,:]/(jitt[p]+self.yerr[p,:])))
+                                /(jitt2[i]+self.yerr2[i,:]))
+        print('3rd:', value)
         logl += -0.5* value
-        return logl/self.qp
+        return logl
+        
+        
+#         new_y = np.concatenate(self.y) - self._mean(mean, self.time)
+#         new_y = np.array(np.array_split(new_y, self.p)).T #NxP dimensional vector
+#         jitt = np.array(jitter) #jitters
+#         jitt2 = np.array(jitter)**2 #jitters squared
+#         ycalc = new_y.T #new_y0.shape = (p,n)
+#         logl = 0
+#         for p in range(self.p):
+#             ycalc[p] = new_y.T[p,:] / (jitt[p]+self.yerr[p,:])
+#             for n in range(self.N):
+#                 logl += np.log(jitt2[p] + self.yerr2[p,n])
+#         logl = -0.5 * logl
+#         #print(logl)
+        
+#         Wcalc, Fcalc = [], []
+#         for p in range(self.p):
+#             Wcalc.append([])
+#             Fcalc.append([])
+#         for n in range(self.N):
+#             for q in range(self.q):
+#                 for p in range(self.p):
+#                     Wcalc[p].append(mu_w[p, :, n])
+#                     Fcalc[p] = np.append(Fcalc[p], 
+#                          (mu_f[:, q, n] / (jitt2[p]+self.yerr2[p,n])))
+#         Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+#         Fcalc = np.array(Fcalc)
+#         Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+#         print(ycalc.shape)
+#         Ydiff = (ycalc - Ymean.T).T @ (ycalc - Ymean.T)
+#         #print(-0.5 * np.sum(Ydiff))
+#         logl += -0.5 * np.sum(Ydiff)
+        
+# #        Wcalc = []
+# #        for p in range(self.p):
+# #            Wcalc.append([])
+# #        for n in range(self.N):
+# #            for p in range(self.p):
+# #                Wcalc[p].append(mu_w[p, :, n])
+# #        Wcalc = np.array(Wcalc).reshape(self.p, self.N * self.q)
+# #        Fcalc = []#np.array([])
+# #        for p in range(self.p):
+# #            Fcalc.append([])
+# #            #Fcalc1.append([])
+# #        for n in range(self.N):
+# #            for q in range(self.q):
+# #                for p in range(self.p):
+# #                    Fcalc[p] = np.append(Fcalc[p], 
+# #                         (mu_f[:, q, n] / (jitt[p] + self.yerr[p,n])))
+# #        Wcalc, Fcalc = np.array(Wcalc), np.array(Fcalc)
+# #        Ymean = np.sum((Wcalc * Fcalc).T, axis=1).reshape(self.N, self.q)
+# #        Ydiff = (ycalc - Ymean.T) * (ycalc - Ymean.T)
+# #        logl += -0.5 * np.sum(Ydiff)
+        
+#         value = 0
+#         for i in range(self.p):
+#             for j in range(self.q):
+#                 value += np.sum((np.diag(sigma_f[j,:,:])*mu_w[i,j,:]*mu_w[i,j,:] +\
+#                                 np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
+#                                 np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
+#                                 /(jitt2[p]+self.yerr2[p,:]))
+        
+#         #print(value)
+#         logl += -0.5* value
+#         return logl/self.qp
 
 
     def _expectedLogPrior(self, nodes, weights, sigma_f, mu_f, sigma_w, mu_w):
