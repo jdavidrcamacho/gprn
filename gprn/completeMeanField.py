@@ -598,9 +598,10 @@ class inference(object):
                     bottom[p].append(jitt2[p]+self.yerr2[p,n])
         Wcalc = np.array(Wcalc)#.reshape(self.p, self.N * self.q)
         Fcalc = np.array(Fcalc)
-        Ymean = (Fcalc @ Wcalc)
-        Ydiff = (ycalc - Ymean).T @ (ycalc - Ymean)/bottom
-        print('2nd', -0.5 * np.sum(Ydiff))
+        Ymean = (Fcalc @ Wcalc).reshape(-1)
+        ycalc = ycalc.reshape(-1)
+        bottom = np.array(bottom).reshape(-1)
+        Ydiff = ((ycalc - Ymean).T * (ycalc - Ymean))#/bottom
         logl += -0.5 * np.sum(Ydiff)
         
         value = 0
