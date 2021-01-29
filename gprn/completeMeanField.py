@@ -582,7 +582,7 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log(jitt2[p] + self.yerr2[p,n])
         logl = -0.5 * logl
-        print('1st:',logl)
+        #print('1st:',logl)
         
         Wcalc, Fcalc, bottom = [], [], []
         for p in range(self.p):
@@ -601,7 +601,8 @@ class inference(object):
         Ymean = (Fcalc @ Wcalc).reshape(-1)
         ycalc = ycalc.reshape(-1)
         bottom = np.array(bottom).reshape(-1)
-        Ydiff = ((ycalc - Ymean).T * (ycalc - Ymean))#/bottom
+        Ydiff = ((ycalc - Ymean).T * (ycalc - Ymean))/bottom
+        #print('2nd:', np.sum(Ydiff))
         logl += -0.5 * np.sum(Ydiff)
         
         value = 0
@@ -611,7 +612,7 @@ class inference(object):
                                 np.diag(sigma_w[j,i,:,:])*mu_f[:,j,:]*mu_f[:,j,:] +\
                                 np.diag(sigma_f[j,:,:])*np.diag(sigma_w[j,i,:,:]))\
                                 /(jitt2[i]+self.yerr2[i,:]))
-        print('3rd:', value)
+        #print('3rd:', value)
         logl += -0.5* value
         return logl
         

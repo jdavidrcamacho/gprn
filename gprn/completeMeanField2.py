@@ -564,29 +564,26 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log((jitt2[p] + self.yerr2[p,n]))
         logl = -0.5 * logl
-        print('1st:', logl)
+        #print('1st:', logl)
         
-        #print('Y shape', ycalc[:,0].shape)
-        #print('f shape', mu_f[:,:,0].T.shape)
-        #print('w shape', mu_w[:,:,0].shape)
+        # sumN = []
+        # for n in range(self.N):
+        #     #print((jitt2[:] + self.yerr2[:,n]).shape)
+        #     Ydiff = (ycalc[:,n] - mu_f[:,:,n] @ mu_w[:,:,n].T)/(jitt2[:] + self.yerr2[:,n])
+        #     squaredYdiff = Ydiff @ Ydiff.T
+        #     sumN.append(squaredYdiff)
+        # #print('2nd', -0.5 * np.sum(sumN))
+        # logl += -0.5 * np.sum(sumN)
+        
         sumN = []
         for n in range(self.N):
-            #print((jitt2[:] + self.yerr2[:,n]).shape)
-            Ydiff = (ycalc[:,n] - mu_f[:,:,n] @ mu_w[:,:,n].T)/(jitt2[:] + self.yerr2[:,n])
-            squaredYdiff = Ydiff @ Ydiff.T
-            sumN.append(squaredYdiff)
-        print('2nd', -0.5 * np.sum(sumN))
+            for p in range(self.p):
+                Ydiff = ycalc[p,n] - mu_f[0,:,n] @mu_w[p,:,n].T
+                bottom = jitt2[p]+self.yerr2[p,n]
+                sumN.append((Ydiff.T * Ydiff)/bottom)
+                #print((Ydiff.T * Ydiff)/bottom)
+        #print('2nd:', np.sum(sumN))
         logl += -0.5 * np.sum(sumN)
-        # sumN = []
-        # print(mu_f.shape, mu_w.shape)
-        # for n in range(self.N):
-        #     for p in range(self.p):
-        #         Ydiff = ycalc[p,n] - mu_f[0,:,n].T @mu_w[p,:,n]
-        #         bottom = jitt2[p]+self.yerr2[p,n]
-        #         sumN.append(-0.5 * (Ydiff.T * Ydiff)/bottom)
-        #         #print((Ydiff.T * Ydiff)/bottom)
-        # print('2nd:', np.sum(sumN))
-        # logl += np.sum(sumN)
         
         value = 0
         for p in range(self.p):
@@ -595,7 +592,7 @@ class inference(object):
                                 np.diag(sigma_w[q,p,:,:])*mu_f[:,q,:]*mu_f[:,q,:] +\
                                 np.diag(sigma_f[q,:,:])*np.diag(sigma_w[q,p,:,:]))\
                                 /(jitt2[p]+self.yerr2[p,:]))
-        print('3rd:', value)
+        #print('3rd:', value)
         logl += -0.5* value
         return logl 
     
