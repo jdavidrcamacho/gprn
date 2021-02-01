@@ -3,7 +3,7 @@ from scipy.linalg import cholesky, LinAlgError
 from scipy.stats import multivariate_normal
 from gprn.covFunction import Linear as covL
 from gprn.covFunction import Polynomial as covP
-np.random.seed(23011990)
+
 
 class inference(object):
     """ 
@@ -375,13 +375,13 @@ class inference(object):
         #Entropy
         Entropy = self._entropy(sigmaF, sigmaW)
         #Expected log prior
-        ExpLogPrior = self._expectedLogPrior(node, weight, 
-                                            sigmaF, muF, sigmaW, muW)
+        ExpLogPrior = self._expectedLogPrior(node, weight, sigmaF, muF, 
+                                             sigmaW, muW)
         #Expected log-likelihood
         ExpLogLike = self._expectedLogLike(node, weight, mean, jitter, 
                                            sigmaF, muF, sigmaW, muW)
         #Evidence Lower Bound
-        ELBO = (ExpLogLike + ExpLogPrior + Entropy)
+        ELBO = (ExpLogLike + ExpLogPrior + Entropy) /self.q
         return ELBO, new_mu, new_var, sigmaF, sigmaW
     
     
@@ -564,16 +564,6 @@ class inference(object):
             for n in range(self.N):
                 logl += np.log((jitt2[p] + self.yerr2[p,n]))
         logl = -0.5 * logl
-        #print('1st:', logl)
-        
-        # sumN = []
-        # for n in range(self.N):
-        #     #print((jitt2[:] + self.yerr2[:,n]).shape)
-        #     Ydiff = (ycalc[:,n] - mu_f[:,:,n] @ mu_w[:,:,n].T)/(jitt2[:] + self.yerr2[:,n])
-        #     squaredYdiff = Ydiff @ Ydiff.T
-        #     sumN.append(squaredYdiff)
-        # #print('2nd', -0.5 * np.sum(sumN))
-        # logl += -0.5 * np.sum(sumN)
         
         sumN = []
         for n in range(self.N):
@@ -581,8 +571,6 @@ class inference(object):
                 Ydiff = ycalc[p,n] - mu_f[0,:,n] @mu_w[p,:,n].T
                 bottom = jitt2[p]+self.yerr2[p,n]
                 sumN.append((Ydiff.T * Ydiff)/bottom)
-                #print((Ydiff.T * Ydiff)/bottom)
-        #print('2nd:', np.sum(sumN))
         logl += -0.5 * np.sum(sumN)
         
         value = 0
@@ -592,7 +580,6 @@ class inference(object):
                                 np.diag(sigma_w[q,p,:,:])*mu_f[:,q,:]*mu_f[:,q,:] +\
                                 np.diag(sigma_f[q,:,:])*np.diag(sigma_w[q,p,:,:]))\
                                 /(jitt2[p]+self.yerr2[p,:]))
-        #print('3rd:', value)
         logl += -0.5* value
         return logl 
     
